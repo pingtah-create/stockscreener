@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ ticker }} — Chart</title>
+  <link rel="stylesheet" href="/static/chart.css" />
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div class="topbar">
+  <a class="back-btn" href="/">← Back</a>
+  <div class="stock-header">
+    <span class="stock-ticker">{{ ticker }}</span>
+    <span class="stock-name" id="stockName">Loading…</span>
+    <span class="stock-price" id="stockPrice">—</span>
+    <span class="stock-chg" id="stockChg">—</span>
+  </div>
+  <div class="period-btns">
+    <button class="period-btn" data-period="5d">1W</button>
+    <button class="period-btn" data-period="1mo">1M</button>
+    <button class="period-btn active" data-period="3mo">3M</button>
+    <button class="period-btn" data-period="6mo">6M</button>
+    <button class="period-btn" data-period="1y">1Y</button>
+    <button class="period-btn" data-period="2y">2Y</button>
+  </div>
+</div>
+
+<!-- MAIN LAYOUT -->
+<div class="main-layout">
+
+  <!-- LEFT: chart column -->
+  <div class="chart-area">
+
+    <!-- Indicator controls -->
+    <div class="chart-controls">
+      <div class="chart-type-btns">
+        <button class="ct-btn active" id="btnCandle" onclick="setChartType('candle')">Candles</button>
+        <button class="ct-btn" id="btnLine" onclick="setChartType('line')">Line</button>
+      </div>
+      <div class="ind-btns">
+        <span class="ind-label">Overlays:</span>
+        <button class="ind-btn active" data-ind="bb"     style="--ic:#0e84ff" onclick="toggleInd('bb',this)">BB</button>
+        <button class="ind-btn active" data-ind="sma20"  style="--ic:#00bcd4" onclick="toggleInd('sma20',this)">SMA20</button>
+        <button class="ind-btn"        data-ind="sma50"  style="--ic:#ff9800" onclick="toggleInd('sma50',this)">SMA50</button>
+        <button class="ind-btn"        data-ind="sma200" style="--ic:#f44336" onclick="toggleInd('sma200',this)">SMA200</button>
+        <button class="ind-btn"        data-ind="ema9"   style="--ic:#ab47bc" onclick="toggleInd('ema9',this)">EMA9</button>
+        <button class="ind-btn"        data-ind="ema20"  style="--ic:#26c6da" onclick="toggleInd('ema20',this)">EMA20</button>
+        <button class="ind-btn"        data-ind="vwap"   style="--ic:#ffd54f" onclick="toggleInd('vwap',this)">VWAP</button>
+      </div>
+    </div>
+
+    <!-- OHLCV bar -->
+    <div class="ohlcv-bar">
+      <span id="ohlcvDate" class="ohlcv-date">—</span>
+      <span>O: <b id="ohlcvO">—</b></span>
+      <span>H: <b id="ohlcvH" style="color:var(--green)">—</b></span>
+      <span>L: <b id="ohlcvL" style="color:var(--red)">—</b></span>
+      <span>C: <b id="ohlcvC">—</b></span>
+      <span>Vol: <b id="ohlcvV">—</b></span>
+    </div>
+
+    <!-- Drawing toolbar + charts side by side -->
+    <div class="chart-with-toolbar">
+
+      <!-- Drawing tools vertical strip -->
+      <div class="drawing-toolbar">
+        <button class="dtool active" id="dtool-none"      onclick="setDrawTool('none')"      title="Select / Scroll">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 1l10 6-5 1-2 5z" fill="currentColor"/></svg>
+        </button>
+        <div class="dtool-sep"></div>
+        <button class="dtool" id="dtool-trendline"  onclick="setDrawTool('trendline')"  title="Trend Line">
+          <svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="13" x2="14" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+        <button class="dtool" id="dtool-hline"      onclick="setDrawTool('hline')"      title="Horizontal Line">
+          <svg width="16" height="16" viewBox="0 0 16 16"><line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="5" x2="3" y2="5" stroke="currentColor" stroke-width="1" stroke-dasharray="1,1" opacity=".4"/><line x1="1" y1="11" x2="3" y2="11" stroke="currentColor" stroke-width="1" stroke-dasharray="1,1" opacity=".4"/></svg>
+        </button>
+        <button class="dtool" id="dtool-ray"        onclick="setDrawTool('ray')"        title="Ray (one-direction line)">
+          <svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="12" x2="14" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polygon points="14,1 14,7 11,4" fill="currentColor"/></svg>
+        </button>
+        <button class="dtool" id="dtool-rectangle"  onclick="setDrawTool('rectangle')"  title="Rectangle">
+          <svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" fill="none" stroke="currentColor" stroke-width="1.5" rx="1"/></svg>
+        </button>
+        <button class="dtool" id="dtool-fibonacci"  onclick="setDrawTool('fibonacci')"  title="Fibonacci Retracement">
+          <svg width="16" height="16" viewBox="0 0 16 16"><text x="2" y="12" font-size="11" font-weight="bold" fill="currentColor">φ</text></svg>
+        </button>
+        <div class="dtool-sep"></div>
+        <label class="dtool color-swatch" title="Drawing color">
+          <input type="color" id="drawColor" value="#ffeb3b" onchange="updateDrawColor(this.value)" />
+        </label>
+        <div class="dtool-sep"></div>
+        <button class="dtool" onclick="undoDrawing()" title="Undo last (Ctrl+Z)">
+          <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 1 1 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="1,5 3,8 6,6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <button class="dtool" onclick="clearDrawings()" title="Clear all drawings">
+          <svg width="16" height="16" viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
+      </div>
+
+      <!-- Stacked chart panels -->
+      <div class="charts-col">
+        <div class="chart-panel price-panel-wrap" id="pricePanel" style="flex:3.5">
+          <canvas id="drawingCanvas" class="drawing-canvas"></canvas>
+        </div>
+        <div class="chart-panel" id="volPanel" style="flex:1"></div>
+        <div class="osc-controls">
+          <button class="osc-btn active" onclick="setOsc('rsi',this)">RSI</button>
+          <button class="osc-btn"        onclick="setOsc('macd',this)">MACD</button>
+          <button class="osc-btn"        onclick="setOsc('stoch',this)">STOCH</button>
+          <button class="osc-btn"        onclick="setOsc('cci',this)">CCI</button>
+          <button class="osc-btn"        onclick="setOsc('willr',this)">WILLR</button>
+        </div>
+        <div class="chart-panel" id="oscPanel" style="flex:1.5"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- RIGHT: sidebar -->
+  <aside class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Fundamentals</div>
+      <div class="fund-grid" id="fundGrid"><div class="fund-loading">Loading…</div></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">Strategy Scores</div>
+      <div class="scores-list" id="scoresList"><div class="fund-loading">Loading…</div></div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">52-Week Range</div>
+      <div class="week52">
+        <div class="week52-bar-wrap">
+          <div class="week52-bar">
+            <div class="week52-fill" id="week52Fill" style="width:0%"></div>
+            <div class="week52-thumb" id="week52Thumb" style="left:0%"></div>
+          </div>
+        </div>
+        <div class="week52-labels">
+          <span id="week52Lo">—</span>
+          <span id="week52Hi">—</span>
+        </div>
+      </div>
+    </div>
+
+  </aside>
+</div>
+
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<script>const TICKER = "{{ ticker }}";</script>
+<script src="/static/chart.js"></script>
+</body>
+</html>

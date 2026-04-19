@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "Bash(pip install *)",
+      "Bash(python -c \"from flask import Flask; from app import app; print\\('import OK'\\)\")",
+      "Bash(taskkill /F /IM python.exe)",
+      "Bash(python app.py)",
+      "Bash(curl -s http://localhost:5000/stock/AAPL)",
+      "Bash(curl -s http://localhost:5000/)",
+      "Bash(python C:\\\\Users\\\\User\\\\Desktop\\\\Stockscreener\\\\app.py)",
+      "Bash(curl -sv http://localhost:5000/stock/AAPL)",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 22104 /F)",
+      "Bash(taskkill /PID 7032 /F)",
+      "Bash(cmd /c \"taskkill /PID 22104 /F & taskkill /PID 7032 /F\")",
+      "Bash(cmd /c \"for /f \\\\\"tokens=5\\\\\" %a in \\('netstat -aon ^| findstr :5000'\\) do taskkill /F /PID %a\")",
+      "Bash(findstr /I \"success\\\\|error\\\\|killed\")",
+      "Bash(python -c ' *)",
+      "Bash(cmd /c \"netstat -aon | findstr :5000\")"
+    ]
+  }
+}

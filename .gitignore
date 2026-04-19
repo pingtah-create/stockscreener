@@ -1,0 +1,19 @@
+# Cache & data (don't commit — too large, refreshes automatically)
+cache/
+static/cache/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.env
+venv/
+.venv/
+
+# Server logs
+server.log
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
