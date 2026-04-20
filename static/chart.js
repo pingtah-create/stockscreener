@@ -32,6 +32,10 @@ let currentOsc   = 'rsi';
 let currentType  = 'candle';
 let _syncingRange = false;
 
+// ── News state ──────────────────────────────────────────────────────
+const newsData = {};      // date string → [{title, publisher, link, age_min}]
+let   _newsHideTimer = null;
+
 // ── Indicator defaults ─────────────────────────────────────────────
 const IND_ON = { bb: true, sma20: true, sma50: false, sma200: false, ema9: false, ema20: false, vwap: false };
 
@@ -61,8 +65,11 @@ window.addEventListener('DOMContentLoaded', () => {
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
     if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undoDrawing(); }
-    if (e.key === 'Escape') setDrawTool('none');
+    if (e.key === 'Escape') { setDrawTool('none'); closeChartSearch(); }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); document.getElementById('chartSearchInput')?.focus(); }
   });
+
+  setupChartSearch();
 
   // Update color swatch CSS var
   updateDrawColor(drawColor);
@@ -103,6 +110,11 @@ function initCharts() {
     oscChart.timeScale().setVisibleLogicalRange(range);
     _syncingRange = false;
     markRender();
+    // Hide candle tooltip while scrolling/zooming so it doesn't float
+    const tip = document.getElementById('candleTooltip');
+    if (tip) tip.style.display = 'none';
+    const nmTip = document.getElementById('newsMarkerTooltip');
+    if (nmTip) nmTip.style.display = 'none';
   });
 
   // Crosshair sync: overlay lines on vol + osc panels
@@ -115,6 +127,14 @@ function initCharts() {
     syncLine(volChart,  volLine,  p.time);
     syncLine(oscChart,  oscLine,  p.time);
     markRender();
+    if (p.time && newsData[String(p.time)]) showNewsTooltip(String(p.time));
+    else hideNewsTooltip();
+  });
+
+  // Hide candle tooltip when mouse leaves the price panel
+  pricePanel.addEventListener('mouseleave', () => {
+    const tip = document.getElementById('candleTooltip');
+    if (tip) tip.style.display = 'none';
   });
   volChart.subscribeCrosshairMove(p => {
     syncLine(priceChart, priLine, p.time);
@@ -233,6 +253,118 @@ async function loadData(period) {
   const res  = await fetch(`/api/chart/${TICKER}?period=${period}`);
   chartData  = await res.json();
   applyAllData();
+  loadNewsMarkers();
+}
+
+// ── News markers ────────────────────────────────────────────────────
+async function loadNewsMarkers() {
+  if (!chartData?.ohlcv?.length) return;
+  try {
+    const items = await fetch(`/api/news/${TICKER}`).then(r => r.json());
+
+    // Clear previous
+    for (const k in newsData) delete newsData[k];
+
+    const chartDates = chartData.ohlcv.map(x => x.date);
+    const lastDate   = chartDates[chartDates.length - 1];
+
+    for (const item of items) {
+      if (!item.date) continue;
+      const nearest = findNearestDate(item.date, chartDates);
+      if (!nearest) continue;
+      if (!newsData[nearest]) newsData[nearest] = [];
+      newsData[nearest].push(item);
+    }
+
+    // One marker per date, count label when multiple
+    const markers = Object.keys(newsData).sort().map(date => ({
+      time:     date,
+      position: 'aboveBar',
+      color:    '#ff6b00',
+      shape:    'circle',
+      text:     newsData[date].length > 1 ? String(newsData[date].length) : '',
+      size:     1,
+    }));
+    candleSeries.setMarkers(markers);
+
+    renderSidebarNews(items);
+  } catch (e) {}
+}
+
+function findNearestDate(target, chartDates) {
+  const t     = new Date(target).getTime();
+  const first = new Date(chartDates[0]).getTime();
+  const last  = new Date(chartDates[chartDates.length - 1]).getTime();
+  if (t < first || t > last + 86400000 * 2) return null;
+  let best = null, bestDiff = Infinity;
+  for (const d of chartDates) {
+    const diff = Math.abs(new Date(d).getTime() - t);
+    if (diff < bestDiff) { bestDiff = diff; best = d; }
+  }
+  return bestDiff < 86400000 * 4 ? best : null;
+}
+
+function renderSidebarNews(items) {
+  const feed = document.getElementById('sidebarNewsFeed');
+  if (!feed) return;
+  if (!items.length) { feed.innerHTML = '<div class="fund-loading">No news found</div>'; return; }
+  feed.innerHTML = items.slice(0, 15).map(n => {
+    const age = n.age_min == null ? '' :
+      n.age_min < 60   ? `${n.age_min}m ago` :
+      n.age_min < 1440 ? `${Math.floor(n.age_min / 60)}h ago` :
+      `${Math.floor(n.age_min / 1440)}d ago`;
+    return `<a class="snews-item" href="${n.link}" target="_blank" rel="noopener noreferrer">
+      <div class="snews-title">${n.title}</div>
+      <div class="snews-meta">
+        <span class="snews-pub">${n.publisher || ''}</span>
+        ${age ? `<span>·</span><span>${age}</span>` : ''}
+      </div>
+    </a>`;
+  }).join('');
+}
+
+function showNewsTooltip(date) {
+  const tooltip = document.getElementById('newsMarkerTooltip');
+  if (!tooltip) return;
+  const items = newsData[date];
+  if (!items?.length) { hideNewsTooltip(); return; }
+
+  const x = priceChart.timeScale().timeToCoordinate(date);
+  if (x === null) { hideNewsTooltip(); return; }
+
+  tooltip.innerHTML = `
+    <div class="nmt-header">NEWS · ${date}</div>
+    ${items.map(n => {
+      const age = n.age_min == null ? '' :
+        n.age_min < 60   ? `${n.age_min}m ago` :
+        n.age_min < 1440 ? `${Math.floor(n.age_min / 60)}h ago` :
+        `${Math.floor(n.age_min / 1440)}d ago`;
+      return `<div class="nmt-item" onclick="window.open('${n.link}','_blank')">
+        <div class="nmt-title">${n.title}</div>
+        <div class="nmt-meta">
+          <span class="nmt-pub">${n.publisher || ''}</span>
+          ${age ? `<span class="nmt-age">· ${age}</span>` : ''}
+        </div>
+      </div>`;
+    }).join('')}`;
+
+  // Position: keep tooltip inside the panel
+  const panel = document.getElementById('pricePanel');
+  const panelW = panel ? panel.getBoundingClientRect().width : 600;
+  const tipW = 320;
+  let left = Math.max(8, x - tipW / 2);
+  if (left + tipW > panelW - 8) left = panelW - tipW - 8;
+  tooltip.style.left = left + 'px';
+  tooltip.style.display = 'block';
+
+  if (_newsHideTimer) { clearTimeout(_newsHideTimer); _newsHideTimer = null; }
+}
+
+function hideNewsTooltip() {
+  _newsHideTimer = setTimeout(() => {
+    const tooltip = document.getElementById('newsMarkerTooltip');
+    if (tooltip) tooltip.style.display = 'none';
+  }, 120);
 }
 
 function toSeries(dates, vals) {
@@ -296,20 +428,93 @@ function applyOscData(osc) {
   }
 }
 
-// ── OHLCV tooltip ──────────────────────────────────────────────────
+// ── Candle tooltip (floating box) ─────────────────────────────────
 function updateOHLCV(param) {
-  if (!param?.time || !chartData) { return; }
-  const bar = chartData.ohlcv.find(x => x.date === String(param.time));
-  if (!bar) return;
+  const tip = document.getElementById('candleTooltip');
+  if (!tip) return;
+  if (!param?.time || !chartData) { tip.style.display = 'none'; return; }
 
-  document.getElementById('ohlcvDate').textContent = bar.date;
-  document.getElementById('ohlcvO').textContent    = bar.open.toFixed(2);
-  document.getElementById('ohlcvH').textContent    = bar.high.toFixed(2);
-  document.getElementById('ohlcvL').textContent    = bar.low.toFixed(2);
-  const c = document.getElementById('ohlcvC');
-  c.textContent  = bar.close.toFixed(2);
-  c.style.color  = bar.up ? 'var(--green)' : 'var(--red)';
-  document.getElementById('ohlcvV').textContent = fmtVol(bar.volume);
+  const dateStr = String(param.time);
+  const idx     = chartData.ohlcv.findIndex(x => x.date === dateStr);
+  if (idx < 0) { tip.style.display = 'none'; return; }
+
+  const bar   = chartData.ohlcv[idx];
+  const prev  = idx > 0 ? chartData.ohlcv[idx - 1] : null;
+  const chgPct = prev ? ((bar.close - prev.close) / prev.close * 100) : null;
+  const chgAbs = prev ? (bar.close - prev.close) : null;
+  const t      = chartData.technicals;
+
+  const green = '#00e676', red = '#ff4f4f';
+  const clr   = bar.up ? green : red;
+  const sign  = chgPct >= 0 ? '+' : '';
+
+  // Format date nicely
+  const d    = new Date(dateStr + 'T00:00:00');
+  const dStr = d.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', year:'numeric' });
+
+  // Indicator values at this index
+  const rsiVal   = t.rsi?.[idx];
+  const macdVal  = t.macd?.[idx];
+  const sma20Val = t.sma20?.[idx];
+  const sma50Val = t.sma50?.[idx];
+  const bbUpper  = t.bb_upper?.[idx];
+  const bbLower  = t.bb_lower?.[idx];
+  const bbMid    = t.bb_mid?.[idx];
+  const vwapVal  = t.vwap?.[idx];
+  const atrVal   = t.atr?.[idx];
+
+  // BB %B position (0=at lower, 1=at upper)
+  const bbPct = (bbUpper && bbLower && bbUpper !== bbLower)
+    ? ((bar.close - bbLower) / (bbUpper - bbLower) * 100).toFixed(0)
+    : null;
+
+  function iv(v, dec = 2) { return (v != null && isFinite(v)) ? v.toFixed(dec) : '—'; }
+  function rsiColor(v) {
+    if (!v || !isFinite(v)) return '#8899aa';
+    return v >= 70 ? red : v <= 30 ? green : '#e8edf5';
+  }
+
+  tip.innerHTML = `
+    <div class="ct-header">
+      <span class="ct-date">${dStr}</span>
+      ${chgPct != null ? `<span class="ct-chg" style="color:${clr}">${sign}${chgPct.toFixed(2)}%  ${sign}${chgAbs >= 0 ? chgAbs.toFixed(2) : chgAbs.toFixed(2)}</span>` : ''}
+    </div>
+    <div class="ct-prices">
+      <div class="ct-row"><span class="ct-label">Open</span><span class="ct-val">$${bar.open.toFixed(2)}</span></div>
+      <div class="ct-row"><span class="ct-label">High</span><span class="ct-val" style="color:${green}">$${bar.high.toFixed(2)}</span></div>
+      <div class="ct-row"><span class="ct-label">Low</span><span class="ct-val" style="color:${red}">$${bar.low.toFixed(2)}</span></div>
+      <div class="ct-row"><span class="ct-label">Close</span><span class="ct-val" style="color:${clr};font-weight:800">$${bar.close.toFixed(2)}</span></div>
+      <div class="ct-row"><span class="ct-label">Volume</span><span class="ct-val">${fmtVol(bar.volume)}</span></div>
+      <div class="ct-row"><span class="ct-label">Range</span><span class="ct-val">$${(bar.high - bar.low).toFixed(2)}</span></div>
+    </div>
+    <div class="ct-divider"></div>
+    <div class="ct-inds">
+      ${rsiVal != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">RSI 14</span><span class="ct-ind-val" style="color:${rsiColor(rsiVal)}">${iv(rsiVal, 1)}</span></div>` : ''}
+      ${macdVal != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">MACD</span><span class="ct-ind-val">${iv(macdVal, 3)}</span></div>` : ''}
+      ${sma20Val != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">SMA 20</span><span class="ct-ind-val">$${iv(sma20Val)}</span></div>` : ''}
+      ${sma50Val != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">SMA 50</span><span class="ct-ind-val">$${iv(sma50Val)}</span></div>` : ''}
+      ${vwapVal != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">VWAP</span><span class="ct-ind-val">$${iv(vwapVal)}</span></div>` : ''}
+      ${bbPct != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">BB %B</span><span class="ct-ind-val">${bbPct}%</span></div>` : ''}
+      ${atrVal != null ? `<div class="ct-ind-row"><span class="ct-ind-lbl">ATR 14</span><span class="ct-ind-val">$${iv(atrVal)}</span></div>` : ''}
+    </div>`;
+
+  // Position the tooltip next to the crosshair, stay within panel
+  const panel  = document.getElementById('pricePanel');
+  const panelW = panel ? panel.getBoundingClientRect().width  : 600;
+  const panelH = panel ? panel.getBoundingClientRect().height : 400;
+  const tipW = 190, tipH = 280;
+
+  let x = (param.point?.x ?? 0) + 14;
+  let y = (param.point?.y ?? 0) - tipH / 2;
+
+  if (x + tipW > panelW - 8) x = (param.point?.x ?? 0) - tipW - 14;
+  if (y < 8) y = 8;
+  if (y + tipH > panelH - 8) y = panelH - tipH - 8;
+
+  tip.style.left    = x + 'px';
+  tip.style.top     = y + 'px';
+  tip.style.display = 'block';
+  tip.style.borderColor = clr;
 }
 
 // ── Period buttons ─────────────────────────────────────────────────
@@ -353,6 +558,69 @@ function setChartType(type) {
   document.getElementById('btnLine')  .classList.toggle('active', type === 'line');
   candleSeries   .applyOptions({ visible: type === 'candle' });
   linePriceSeries.applyOptions({ visible: type === 'line' });
+}
+
+// ── Chart page search ──────────────────────────────────────────────
+let _chartSearchPool = [];
+let _chartSearchDebounce;
+
+async function setupChartSearch() {
+  const input    = document.getElementById('chartSearchInput');
+  const dropdown = document.getElementById('chartSearchDropdown');
+  if (!input) return;
+
+  // Pre-load pool
+  try {
+    const res  = await fetch('/api/screen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: {}, sort_by: 'marketCap', sort_dir: 'desc', page: 1, per_page: 200 }),
+    });
+    const data = await res.json();
+    _chartSearchPool = data.results || [];
+  } catch (e) {}
+
+  input.addEventListener('input', () => {
+    clearTimeout(_chartSearchDebounce);
+    const q = input.value.trim().toUpperCase();
+    if (!q) { closeChartSearch(); return; }
+    _chartSearchDebounce = setTimeout(() => renderChartSearchResults(q), 150);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const first = dropdown.querySelector('.chart-search-result');
+      if (first) first.click();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!document.getElementById('chartSearchWrap')?.contains(e.target)) closeChartSearch();
+  });
+}
+
+function renderChartSearchResults(q) {
+  const dropdown = document.getElementById('chartSearchDropdown');
+  const found = _chartSearchPool.filter(s =>
+    s.symbol?.toUpperCase().startsWith(q) ||
+    s.symbol?.toUpperCase().includes(q) ||
+    (s.shortName || '').toUpperCase().includes(q)
+  ).slice(0, 8);
+
+  if (!found.length) {
+    dropdown.innerHTML = `<div style="padding:10px 14px;color:#4a5568;font-size:11px">No matches</div>`;
+  } else {
+    dropdown.innerHTML = found.map(s => `
+      <a class="chart-search-result" href="/stock/${s.symbol}">
+        <span class="csr-ticker">${s.symbol}</span>
+        <span class="csr-name">${s.shortName || s.longName || ''}</span>
+      </a>`).join('');
+  }
+  dropdown.classList.add('open');
+}
+
+function closeChartSearch() {
+  document.getElementById('chartSearchDropdown')?.classList.remove('open');
 }
 
 // ══════════════════════════════════════════════════════════════════
@@ -452,6 +720,21 @@ function setupDrawingCanvas() {
   drawCanvas.addEventListener('click',     onCanvasClick);
   drawCanvas.addEventListener('mouseleave', () => { hoverPt = null; markRender(); });
   drawCanvas.addEventListener('contextmenu', e => { e.preventDefault(); cancelActiveDrawing(); });
+
+  // Forward wheel events to the LightweightCharts canvas so scroll always works
+  drawCanvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const lcCanvas = Array.from(pricePanel.querySelectorAll('canvas'))
+      .find(c => c !== drawCanvas);
+    if (lcCanvas) {
+      lcCanvas.dispatchEvent(new WheelEvent('wheel', {
+        bubbles: true, cancelable: true,
+        deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode,
+        ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey,
+        clientX: e.clientX, clientY: e.clientY,
+      }));
+    }
+  }, { passive: false });
 }
 
 function onCanvasMove(e) {
@@ -512,7 +795,8 @@ function markRender() { needRender = true; }
 
 function startRenderLoop() {
   function loop() {
-    if (needRender) { renderDrawings(); needRender = false; }
+    // Always redraw so drawings follow the chart during scroll/zoom
+    renderDrawings();
     rafId = requestAnimationFrame(loop);
   }
   rafId = requestAnimationFrame(loop);

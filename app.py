@@ -246,6 +246,94 @@ def api_chart(ticker: str):
         return jsonify({"ohlcv": [], "technicals": {}, "error": str(e)})
 
 
+def _parse_news(raw, max_items=20):
+    """Parse yfinance news list into clean dicts with date field."""
+    import time as _time
+    import datetime as dt
+    result = []
+    for n in (raw or [])[:max_items]:
+        content = n.get("content", {})
+        title = content.get("title") or n.get("title", "")
+        link  = content.get("canonicalUrl", {}).get("url") or n.get("link", "")
+        pub   = content.get("provider", {}).get("displayName") or n.get("publisher", "")
+        ts    = content.get("pubDate") or ""
+        date_str = None
+        age_min  = None
+        if ts:
+            try:
+                d = dt.datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                date_str = d.strftime("%Y-%m-%d")
+                age_min  = int((dt.datetime.now(dt.timezone.utc) - d).total_seconds() / 60)
+            except Exception:
+                pass
+        if not date_str:
+            pt = n.get("providerPublishTime", 0)
+            if pt:
+                d = dt.datetime.fromtimestamp(pt, tz=dt.timezone.utc)
+                date_str = d.strftime("%Y-%m-%d")
+                age_min  = int((_time.time() - pt) / 60)
+        thumb = ""
+        try:
+            resolutions = n.get("thumbnail", {}).get("resolutions", [])
+            if resolutions:
+                thumb = resolutions[0].get("url", "")
+        except Exception:
+            pass
+        if title and link:
+            result.append({
+                "title": title, "publisher": pub, "link": link,
+                "date": date_str, "age_min": age_min, "thumbnail": thumb,
+            })
+    return result
+
+
+@app.route("/api/news")
+def api_news():
+    try:
+        return jsonify(_parse_news(yf.Ticker("SPY").news, 20))
+    except Exception:
+        return jsonify([])
+
+
+@app.route("/api/news/<ticker>")
+def api_news_ticker(ticker: str):
+    try:
+        return jsonify(_parse_news(yf.Ticker(ticker.upper()).news, 30))
+    except Exception:
+        return jsonify([])
+
+
+@app.route("/api/movers")
+def api_movers():
+    _ensure_stocks_loaded()
+    stocks = [s for s in _stock_cache if s.get("regularMarketChangePercent") is not None]
+    stocks_sorted = sorted(stocks, key=lambda s: s.get("regularMarketChangePercent", 0), reverse=True)
+    gainers = stocks_sorted[:5]
+    losers  = stocks_sorted[-5:][::-1]
+    def fmt(s):
+        return {
+            "symbol": s.get("symbol"),
+            "name":   s.get("shortName", ""),
+            "chg":    round(s.get("regularMarketChangePercent", 0), 2),
+        }
+    return jsonify({"gainers": [fmt(s) for s in gainers], "losers": [fmt(s) for s in losers]})
+
+
+@app.route("/api/heatmap")
+def api_heatmap():
+    _ensure_stocks_loaded()
+    totals: dict = {}
+    counts: dict = {}
+    for s in _stock_cache:
+        sec = s.get("sector") or s.get("sectorDisp") or ""
+        chg = s.get("regularMarketChangePercent")
+        if sec and chg is not None:
+            totals[sec] = totals.get(sec, 0) + chg
+            counts[sec] = counts.get(sec, 0) + 1
+    result = {sec: round(totals[sec] / counts[sec], 2) for sec in totals}
+    return jsonify(result)
+
+
 @app.route("/api/refresh", methods=["POST"])
 def api_refresh():
     tickers = _tickers or get_all_tickers()

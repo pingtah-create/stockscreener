@@ -70,11 +70,198 @@ const SECTOR_COLORS = {
 document.addEventListener("DOMContentLoaded", async () => {
   setupSearch();
   setupKeyboardShortcuts();
+  updateMarketStatus();
+  setInterval(updateMarketStatus, 30000);
   await Promise.all([loadPresets(), loadIndices(), checkStatus()]);
+  loadMovers();
+  loadHeatmap();
+  loadNews();
+  preloadStocksForSearch();   // populate search pool without showing table
   renderWatchlist();
   setInterval(checkStatus, 4000);
   setInterval(loadIndices, 60000);
+  setInterval(loadMovers, 120000);
+  setInterval(loadNews, 300000);
 });
+
+// silently fetch stocks so the search bar works immediately
+async function preloadStocksForSearch() {
+  if (allResults.length) return;
+  try {
+    const res = await fetch("/api/screen", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filters: {}, sort_by: "marketCap", sort_dir: "desc", page: 1, per_page: 200 }),
+    });
+    const data = await res.json();
+    if (!allResults.length) {
+      allResults   = data.results;
+      totalResults = data.total;
+    }
+  } catch (e) {}
+}
+
+// ── TAB SWITCHING ──────────────────────────────────────
+function switchTab(tab) {
+  document.getElementById("tabDashboard").style.display = tab === "dashboard" ? "" : "none";
+  document.getElementById("tabScreener").style.display  = tab === "screener"  ? "" : "none";
+  document.getElementById("tabBtnDashboard").classList.toggle("active", tab === "dashboard");
+  document.getElementById("tabBtnScreener").classList.toggle("active",  tab === "screener");
+  if (tab === "screener" && !allResults.length) runScreen();
+}
+
+// ── MARKET STATUS ─────────────────────────────────────
+function updateMarketStatus() {
+  const dot   = document.getElementById("marketDot");
+  const label = document.getElementById("marketLabel");
+  if (!dot || !label) return;
+  // NYSE hours: 9:30–16:00 ET on weekdays
+  const now = new Date();
+  const etOptions = { timeZone: "America/New_York", hour: "numeric", minute: "numeric", hour12: false, weekday: "short" };
+  const parts = new Intl.DateTimeFormat("en-US", etOptions).formatToParts(now);
+  const weekday = parts.find(p => p.type === "weekday")?.value;
+  const hour    = parseInt(parts.find(p => p.type === "hour")?.value || "0");
+  const minute  = parseInt(parts.find(p => p.type === "minute")?.value || "0");
+  const isWeekend = weekday === "Sat" || weekday === "Sun";
+  const totalMin = hour * 60 + minute;
+  const openMin  = 9 * 60 + 30;
+  const closeMin = 16 * 60;
+  const preMin   = 4 * 60;
+
+  dot.className = "market-dot";
+  if (isWeekend || totalMin >= closeMin || totalMin < preMin) {
+    dot.classList.add("closed");
+    label.textContent = "MARKET CLOSED";
+    label.style.color = "var(--red)";
+  } else if (totalMin < openMin) {
+    dot.classList.add("pre");
+    const minsLeft = openMin - totalMin;
+    label.textContent = `PRE-MARKET · opens in ${minsLeft}m`;
+    label.style.color = "var(--yellow)";
+  } else {
+    dot.classList.add("open");
+    const minsLeft = closeMin - totalMin;
+    const h = Math.floor(minsLeft / 60), m = minsLeft % 60;
+    label.textContent = `NYSE OPEN · ${h}h ${m}m left`;
+    label.style.color = "var(--green)";
+  }
+}
+
+// ── TOP MOVERS ────────────────────────────────────────
+async function loadMovers() {
+  try {
+    const data = await fetch("/api/movers").then(r => r.json());
+    renderMovers("moverGainers", data.gainers, "up");
+    renderMovers("moverLosers",  data.losers,  "down");
+    const t = document.getElementById("moversTime");
+    if (t) t.textContent = new Date().toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" });
+  } catch (e) {}
+}
+
+function renderMovers(containerId, items, cls) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.innerHTML = items.map(s => {
+    const sign = s.chg >= 0 ? "+" : "";
+    const shortName = (s.name || "").split(" ").slice(0, 3).join(" ");
+    return `<div class="mover-row ${cls}" onclick="showStockDetail('${s.symbol}')">
+      <div class="mover-row-left">
+        <span class="mover-row-ticker">${s.symbol}</span>
+        <span class="mover-row-name">${shortName}</span>
+      </div>
+      <span class="mover-row-pct">${sign}${s.chg.toFixed(2)}%</span>
+    </div>`;
+  }).join("");
+}
+
+// ── SECTOR HEAT MAP ───────────────────────────────────
+let activeHeatmapSector = null;
+
+async function loadHeatmap() {
+  try {
+    const data = await fetch("/api/heatmap").then(r => r.json());
+    renderHeatmap(data);
+  } catch (e) {}
+}
+
+function renderHeatmap(data) {
+  const grid = document.getElementById("heatmapGrid");
+  if (!grid) return;
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  if (!entries.length) { grid.innerHTML = '<div class="heatmap-loading">No data</div>'; return; }
+
+  grid.innerHTML = entries.map(([sector, chg]) => {
+    const pct = Math.min(Math.abs(chg) / 3, 1);
+    let bg;
+    if (chg > 0) {
+      const g = Math.round(40 + pct * 110);
+      bg = `rgba(0,${g},40,0.75)`;
+    } else {
+      const r = Math.round(100 + pct * 130);
+      bg = `rgba(${r},20,20,0.75)`;
+    }
+    const sign = chg >= 0 ? "+" : "";
+    const shortName = sector.replace(" Services","").replace(" Cyclical","").replace(" Defensive","");
+    const isActive = activeHeatmapSector === sector;
+    return `<div class="heatmap-tile${isActive ? " active" : ""}"
+              style="background:${bg}"
+              onclick="filterBySector('${sector}')"
+              title="${sector}">
+      <div class="heatmap-sector">${shortName}</div>
+      <div class="heatmap-pct ${chg >= 0 ? 'up' : 'down'}">${sign}${chg.toFixed(2)}%</div>
+    </div>`;
+  }).join("");
+}
+
+// ── NEWS FEED ─────────────────────────────────────────
+async function loadNews() {
+  const feed = document.getElementById("newsFeed");
+  if (!feed) return;
+  feed.innerHTML = `<div class="news-loading"><span class="spinner"></span> Loading news…</div>`;
+  try {
+    const items = await fetch("/api/news").then(r => r.json());
+    if (!items.length) {
+      feed.innerHTML = `<div class="news-loading">No news available right now.</div>`;
+      return;
+    }
+    feed.innerHTML = items.map(n => {
+      const age = n.age_min == null ? "" :
+        n.age_min < 60  ? `${n.age_min}m ago` :
+        n.age_min < 1440 ? `${Math.floor(n.age_min/60)}h ago` :
+        `${Math.floor(n.age_min/1440)}d ago`;
+      const thumb = n.thumbnail
+        ? `<img class="news-thumb" src="${n.thumbnail}" alt="" onerror="this.style.display='none'">`
+        : `<div class="news-thumb-placeholder">📰</div>`;
+      return `<a class="news-item" href="${n.link}" target="_blank" rel="noopener noreferrer">
+        ${thumb}
+        <div class="news-body">
+          <div class="news-title">${n.title}</div>
+          <div class="news-meta">
+            <span class="news-publisher">${n.publisher || "Reuters"}</span>
+            ${age ? `<span class="news-dot"></span><span class="news-age">${age}</span>` : ""}
+          </div>
+        </div>
+      </a>`;
+    }).join("");
+  } catch (e) {
+    feed.innerHTML = `<div class="news-loading" style="color:var(--red)">Failed to load news.</div>`;
+  }
+}
+
+function filterBySector(sector) {
+  const sel = document.getElementById("filterSector");
+  if (!sel) return;
+  if (activeHeatmapSector === sector) {
+    activeHeatmapSector = null;
+    sel.value = "";
+  } else {
+    activeHeatmapSector = sector;
+    sel.value = sector;
+  }
+  // re-render heatmap to update active state
+  fetch("/api/heatmap").then(r => r.json()).then(renderHeatmap).catch(() => {});
+  runScreen();
+}
 
 // ── KEYBOARD SHORTCUTS ─────────────────────────────────
 function setupKeyboardShortcuts() {
@@ -106,12 +293,20 @@ async function loadIndices() {
       const priceStr = info.price >= 1000
         ? info.price.toLocaleString("en-US", { maximumFractionDigits: 2 })
         : info.price.toFixed(2);
+      // Ticker tape
       for (const suffix of ["", "b"]) {
         const pe = document.getElementById(`tape-${id}${suffix}`);
         const ce = document.getElementById(`tapechg-${id}${suffix}`);
         if (pe) pe.textContent = priceStr;
         if (ce) { ce.textContent = `${sign}${chg.toFixed(2)}%`; ce.className = `tape-chg ${cls}`; }
       }
+      // Dashboard market cards
+      const card  = document.getElementById(`mktcard-${id}`);
+      const price = document.getElementById(`mktprice-${id}`);
+      const chgEl = document.getElementById(`mktchg-${id}`);
+      if (price) price.textContent = priceStr;
+      if (chgEl) { chgEl.textContent = `${sign}${chg.toFixed(2)}%`; chgEl.className = `mkt-card-chg ${cls}`; }
+      if (card)  { card.classList.remove("up","down"); card.classList.add(cls); }
     }
   } catch (e) {}
 }

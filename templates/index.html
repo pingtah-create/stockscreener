@@ -9,7 +9,7 @@
 </head>
 <body>
 
-<!-- MARKET TICKER TAPE -->
+<!-- TICKER TAPE -->
 <div class="ticker-tape">
   <div class="tape-track" id="tapeTrack">
     <span class="tape-item"><span class="tape-name">S&amp;P 500</span><span class="tape-price" id="tape-SP500">—</span><span class="tape-chg" id="tapechg-SP500">—</span></span>
@@ -23,7 +23,6 @@
     <span class="tape-item"><span class="tape-name">RUSSELL</span><span class="tape-price" id="tape-Russell">—</span><span class="tape-chg" id="tapechg-Russell">—</span></span>
     <span class="tape-sep">·</span>
     <span class="tape-item"><span class="tape-name">10Y YIELD</span><span class="tape-price" id="tape-10Y">—</span><span class="tape-chg" id="tapechg-10Y">—</span></span>
-    <!-- duplicated for infinite scroll -->
     <span class="tape-sep">·</span>
     <span class="tape-item"><span class="tape-name">S&amp;P 500</span><span class="tape-price" id="tape-SP500b">—</span><span class="tape-chg" id="tapechg-SP500b">—</span></span>
     <span class="tape-sep">·</span>
@@ -39,217 +38,311 @@
   </div>
 </div>
 
-<!-- HEADER -->
-<header class="header">
-  <div class="header-left">
-    <div class="logo-wrap">
-      <div class="logo-icon">📈</div>
-      <div class="logo-text">
-        <h1>US Stock Screener</h1>
-        <span class="subtitle">Factor Investing · 500+ Stocks</span>
-      </div>
+<!-- NAVBAR -->
+<nav class="navbar">
+  <div class="nav-brand">
+    <div class="nav-logo-mark">◈</div>
+    <div class="nav-logo-text">
+      <span class="nav-logo-name">STOCKSCREENER</span>
+      <span class="nav-logo-tag">PRO</span>
     </div>
   </div>
 
-  <div class="header-center">
-    <div class="search-wrap" id="searchWrap">
-      <span class="search-icon">🔍</span>
-      <input class="search-input" id="searchInput" type="text"
-             placeholder="Search ticker or company… (Ctrl+K)"
-             autocomplete="off" />
-      <div class="search-dropdown" id="searchDropdown"></div>
-    </div>
+  <div class="nav-search-wrap" id="searchWrap">
+    <span class="nav-search-icon">⌕</span>
+    <input class="nav-search-input" id="searchInput" type="text"
+           placeholder="Search ticker or company…  Ctrl+K"
+           autocomplete="off" />
+    <div class="search-dropdown" id="searchDropdown"></div>
   </div>
 
-  <div class="header-right">
+  <div class="nav-right">
+    <div class="market-status" id="marketStatus">
+      <span class="market-dot" id="marketDot"></span>
+      <span class="market-label" id="marketLabel">—</span>
+    </div>
     <div class="status-pill" id="statusPill">
       <span class="status-dot" id="statusDot"></span>
       <span id="cacheCount">Loading…</span>
-      <div class="refresh-mini" id="refreshMini">
+      <div class="refresh-mini" id="refreshMini" style="display:none">
         <div class="refresh-mini-fill" id="refreshMiniFill"></div>
       </div>
     </div>
     <button class="btn btn-secondary sm" id="btnRefresh" onclick="startRefresh()">⟳ Refresh</button>
   </div>
-</header>
+</nav>
 
-<!-- MAIN LAYOUT -->
-<main class="layout">
+<!-- TAB BAR -->
+<div class="tab-bar">
+  <button class="nav-tab active" id="tabBtnDashboard" onclick="switchTab('dashboard')">
+    <span class="tab-icon">⬛</span> DASHBOARD
+  </button>
+  <button class="nav-tab" id="tabBtnScreener" onclick="switchTab('screener')">
+    <span class="tab-icon">⊞</span> SCREENER
+  </button>
+</div>
 
-  <!-- SIDEBAR -->
-  <aside class="sidebar">
+<!-- ══════════════════════════════════════════════
+     DASHBOARD TAB
+═══════════════════════════════════════════════ -->
+<div id="tabDashboard" class="tab-content">
 
-    <!-- THESIS / PRESETS -->
-    <section class="card">
-      <div class="section-title">Investment Thesis</div>
-      <div class="preset-grid" id="presetGrid"></div>
-    </section>
+  <!-- MARKET INDEX CARDS -->
+  <div class="mkt-cards-row">
+    <div class="mkt-card" id="mktcard-SP500">
+      <div class="mkt-card-name">S&amp;P 500</div>
+      <div class="mkt-card-price" id="mktprice-SP500">—</div>
+      <div class="mkt-card-chg" id="mktchg-SP500">—</div>
+    </div>
+    <div class="mkt-card" id="mktcard-NASDAQ">
+      <div class="mkt-card-name">NASDAQ</div>
+      <div class="mkt-card-price" id="mktprice-NASDAQ">—</div>
+      <div class="mkt-card-chg" id="mktchg-NASDAQ">—</div>
+    </div>
+    <div class="mkt-card" id="mktcard-DOW">
+      <div class="mkt-card-name">DOW JONES</div>
+      <div class="mkt-card-price" id="mktprice-DOW">—</div>
+      <div class="mkt-card-chg" id="mktchg-DOW">—</div>
+    </div>
+    <div class="mkt-card" id="mktcard-Russell">
+      <div class="mkt-card-name">RUSSELL 2000</div>
+      <div class="mkt-card-price" id="mktprice-Russell">—</div>
+      <div class="mkt-card-chg" id="mktchg-Russell">—</div>
+    </div>
+    <div class="mkt-card" id="mktcard-VIX">
+      <div class="mkt-card-name">VIX</div>
+      <div class="mkt-card-price" id="mktprice-VIX">—</div>
+      <div class="mkt-card-chg" id="mktchg-VIX">—</div>
+    </div>
+    <div class="mkt-card" id="mktcard-10Y">
+      <div class="mkt-card-name">10Y TREASURY</div>
+      <div class="mkt-card-price" id="mktprice-10Y">—</div>
+      <div class="mkt-card-chg" id="mktchg-10Y">—</div>
+    </div>
+  </div>
 
-    <!-- WATCHLIST -->
-    <section class="card">
-      <div class="wl-header">
-        <div class="section-title" style="margin-bottom:0">Watchlist <span class="wl-count" id="wlCount">0</span></div>
-        <button class="btn btn-ghost sm" onclick="clearWatchlist()">Clear</button>
-      </div>
-      <div class="wl-list" id="wlList">
-        <div class="wl-empty">Star ☆ any stock to add it here</div>
-      </div>
-    </section>
+  <!-- DASHBOARD BODY: 3 columns -->
+  <div class="dashboard-body">
 
-    <!-- CUSTOM FILTERS -->
-    <section class="card">
-      <div class="section-title">Custom Filters</div>
-
-      <div class="filter-group">
-        <label class="filter-label">Sector</label>
-        <select class="filter-select" id="filterSector">
-          <option value="">All Sectors</option>
-          <option>Technology</option><option>Healthcare</option>
-          <option>Financial Services</option><option>Consumer Cyclical</option>
-          <option>Consumer Defensive</option><option>Industrials</option>
-          <option>Energy</option><option>Utilities</option>
-          <option>Real Estate</option><option>Materials</option>
-          <option>Communication Services</option>
-        </select>
-      </div>
-      <div class="filter-group">
-        <label class="filter-label">Market Cap</label>
-        <select class="filter-select" id="filterMarketCap">
-          <option value="">Any</option>
-          <option value="mega">Mega (&gt;$200B)</option>
-          <option value="large">Large ($10B–$200B)</option>
-          <option value="mid">Mid ($2B–$10B)</option>
-          <option value="small">Small (&lt;$2B)</option>
-        </select>
-      </div>
-      <div class="filter-row">
-        <div class="filter-group half"><label class="filter-label">P/E Max</label><input class="filter-input" id="filterPEMax" type="number" placeholder="e.g. 25" /></div>
-        <div class="filter-group half"><label class="filter-label">P/E Min</label><input class="filter-input" id="filterPEMin" type="number" placeholder="e.g. 5" /></div>
-      </div>
-      <div class="filter-row">
-        <div class="filter-group half"><label class="filter-label">P/B Max</label><input class="filter-input" id="filterPBMax" type="number" placeholder="e.g. 3" /></div>
-        <div class="filter-group half"><label class="filter-label">ROE Min %</label><input class="filter-input" id="filterROEMin" type="number" placeholder="e.g. 15" /></div>
-      </div>
-      <div class="filter-row">
-        <div class="filter-group half"><label class="filter-label">Rev Growth %</label><input class="filter-input" id="filterRevGrowthMin" type="number" placeholder="e.g. 10" /></div>
-        <div class="filter-group half"><label class="filter-label">EPS Growth %</label><input class="filter-input" id="filterEPSGrowthMin" type="number" placeholder="e.g. 15" /></div>
-      </div>
-      <div class="filter-row">
-        <div class="filter-group half"><label class="filter-label">Div Yield %</label><input class="filter-input" id="filterDivYieldMin" type="number" placeholder="e.g. 2" /></div>
-        <div class="filter-group half"><label class="filter-label">D/E Max</label><input class="filter-input" id="filterDEMax" type="number" placeholder="e.g. 1.5" /></div>
-      </div>
-      <div class="filter-row">
-        <div class="filter-group half"><label class="filter-label">Op Margin %</label><input class="filter-input" id="filterOPMMin" type="number" placeholder="e.g. 15" /></div>
-        <div class="filter-group half"><label class="filter-label">PEG Max</label><input class="filter-input" id="filterPEGMax" type="number" placeholder="e.g. 2" /></div>
-      </div>
-      <div class="filter-group">
-        <label class="filter-label">Price Trend</label>
-        <select class="filter-select" id="filterTrend">
-          <option value="">Any</option>
-          <option value="above50">Above 50-Day MA</option>
-          <option value="above200">Above 200-Day MA</option>
-          <option value="both">Above Both MAs</option>
-        </select>
-      </div>
-
-      <button class="btn btn-primary full-width" onclick="runScreen()">▶ Run Screen</button>
-      <button class="btn btn-ghost full-width mt-xs" onclick="clearFilters()">✕ Clear All Filters</button>
-    </section>
-
-  </aside>
-
-  <!-- RESULTS PANEL -->
-  <section class="results-panel">
-    <div class="results-header">
-      <div class="results-info">
-        <span id="resultCount" class="result-count">— stocks</span>
-        <span id="activePresetBadge" class="preset-badge" style="display:none"></span>
-      </div>
-      <div class="results-actions">
-        <div class="sort-controls">
-          <label>Sort:</label>
-          <select class="filter-select sm" id="sortBy" onchange="runScreen()">
-            <option value="marketCap">Market Cap</option>
-            <option value="trailingPE">P/E Ratio</option>
-            <option value="returnOnEquity">ROE</option>
-            <option value="revenueGrowth">Rev Growth</option>
-            <option value="earningsGrowth">EPS Growth</option>
-            <option value="dividendYield">Div Yield</option>
-            <option value="regularMarketChangePercent">Price Chg%</option>
-            <option value="operatingMargins">Op Margin</option>
-            <option value="analystUpside">Analyst Upside</option>
-          </select>
-          <button class="btn btn-icon sm" id="sortDirBtn" onclick="toggleSortDir()" title="Toggle sort direction">↓</button>
+    <!-- COL 1: Top Movers -->
+    <div class="dash-col">
+      <div class="dash-panel">
+        <div class="dash-panel-header">
+          <span class="dash-panel-title">TOP MOVERS</span>
+          <span class="dash-panel-sub" id="moversTime"></span>
         </div>
-        <button class="btn btn-secondary sm" id="btnCompare" onclick="openCompare()" style="display:none">⚖ Compare</button>
-        <button class="btn btn-secondary sm" onclick="exportCSV()">⬇ CSV</button>
+        <div class="movers-section">
+          <div class="movers-section-label gainers-label">▲ GAINERS</div>
+          <div class="movers-full-list" id="moverGainers"></div>
+        </div>
+        <div class="movers-section">
+          <div class="movers-section-label losers-label">▼ LOSERS</div>
+          <div class="movers-full-list" id="moverLosers"></div>
+        </div>
+      </div>
+
+      <!-- SECTOR HEAT MAP -->
+      <div class="dash-panel">
+        <div class="dash-panel-header">
+          <span class="dash-panel-title">SECTOR PERFORMANCE</span>
+        </div>
+        <div class="heatmap-grid" id="heatmapGrid">
+          <div class="heatmap-loading">Loading…</div>
+        </div>
       </div>
     </div>
 
-    <!-- Compare chips bar (hidden until stocks selected) -->
-    <div class="compare-bar" id="compareBar" style="display:none">
-      <span style="color:var(--text2);font-weight:700;white-space:nowrap">Compare:</span>
-      <div class="compare-chips" id="compareChips"></div>
-      <button class="btn btn-ghost sm" onclick="clearCompare()">Clear</button>
-    </div>
-
-    <div class="table-wrapper" id="tableWrapper">
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">🔭</div>
-        <h3>Ready to screen</h3>
-        <p>Pick a strategy preset from the left or configure custom filters, then run the screen.</p>
-        <button class="btn btn-primary" onclick="runScreen()">Load All Stocks</button>
+    <!-- COL 2 + 3: News -->
+    <div class="dash-col dash-col-news">
+      <div class="dash-panel news-panel">
+        <div class="dash-panel-header">
+          <span class="dash-panel-title">MARKET NEWS</span>
+          <button class="news-refresh-btn" onclick="loadNews()" title="Refresh news">⟳</button>
+        </div>
+        <div class="news-feed" id="newsFeed">
+          <div class="news-loading">
+            <span class="spinner"></span> Loading news…
+          </div>
+        </div>
       </div>
-      <table class="results-table" id="resultsTable" style="display:none">
-        <thead>
-          <tr>
-            <th style="width:28px"></th>
-            <th style="width:18px"></th>
-            <th>Ticker</th>
-            <th>Name</th>
-            <th>Sector</th>
-            <th>Price</th>
-            <th>P/E</th>
-            <th>P/B</th>
-            <th>ROE</th>
-            <th>Rev Gr</th>
-            <th>Op Mgn</th>
-            <th>Div%</th>
-            <th>Chg%</th>
-            <th>Sparkline</th>
-            <th>Mkt Cap</th>
-            <th>Score</th>
-          </tr>
-        </thead>
-        <tbody id="tableBody"></tbody>
-      </table>
     </div>
 
-    <div class="pagination" id="pagination" style="display:none">
-      <button class="btn btn-ghost sm" id="btnPrev" onclick="changePage(-1)">← Prev</button>
-      <span id="pageInfo">Page 1 of 1</span>
-      <button class="btn btn-ghost sm" id="btnNext" onclick="changePage(1)">Next →</button>
-    </div>
-  </section>
-</main>
+  </div><!-- /dashboard-body -->
+</div><!-- /tabDashboard -->
 
-<!-- STOCK DETAIL MODAL -->
+<!-- ══════════════════════════════════════════════
+     SCREENER TAB
+═══════════════════════════════════════════════ -->
+<div id="tabScreener" class="tab-content" style="display:none">
+  <main class="layout">
+
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+
+      <!-- THESIS / PRESETS -->
+      <section class="card">
+        <div class="section-title">Investment Thesis</div>
+        <div class="preset-grid" id="presetGrid"></div>
+      </section>
+
+      <!-- WATCHLIST -->
+      <section class="card">
+        <div class="wl-header">
+          <div class="section-title" style="margin-bottom:0">Watchlist <span class="wl-count" id="wlCount">0</span></div>
+          <button class="btn btn-ghost sm" onclick="clearWatchlist()">Clear</button>
+        </div>
+        <div class="wl-list" id="wlList">
+          <div class="wl-empty">Star ☆ any stock to add it here</div>
+        </div>
+      </section>
+
+      <!-- CUSTOM FILTERS -->
+      <section class="card">
+        <div class="section-title">Custom Filters</div>
+        <div class="filter-group">
+          <label class="filter-label">Sector</label>
+          <select class="filter-select" id="filterSector">
+            <option value="">All Sectors</option>
+            <option>Technology</option><option>Healthcare</option>
+            <option>Financial Services</option><option>Consumer Cyclical</option>
+            <option>Consumer Defensive</option><option>Industrials</option>
+            <option>Energy</option><option>Utilities</option>
+            <option>Real Estate</option><option>Materials</option>
+            <option>Communication Services</option>
+          </select>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Market Cap</label>
+          <select class="filter-select" id="filterMarketCap">
+            <option value="">Any</option>
+            <option value="mega">Mega (&gt;$200B)</option>
+            <option value="large">Large ($10B–$200B)</option>
+            <option value="mid">Mid ($2B–$10B)</option>
+            <option value="small">Small (&lt;$2B)</option>
+          </select>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group half"><label class="filter-label">P/E Max</label><input class="filter-input" id="filterPEMax" type="number" placeholder="e.g. 25" /></div>
+          <div class="filter-group half"><label class="filter-label">P/E Min</label><input class="filter-input" id="filterPEMin" type="number" placeholder="e.g. 5" /></div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group half"><label class="filter-label">P/B Max</label><input class="filter-input" id="filterPBMax" type="number" placeholder="e.g. 3" /></div>
+          <div class="filter-group half"><label class="filter-label">ROE Min %</label><input class="filter-input" id="filterROEMin" type="number" placeholder="e.g. 15" /></div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group half"><label class="filter-label">Rev Growth %</label><input class="filter-input" id="filterRevGrowthMin" type="number" placeholder="e.g. 10" /></div>
+          <div class="filter-group half"><label class="filter-label">EPS Growth %</label><input class="filter-input" id="filterEPSGrowthMin" type="number" placeholder="e.g. 15" /></div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group half"><label class="filter-label">Div Yield %</label><input class="filter-input" id="filterDivYieldMin" type="number" placeholder="e.g. 2" /></div>
+          <div class="filter-group half"><label class="filter-label">D/E Max</label><input class="filter-input" id="filterDEMax" type="number" placeholder="e.g. 1.5" /></div>
+        </div>
+        <div class="filter-row">
+          <div class="filter-group half"><label class="filter-label">Op Margin %</label><input class="filter-input" id="filterOPMMin" type="number" placeholder="e.g. 15" /></div>
+          <div class="filter-group half"><label class="filter-label">PEG Max</label><input class="filter-input" id="filterPEGMax" type="number" placeholder="e.g. 2" /></div>
+        </div>
+        <div class="filter-group">
+          <label class="filter-label">Price Trend</label>
+          <select class="filter-select" id="filterTrend">
+            <option value="">Any</option>
+            <option value="above50">Above 50-Day MA</option>
+            <option value="above200">Above 200-Day MA</option>
+            <option value="both">Above Both MAs</option>
+          </select>
+        </div>
+        <button class="btn btn-primary full-width" onclick="runScreen()">▶ Run Screen</button>
+        <button class="btn btn-ghost full-width mt-xs" onclick="clearFilters()">✕ Clear All Filters</button>
+      </section>
+    </aside>
+
+    <!-- RESULTS PANEL -->
+    <section class="results-panel">
+      <div class="results-header">
+        <div class="results-info">
+          <span id="resultCount" class="result-count">— stocks</span>
+          <span id="activePresetBadge" class="preset-badge" style="display:none"></span>
+        </div>
+        <div class="results-actions">
+          <div class="sort-controls">
+            <label>Sort:</label>
+            <select class="filter-select sm" id="sortBy" onchange="runScreen()">
+              <option value="marketCap">Market Cap</option>
+              <option value="trailingPE">P/E Ratio</option>
+              <option value="returnOnEquity">ROE</option>
+              <option value="revenueGrowth">Rev Growth</option>
+              <option value="earningsGrowth">EPS Growth</option>
+              <option value="dividendYield">Div Yield</option>
+              <option value="regularMarketChangePercent">Price Chg%</option>
+              <option value="operatingMargins">Op Margin</option>
+              <option value="analystUpside">Analyst Upside</option>
+            </select>
+            <button class="btn btn-icon sm" id="sortDirBtn" onclick="toggleSortDir()" title="Toggle sort direction">↓</button>
+          </div>
+          <button class="btn btn-secondary sm" id="btnCompare" onclick="openCompare()" style="display:none">⚖ Compare</button>
+          <button class="btn btn-secondary sm" onclick="exportCSV()">⬇ CSV</button>
+        </div>
+      </div>
+
+      <div class="compare-bar" id="compareBar" style="display:none">
+        <span style="color:var(--text2);font-weight:700;white-space:nowrap">Compare:</span>
+        <div class="compare-chips" id="compareChips"></div>
+        <button class="btn btn-ghost sm" onclick="clearCompare()">Clear</button>
+      </div>
+
+      <div class="table-wrapper" id="tableWrapper">
+        <div class="empty-state" id="emptyState">
+          <div class="empty-icon">🔭</div>
+          <h3>Ready to screen</h3>
+          <p>Pick a strategy preset from the left or configure custom filters, then run the screen.</p>
+          <button class="btn btn-primary" onclick="runScreen()">Load All Stocks</button>
+        </div>
+        <table class="results-table" id="resultsTable" style="display:none">
+          <thead>
+            <tr>
+              <th style="width:28px"></th>
+              <th style="width:18px"></th>
+              <th>Ticker</th>
+              <th>Name</th>
+              <th>Sector</th>
+              <th>Price</th>
+              <th>P/E</th>
+              <th>P/B</th>
+              <th>ROE</th>
+              <th>Rev Gr</th>
+              <th>Op Mgn</th>
+              <th>Div%</th>
+              <th>Chg%</th>
+              <th>Sparkline</th>
+              <th>Mkt Cap</th>
+              <th>Score</th>
+            </tr>
+          </thead>
+          <tbody id="tableBody"></tbody>
+        </table>
+      </div>
+
+      <div class="pagination" id="pagination" style="display:none">
+        <button class="btn btn-ghost sm" id="btnPrev" onclick="changePage(-1)">← Prev</button>
+        <span id="pageInfo">Page 1 of 1</span>
+        <button class="btn btn-ghost sm" id="btnNext" onclick="changePage(1)">Next →</button>
+      </div>
+    </section>
+  </main>
+</div><!-- /tabScreener -->
+
+<!-- MODALS -->
 <div class="modal-overlay" id="modalOverlay" onclick="closeModal()">
   <div class="modal" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeModal()">✕</button>
     <div id="modalContent"></div>
   </div>
 </div>
-
-<!-- THESIS MODAL -->
 <div class="modal-overlay" id="thesisModal" onclick="closeThesisModal()">
   <div class="modal modal-wide" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeThesisModal()">✕</button>
     <div id="thesisContent"></div>
   </div>
 </div>
-
-<!-- COMPARE MODAL -->
 <div class="modal-overlay" id="compareModal" onclick="closeCompareModal()">
   <div class="modal modal-compare" onclick="event.stopPropagation()">
     <button class="modal-close" onclick="closeCompareModal()">✕</button>

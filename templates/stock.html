@@ -17,6 +17,15 @@
     <span class="stock-price" id="stockPrice">—</span>
     <span class="stock-chg" id="stockChg">—</span>
   </div>
+
+  <!-- CHART SEARCH -->
+  <div class="chart-search-wrap" id="chartSearchWrap">
+    <span class="chart-search-icon">⌕</span>
+    <input class="chart-search-input" id="chartSearchInput" type="text"
+           placeholder="Jump to ticker…" autocomplete="off" />
+    <div class="chart-search-dropdown" id="chartSearchDropdown"></div>
+  </div>
+
   <div class="period-btns">
     <button class="period-btn" data-period="5d">1W</button>
     <button class="period-btn" data-period="1mo">1M</button>
@@ -51,14 +60,11 @@
       </div>
     </div>
 
-    <!-- OHLCV bar -->
-    <div class="ohlcv-bar">
-      <span id="ohlcvDate" class="ohlcv-date">—</span>
-      <span>O: <b id="ohlcvO">—</b></span>
-      <span>H: <b id="ohlcvH" style="color:var(--green)">—</b></span>
-      <span>L: <b id="ohlcvL" style="color:var(--red)">—</b></span>
-      <span>C: <b id="ohlcvC">—</b></span>
-      <span>Vol: <b id="ohlcvV">—</b></span>
+    <!-- OHLCV bar (hidden — replaced by floating tooltip) -->
+    <div class="ohlcv-bar" style="display:none">
+      <span id="ohlcvDate"></span><span id="ohlcvO"></span>
+      <span id="ohlcvH"></span><span id="ohlcvL"></span>
+      <span id="ohlcvC"></span><span id="ohlcvV"></span>
     </div>
 
     <!-- Drawing toolbar + charts side by side -->
@@ -102,6 +108,10 @@
       <div class="charts-col">
         <div class="chart-panel price-panel-wrap" id="pricePanel" style="flex:3.5">
           <canvas id="drawingCanvas" class="drawing-canvas"></canvas>
+          <!-- Floating candle info box -->
+          <div id="candleTooltip" class="candle-tooltip" style="display:none"></div>
+          <!-- News event tooltip -->
+          <div id="newsMarkerTooltip" class="news-marker-tooltip" style="display:none"></div>
         </div>
         <div class="chart-panel" id="volPanel" style="flex:1"></div>
         <div class="osc-controls">
@@ -128,6 +138,13 @@
     <div class="sidebar-section">
       <div class="sidebar-title">Strategy Scores</div>
       <div class="scores-list" id="scoresList"><div class="fund-loading">Loading…</div></div>
+    </div>
+
+    <div class="sidebar-section sidebar-news-section">
+      <div class="sidebar-title">Recent News</div>
+      <div id="sidebarNewsFeed" class="sidebar-news-feed">
+        <div class="fund-loading">Loading…</div>
+      </div>
     </div>
 
     <div class="sidebar-section">
