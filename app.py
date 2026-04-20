@@ -373,6 +373,44 @@ def stock_page(ticker: str):
     return render_template("stock.html", ticker=ticker.upper())
 
 
+@app.route("/api/insider/<ticker>")
+def api_insider(ticker: str):
+    ticker = ticker.upper()
+    try:
+        df = yf.Ticker(ticker).insider_transactions
+        if df is None or df.empty:
+            return jsonify([])
+        rows = []
+        for _, r in df.iterrows():
+            text = str(r.get("Text", "") or "")
+            if "sale" in text.lower():
+                txn_type = "Sell"
+            elif "purchase" in text.lower() or "buy" in text.lower():
+                txn_type = "Buy"
+            elif "gift" in text.lower():
+                txn_type = "Gift"
+            else:
+                txn_type = "Grant"
+            val = r.get("Value")
+            shares = r.get("Shares")
+            date_raw = r.get("Start Date")
+            if date_raw is None:
+                continue
+            date_str = str(date_raw)[:10]
+            rows.append({
+                "date":     date_str,
+                "name":     str(r.get("Insider", "")).title(),
+                "position": str(r.get("Position", "")),
+                "type":     txn_type,
+                "shares":   int(shares) if shares and not (shares != shares) else 0,
+                "value":    float(val) if val and not (val != val) else None,
+            })
+        rows.sort(key=lambda x: x["date"], reverse=True)
+        return jsonify(rows[:30])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/stock/<ticker>")
 def api_stock(ticker: str):
     ticker = ticker.upper()

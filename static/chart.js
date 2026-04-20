@@ -40,6 +40,8 @@ let _autoLoading  = false;
 // ── News state ──────────────────────────────────────────────────────
 const newsData = {};      // date string → [{title, publisher, link, age_min}]
 let   _newsHideTimer = null;
+let   _newsMarkers   = [];   // saved so insider can merge without re-fetching
+let   _insiderMarkers = [];
 
 // ── Indicator defaults ─────────────────────────────────────────────
 const IND_ON = { bb: true, sma20: true, sma50: false, sma200: false, ema9: false, ema20: false, vwap: false };
@@ -279,7 +281,8 @@ async function loadData(period) {
   const res  = await fetch(`/api/chart/${TICKER}?period=${period}`);
   chartData  = await res.json();
   applyAllData();
-  loadNewsMarkers();
+  await loadNewsMarkers();
+  loadInsider();
 }
 
 // ── News markers ────────────────────────────────────────────────────
@@ -303,7 +306,7 @@ async function loadNewsMarkers() {
     }
 
     // One marker per date, count label when multiple
-    const markers = Object.keys(newsData).sort().map(date => ({
+    _newsMarkers = Object.keys(newsData).sort().map(date => ({
       time:     date,
       position: 'aboveBar',
       color:    '#ff6b00',
@@ -311,7 +314,7 @@ async function loadNewsMarkers() {
       text:     newsData[date].length > 1 ? String(newsData[date].length) : '',
       size:     1,
     }));
-    candleSeries.setMarkers(markers);
+    flushMarkers();
 
     renderSidebarNews(items);
   } catch (e) {}
@@ -1081,6 +1084,64 @@ async function loadFundamentals() {
     document.getElementById('week52Fill') .style.width = pos + '%';
     document.getElementById('week52Thumb').style.left  = pos + '%';
   }
+}
+
+// ── Merge all markers (news + insider) onto the price series ──────
+function flushMarkers() {
+  if (!candleSeries) return;
+  const all = [..._newsMarkers, ..._insiderMarkers]
+    .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
+  candleSeries.setMarkers(all);
+}
+
+// ── Insider transactions ───────────────────────────────────────────
+async function loadInsider() {
+  const el = document.getElementById('insiderFeed');
+  if (!el) return;
+  try {
+    const rows = await fetch(`/api/insider/${TICKER}`).then(r => r.json());
+    if (!rows.length) { el.innerHTML = '<div class="fund-loading">No data</div>'; return; }
+
+    // Render sidebar list
+    el.innerHTML = rows.slice(0, 15).map(r => {
+      const cls  = r.type.toLowerCase();
+      const val  = r.value ? ' · <span class="insider-val">$' + fmtMCapRaw(r.value) + '</span>' : '';
+      const shrs = r.shares ? r.shares.toLocaleString() + ' shares' : '';
+      return `<div class="insider-row ${cls}">
+        <span class="insider-name">${r.name}</span>
+        <span class="insider-badge ${cls}">${r.type}</span>
+        <span class="insider-meta">${r.position} · ${r.date}${val ? ' · ' : ''}${val}${shrs ? ' · ' + shrs : ''}</span>
+      </div>`;
+    }).join('');
+
+    // Add markers to price chart
+    if (!candleSeries || !chartData?.ohlcv?.length) return;
+    const chartDates = chartData.ohlcv.map(x => x.date);
+    const insiderMap = {};
+    for (const r of rows) {
+      if (r.type !== 'Buy' && r.type !== 'Sell') continue;
+      const nearest = findNearestDate(r.date, chartDates);
+      if (!nearest) continue;
+      if (!insiderMap[nearest]) insiderMap[nearest] = { buy: 0, sell: 0 };
+      if (r.type === 'Buy')  insiderMap[nearest].buy++;
+      if (r.type === 'Sell') insiderMap[nearest].sell++;
+    }
+    _insiderMarkers = [];
+    for (const [date, counts] of Object.entries(insiderMap)) {
+      if (counts.buy)  _insiderMarkers.push({ time: date, position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: counts.buy  > 1 ? `B×${counts.buy}`  : 'B', size: 1 });
+      if (counts.sell) _insiderMarkers.push({ time: date, position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: counts.sell > 1 ? `S×${counts.sell}` : 'S', size: 1 });
+    }
+    flushMarkers();
+  } catch (e) {
+    if (el) el.innerHTML = '<div class="fund-loading">Failed to load</div>';
+  }
+}
+
+function fmtMCapRaw(v) {
+  if (v >= 1e9) return (v/1e9).toFixed(1)+'B';
+  if (v >= 1e6) return (v/1e6).toFixed(1)+'M';
+  if (v >= 1e3) return (v/1e3).toFixed(0)+'K';
+  return v.toFixed(0);
 }
 
 // ── Format helpers ─────────────────────────────────────────────────

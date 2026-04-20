@@ -686,3 +686,47 @@ html, body {
   white-space: nowrap;
   display: none;
 }
+
+/* ── INSIDER TRANSACTIONS ────────────────────────────────── */
+.insider-feed { display: flex; flex-direction: column; gap: 4px; }
+.insider-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-rows: auto auto;
+  gap: 1px 6px;
+  padding: 6px 8px;
+  border-radius: 5px;
+  background: rgba(255,255,255,.03);
+  border-left: 3px solid transparent;
+  font-size: 11px;
+}
+.insider-row.buy  { border-left-color: #00e676; }
+.insider-row.sell { border-left-color: #ff4f4f; }
+.insider-row.grant{ border-left-color: #8899aa; }
+.insider-row.gift { border-left-color: #ab47bc; }
+
+.insider-name {
+  font-weight: 700;
+  color: var(--text1, #cdd9e5);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.insider-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 3px;
+  align-self: start;
+}
+.insider-badge.buy   { background: rgba(0,230,118,.15); color: #00e676; }
+.insider-badge.sell  { background: rgba(255,79,79,.15);  color: #ff4f4f; }
+.insider-badge.grant { background: rgba(136,153,170,.15);color: #8899aa; }
+.insider-badge.gift  { background: rgba(171,71,188,.15); color: #ab47bc; }
+
+.insider-meta {
+  color: var(--text3, #506070);
+  font-size: 10px;
+  grid-column: 1 / 3;
+}
+.insider-val { color: #ff6b00; font-weight: 600; }
