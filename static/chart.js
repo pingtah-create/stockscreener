@@ -102,20 +102,26 @@ function initCharts() {
   buildVolSeries();
   buildOscSeries('rsi');
 
-  // Sync time-scale scroll/zoom across all three charts
-  priceChart.timeScale().subscribeVisibleLogicalRangeChange(range => {
-    if (_syncingRange || !range) return;
-    _syncingRange = true;
-    volChart.timeScale().setVisibleLogicalRange(range);
-    oscChart.timeScale().setVisibleLogicalRange(range);
-    _syncingRange = false;
-    markRender();
-    // Hide candle tooltip while scrolling/zooming so it doesn't float
+  // Sync time-scale scroll/zoom across all three charts (bidirectional)
+  function hideTooltips() {
     const tip = document.getElementById('candleTooltip');
     if (tip) tip.style.display = 'none';
     const nmTip = document.getElementById('newsMarkerTooltip');
     if (nmTip) nmTip.style.display = 'none';
-  });
+  }
+  function makeSyncListener(srcChart, otherCharts) {
+    return range => {
+      if (_syncingRange || !range) return;
+      _syncingRange = true;
+      otherCharts.forEach(c => c.timeScale().setVisibleLogicalRange(range));
+      _syncingRange = false;
+      markRender();
+      hideTooltips();
+    };
+  }
+  priceChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(priceChart, [volChart, oscChart]));
+  volChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(volChart, [priceChart, oscChart]));
+  oscChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(oscChart, [priceChart, volChart]));
 
   // Crosshair sync: overlay lines on vol + osc panels
   const volLine = createSyncLine(volPanel);
@@ -401,8 +407,10 @@ function applyAllData() {
   })));
 
   applyOscData(currentOsc);
-  priceChart.timeScale().fitContent();
-  markRender();
+  requestAnimationFrame(() => {
+    priceChart.timeScale().fitContent();
+    markRender();
+  });
 }
 
 function applyOscData(osc) {
@@ -721,20 +729,6 @@ function setupDrawingCanvas() {
   drawCanvas.addEventListener('mouseleave', () => { hoverPt = null; markRender(); });
   drawCanvas.addEventListener('contextmenu', e => { e.preventDefault(); cancelActiveDrawing(); });
 
-  // Forward wheel events to the LightweightCharts canvas so scroll always works
-  drawCanvas.addEventListener('wheel', e => {
-    e.preventDefault();
-    const lcCanvas = Array.from(pricePanel.querySelectorAll('canvas'))
-      .find(c => c !== drawCanvas);
-    if (lcCanvas) {
-      lcCanvas.dispatchEvent(new WheelEvent('wheel', {
-        bubbles: true, cancelable: true,
-        deltaX: e.deltaX, deltaY: e.deltaY, deltaMode: e.deltaMode,
-        ctrlKey: e.ctrlKey, shiftKey: e.shiftKey, altKey: e.altKey,
-        clientX: e.clientX, clientY: e.clientY,
-      }));
-    }
-  }, { passive: false });
 }
 
 function onCanvasMove(e) {
