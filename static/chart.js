@@ -32,6 +32,11 @@ let currentOsc   = 'rsi';
 let currentType  = 'candle';
 let _syncingRange = false;
 
+// ── Period auto-extend ────────────────────────────────────────────
+const PERIOD_ORDER = ['5d','1mo','3mo','6mo','1y','2y','5y'];
+let currentPeriod = '3mo';
+let _autoLoading  = false;
+
 // ── News state ──────────────────────────────────────────────────────
 const newsData = {};      // date string → [{title, publisher, link, age_min}]
 let   _newsHideTimer = null;
@@ -117,6 +122,20 @@ function initCharts() {
       _syncingRange = false;
       markRender();
       hideTooltips();
+
+      // Auto-extend: if user scrolled past the left edge, load next longer period
+      if (!_autoLoading && range.from < 2) {
+        const idx = PERIOD_ORDER.indexOf(currentPeriod);
+        if (idx >= 0 && idx < PERIOD_ORDER.length - 1) {
+          const nextPeriod = PERIOD_ORDER[idx + 1];
+          _autoLoading = true;
+          // Update active period button
+          document.querySelectorAll('.period-btn').forEach(b => {
+            b.classList.toggle('active', b.dataset.period === nextPeriod);
+          });
+          loadData(nextPeriod).finally(() => { _autoLoading = false; });
+        }
+      }
     };
   }
   priceChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(priceChart, [volChart, oscChart]));
@@ -256,6 +275,7 @@ function buildOscSeries(osc) {
 
 // ── Load & apply data ──────────────────────────────────────────────
 async function loadData(period) {
+  currentPeriod = period;
   const res  = await fetch(`/api/chart/${TICKER}?period=${period}`);
   chartData  = await res.json();
   applyAllData();
