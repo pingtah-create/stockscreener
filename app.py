@@ -39,6 +39,9 @@ SPARKLINE_CACHE = _CACHE_BASE / "sparklines"
 SPARKLINE_CACHE.mkdir(parents=True, exist_ok=True)
 
 
+_SEED_FILE = Path(__file__).parent / "data" / "stocks.json"
+
+
 def _load_all_from_cache() -> list[dict]:
     global _tickers
     _tickers = get_all_tickers()
@@ -48,6 +51,18 @@ def _load_all_from_cache() -> list[dict]:
         if data:
             data["scores"] = compute_scores(data)
             stocks.append(data)
+
+    # On Vercel cold start the runtime cache is empty — fall back to
+    # the bundled seed file so the screener works immediately.
+    if not stocks and _SEED_FILE.exists():
+        try:
+            raw = json.loads(_SEED_FILE.read_text())
+            for d in raw:
+                if not d.get("scores"):
+                    d["scores"] = compute_scores(d)
+            stocks = raw
+        except Exception:
+            pass
     return stocks
 
 
