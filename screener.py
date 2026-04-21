@@ -11,8 +11,10 @@ from pathlib import Path
 
 import yfinance as yf
 
-CACHE_DIR = Path("cache")
-CACHE_DIR.mkdir(exist_ok=True)
+# Use /tmp on Vercel (read-only filesystem), local cache/ otherwise
+_IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
+CACHE_DIR = Path("/tmp/cache") if _IS_SERVERLESS else Path("cache")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_TTL_HOURS = 24
 
 # Fields we care about from yfinance .info

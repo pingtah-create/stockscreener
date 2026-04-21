@@ -32,8 +32,11 @@ INDICES = {
 _indices_cache: dict = {}
 _indices_cached_at: datetime | None = None
 
-SPARKLINE_CACHE = Path("cache") / "sparklines"
-SPARKLINE_CACHE.mkdir(exist_ok=True)
+import os as _os
+_IS_SERVERLESS = bool(_os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"))
+_CACHE_BASE = Path("/tmp/cache") if _IS_SERVERLESS else Path("cache")
+SPARKLINE_CACHE = _CACHE_BASE / "sparklines"
+SPARKLINE_CACHE.mkdir(parents=True, exist_ok=True)
 
 
 def _load_all_from_cache() -> list[dict]:
