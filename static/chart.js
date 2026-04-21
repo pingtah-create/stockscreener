@@ -360,17 +360,20 @@ function renderSidebarNews(items) {
   }).join('');
 }
 
+let _lastNewsDate = null;
+
 function showNewsTooltip(date) {
   const tooltip = document.getElementById('newsMarkerTooltip');
   if (!tooltip) return;
   const items = newsData[date];
   if (!items?.length) { hideNewsTooltip(); return; }
 
-  const x = priceChart.timeScale().timeToCoordinate(date);
-  if (x === null) { hideNewsTooltip(); return; }
+  // Don't re-render if already showing this date — prevents jumping
+  if (_lastNewsDate === date && tooltip.style.display === 'block') return;
+  _lastNewsDate = date;
 
   tooltip.innerHTML = `
-    <div class="nmt-header">NEWS · ${date}</div>
+    <div class="nmt-header">📰 News · ${date}</div>
     ${items.map(n => {
       const age = n.age_min == null ? '' :
         n.age_min < 60   ? `${n.age_min}m ago` :
@@ -385,13 +388,9 @@ function showNewsTooltip(date) {
       </div>`;
     }).join('')}`;
 
-  // Position: keep tooltip inside the panel
-  const panel = document.getElementById('pricePanel');
-  const panelW = panel ? panel.getBoundingClientRect().width : 600;
-  const tipW = 320;
-  let left = Math.max(8, x - tipW / 2);
-  if (left + tipW > panelW - 8) left = panelW - tipW - 8;
-  tooltip.style.left = left + 'px';
+  // Fixed position — top-left of the price panel, never moves
+  tooltip.style.left = '60px';
+  tooltip.style.top  = '8px';
   tooltip.style.display = 'block';
 
   if (_newsHideTimer) { clearTimeout(_newsHideTimer); _newsHideTimer = null; }
@@ -400,8 +399,8 @@ function showNewsTooltip(date) {
 function hideNewsTooltip() {
   _newsHideTimer = setTimeout(() => {
     const tooltip = document.getElementById('newsMarkerTooltip');
-    if (tooltip) tooltip.style.display = 'none';
-  }, 120);
+    if (tooltip) { tooltip.style.display = 'none'; _lastNewsDate = null; }
+  }, 300);
 }
 
 function toSeries(dates, vals) {
@@ -1124,13 +1123,11 @@ function applyAutoTA() {
   if (!chartData?.ohlcv?.length) return;
   clearAutoTA();
 
-  // 1. Force-enable key overlays
-  const forceOn = ['bb', 'sma20', 'sma50'];
-  forceOn.forEach(key => {
+  // 1. Force-enable BB + SMA20 + SMA50
+  ['bb', 'sma20', 'sma50'].forEach(key => {
     if (!IND_ON[key]) {
       IND_ON[key] = true;
-      const btn = document.querySelector(`.ind-btn[data-ind="${key}"]`);
-      if (btn) btn.classList.add('active');
+      document.querySelector(`.ind-btn[data-ind="${key}"]`)?.classList.add('active');
       if (key === 'bb') {
         overlayMap.bb_upper?.applyOptions({ visible: true });
         overlayMap.bb_mid  ?.applyOptions({ visible: true });
@@ -1141,83 +1138,41 @@ function applyAutoTA() {
     }
   });
 
-  // 2. Support / Resistance horizontal lines
+  // 2. Trend line — find 2 recent rising pivot lows (uptrend) or falling pivot highs (downtrend)
   const ohlcv = chartData.ohlcv;
-  const n = ohlcv.length;
-  const cur = ohlcv[n - 1].close;
-  const W = 2; // pivot window half-width
-
-  const pivotHighs = [], pivotLows = [];
-  for (let i = W; i < n - W; i++) {
-    const hi = ohlcv[i].high, lo = ohlcv[i].low;
-    let isHigh = true, isLow = true;
-    for (let d = 1; d <= W; d++) {
-      if (ohlcv[i - d].high >= hi || ohlcv[i + d].high >= hi) isHigh = false;
-      if (ohlcv[i - d].low  <= lo || ohlcv[i + d].low  <= lo) isLow  = false;
-    }
-    if (isHigh) pivotHighs.push({ price: hi, date: ohlcv[i].date });
-    if (isLow)  pivotLows .push({ price: lo, date: ohlcv[i].date });
-  }
-
-  function clusterLevels(pivots) {
-    const clusters = [];
-    for (const p of pivots) {
-      const match = clusters.find(c => Math.abs(c.med - p.price) / c.med < 0.005);
-      if (match) { match.prices.push(p.price); match.med = match.prices.reduce((a,b)=>a+b,0)/match.prices.length; }
-      else clusters.push({ med: p.price, prices: [p.price] });
-    }
-    return clusters.filter(c => c.prices.length >= 2);
-  }
-
-  const srLevels = [
-    ...clusterLevels(pivotHighs).map(c => ({ price: c.med, type: c.med >= cur ? 'resistance' : 'support' })),
-    ...clusterLevels(pivotLows) .map(c => ({ price: c.med, type: c.med <= cur ? 'support'    : 'resistance' })),
-  ];
-
-  // Deduplicate levels that are within 0.5% of each other
-  const unique = [];
-  for (const lv of srLevels) {
-    if (!unique.some(u => Math.abs(u.price - lv.price) / lv.price < 0.005)) unique.push(lv);
-  }
-
-  for (const lv of unique) {
-    const color = lv.type === 'support' ? '#00bcd4' : '#ff9800';
-    drawings.push({ type: 'hline', points: [{ time: ohlcv[0].date, price: lv.price }], color, _autoTA: true });
-  }
-
-  // 3. Trend line through recent pivot lows (uptrend) or highs (downtrend)
-  const recent = ohlcv.slice(-60);
+  const W = 3;
+  const recent = ohlcv.slice(-Math.min(80, ohlcv.length));
   const rn = recent.length;
-  const recentLows = [], recentHighs = [];
+  const lows = [], highs = [];
   for (let i = W; i < rn - W; i++) {
-    const lo = recent[i].low, hi = recent[i].high;
     let isLow = true, isHigh = true;
     for (let d = 1; d <= W; d++) {
-      if (recent[i-d].low  <= lo || recent[i+d].low  <= lo) isLow  = false;
-      if (recent[i-d].high >= hi || recent[i+d].high >= hi) isHigh = false;
+      if (recent[i-d].low  <= recent[i].low  || recent[i+d].low  <= recent[i].low)  isLow  = false;
+      if (recent[i-d].high >= recent[i].high || recent[i+d].high >= recent[i].high) isHigh = false;
     }
-    if (isLow)  recentLows .push({ price: lo, date: recent[i].date });
-    if (isHigh) recentHighs.push({ price: hi, date: recent[i].date });
+    if (isLow)  lows .push({ price: recent[i].low,  date: recent[i].date });
+    if (isHigh) highs.push({ price: recent[i].high, date: recent[i].date });
   }
 
-  // Find 2 consecutive rising pivot lows
   let trendDrawn = false;
-  for (let i = recentLows.length - 1; i >= 1; i--) {
-    if (recentLows[i].price > recentLows[i-1].price) {
-      drawings.push({ type: 'trendline', points: [recentLows[i-1], recentLows[i]], color: '#00e676', _autoTA: true });
-      trendDrawn = true; break;
+  // Try uptrend: two consecutive rising lows
+  for (let i = lows.length - 1; i >= 1 && !trendDrawn; i--) {
+    if (lows[i].price > lows[i-1].price) {
+      drawings.push({ type: 'trendline', points: [lows[i-1], lows[i]], color: '#00e676', _autoTA: true });
+      trendDrawn = true;
     }
   }
+  // Fallback: downtrend — two consecutive falling highs
   if (!trendDrawn) {
-    for (let i = recentHighs.length - 1; i >= 1; i--) {
-      if (recentHighs[i].price < recentHighs[i-1].price) {
-        drawings.push({ type: 'trendline', points: [recentHighs[i-1], recentHighs[i]], color: '#ff4f4f', _autoTA: true });
+    for (let i = highs.length - 1; i >= 1; i--) {
+      if (highs[i].price < highs[i-1].price) {
+        drawings.push({ type: 'trendline', points: [highs[i-1], highs[i]], color: '#ff4f4f', _autoTA: true });
         break;
       }
     }
   }
 
-  // 4. MACD crossover signals
+  // 3. MACD crossover buy/sell signals only
   const t = chartData.technicals;
   const dates = ohlcv.map(x => x.date);
   if (t.macd && t.macd_signal) {
@@ -1226,21 +1181,9 @@ function applyAutoTA() {
       const m1 = t.macd[i],   s1 = t.macd_signal[i];
       if (m0 == null || s0 == null || m1 == null || s1 == null) continue;
       if (m0 < s0 && m1 >= s1)
-        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: 'M↑', size: 1 });
+        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: 'Buy',  size: 1 });
       else if (m0 > s0 && m1 <= s1)
-        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: 'M↓', size: 1 });
-    }
-  }
-
-  // 5. RSI extreme signals
-  if (t.rsi) {
-    for (let i = 1; i < t.rsi.length; i++) {
-      const r0 = t.rsi[i-1], r1 = t.rsi[i];
-      if (r0 == null || r1 == null) continue;
-      if (r0 <= 30 && r1 > 30)
-        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: 'R↑', size: 1 });
-      else if (r0 >= 70 && r1 < 70)
-        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: 'R↓', size: 1 });
+        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: 'Sell', size: 1 });
     }
   }
 

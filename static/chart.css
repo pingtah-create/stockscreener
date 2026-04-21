@@ -561,16 +561,12 @@ html, body {
   width: 320px;
   max-width: calc(100% - 80px);
   background: rgba(9, 14, 26, 0.97);
-  border: 1px solid #ff6b00;
-  border-radius: 8px;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.7), 0 0 18px rgba(255,107,0,0.2);
+  border: 1px solid rgba(255,107,0,0.45);
+  border-radius: 6px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.6);
   overflow: hidden;
   pointer-events: none;
-  animation: newsPopIn 0.12s ease;
-}
-@keyframes newsPopIn {
-  from { opacity: 0; transform: translateY(-4px); }
-  to   { opacity: 1; transform: none; }
+  /* No animation — prevents jitter */
 }
 .nmt-header {
   background: rgba(255,107,0,0.12);
@@ -585,14 +581,7 @@ html, body {
   align-items: center;
   gap: 6px;
 }
-.nmt-header::before {
-  content: '';
-  display: inline-block;
-  width: 7px; height: 7px;
-  background: #ff6b00;
-  border-radius: 50%;
-  box-shadow: 0 0 6px #ff6b00;
-}
+.nmt-header::before { display: none; }
 .nmt-item {
   padding: 8px 12px;
   border-bottom: 1px solid rgba(26,37,64,0.8);
