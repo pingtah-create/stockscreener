@@ -66,10 +66,66 @@ def _load_all_from_cache() -> list[dict]:
     return stocks
 
 
+_prices_refreshed_at: datetime | None = None
+
+
+def _refresh_live_prices():
+    """Fast bulk price refresh via yf.download() — single HTTP call for all tickers."""
+    global _stock_cache, _prices_refreshed_at
+    if not _stock_cache:
+        return
+    # Only refresh once every 15 minutes per warm instance
+    if _prices_refreshed_at and (datetime.utcnow() - _prices_refreshed_at).seconds < 900:
+        return
+    try:
+        tickers = [s["symbol"] for s in _stock_cache if s.get("symbol")]
+        if not tickers:
+            return
+        import pandas as pd
+        df = yf.download(
+            tickers, period="5d", interval="1d",
+            progress=False, auto_adjust=True, threads=True
+        )
+        if df.empty:
+            return
+        close = df["Close"] if "Close" in df else df.get("Adj Close")
+        if close is None or close.empty:
+            return
+        # Build price map: ticker → (latest_close, prev_close)
+        price_map = {}
+        for tkr in tickers:
+            col = tkr if tkr in close.columns else None
+            if col is None and len(tickers) == 1:
+                col = close.columns[0] if not close.empty else None
+            if col is None:
+                continue
+            series = close[col].dropna()
+            if len(series) >= 2:
+                price_map[tkr] = (float(series.iloc[-1]), float(series.iloc[-2]))
+            elif len(series) == 1:
+                price_map[tkr] = (float(series.iloc[0]), None)
+
+        # Update in-memory cache
+        for s in _stock_cache:
+            tkr = s.get("symbol")
+            if tkr in price_map:
+                cur, prev = price_map[tkr]
+                s["currentPrice"] = cur
+                if prev and prev > 0:
+                    s["regularMarketChangePercent"] = round((cur - prev) / prev * 100, 4)
+        _prices_refreshed_at = datetime.utcnow()
+    except Exception:
+        pass
+
+
 def _ensure_stocks_loaded():
     global _stock_cache
     if not _stock_cache:
         _stock_cache = _load_all_from_cache()
+    # Refresh live prices on Vercel (seed data has stale prices)
+    if _IS_SERVERLESS:
+        import threading
+        threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
 @app.route("/")

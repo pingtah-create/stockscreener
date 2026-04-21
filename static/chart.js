@@ -310,14 +310,17 @@ async function loadNewsMarkers() {
       newsData[nearest].push(item);
     }
 
-    // One marker per date, count label when multiple
-    _newsMarkers = Object.keys(newsData).sort().map(date => ({
+    // One marker per date — limit to the 10 most recent dates so they
+    // don't stack up and crowd the chart. Sidebar still shows all news.
+    const allDates = Object.keys(newsData).sort();
+    const recentDates = allDates.slice(-10);
+    _newsMarkers = recentDates.map(date => ({
       time:     date,
-      position: 'aboveBar',
+      position: 'belowBar',        // below bars so they don't clash with signals above
       color:    '#ff6b00',
       shape:    'circle',
-      text:     newsData[date].length > 1 ? String(newsData[date].length) : '',
-      size:     1,
+      text:     newsData[date].length > 1 ? `${newsData[date].length}` : '',
+      size:     0.8,
     }));
     flushMarkers();
 
