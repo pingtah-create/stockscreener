@@ -206,9 +206,13 @@ def api_chart(ticker: str):
     try:
         import pandas as pd
 
-        hist = yf.Ticker(ticker).history(period=period, interval="1d")
+        t_obj = yf.Ticker(ticker)
+        hist = t_obj.history(period=period, interval="1d", timeout=20)
         if hist.empty:
-            return jsonify({"ohlcv": [], "technicals": {}})
+            # Try once more — Yahoo sometimes returns empty on first call
+            hist = t_obj.history(period=period, interval="1d", timeout=20)
+        if hist.empty:
+            return jsonify({"ohlcv": [], "technicals": {}, "error": f"No data found for {ticker}"})
 
         close  = hist["Close"]
         high   = hist["High"]

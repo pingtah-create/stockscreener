@@ -280,14 +280,49 @@ function buildOscSeries(osc) {
 }
 
 // ── Load & apply data ──────────────────────────────────────────────
+function showChartLoading() {
+  const o = document.getElementById('chartOverlay');
+  const s = document.getElementById('chartOverlaySpinner');
+  const m = document.getElementById('chartOverlayMsg');
+  if (!o) return;
+  o.classList.remove('hidden');
+  s.style.display = 'block';
+  m.style.display = 'none';
+}
+function showChartError(msg) {
+  const o = document.getElementById('chartOverlay');
+  const s = document.getElementById('chartOverlaySpinner');
+  const m = document.getElementById('chartOverlayMsg');
+  if (!o) return;
+  o.classList.remove('hidden');
+  s.style.display = 'none';
+  m.style.display  = 'block';
+  m.innerHTML = `${msg}<br><button class="retry-btn" onclick="loadData('${currentPeriod}')">↻ Retry</button>`;
+}
+function hideChartOverlay() {
+  document.getElementById('chartOverlay')?.classList.add('hidden');
+}
+
 async function loadData(period) {
   currentPeriod = period;
-  const res  = await fetch(`/api/chart/${TICKER}?period=${period}`);
-  chartData  = await res.json();
-  applyAllData();
-  await loadNewsMarkers();
-  loadInsider();
-  if (autoTAOn) applyAutoTA();
+  showChartLoading();
+  try {
+    const res = await fetch(`/api/chart/${TICKER}?period=${period}`);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    chartData = await res.json();
+    if (!chartData?.ohlcv?.length) {
+      const apiErr = chartData?.error || 'No data returned for this ticker.';
+      showChartError(`Could not load chart data.<br><span style="color:#4a5568;font-size:11px">${apiErr}</span>`);
+      return;
+    }
+    hideChartOverlay();
+    applyAllData();
+    await loadNewsMarkers();
+    loadInsider();
+    if (autoTAOn) applyAutoTA();
+  } catch (e) {
+    showChartError(`Failed to load chart.<br><span style="color:#4a5568;font-size:11px">${e.message}</span>`);
+  }
 }
 
 // ── News markers ────────────────────────────────────────────────────
