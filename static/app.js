@@ -334,26 +334,29 @@ function setupSearch() {
 }
 
 function searchStocks(q) {
-  const matches = allResults.filter(s =>
+  const found = allResults.filter(s =>
+    s.symbol?.toUpperCase().startsWith(q) ||
     s.symbol?.toUpperCase().includes(q) ||
     (s.shortName || "").toUpperCase().includes(q)
-  ).slice(0, 8);
-
-  // If no loaded results yet, search from what we have cached
-  const pool = allResults.length ? allResults : [];
-  const found = pool.filter(s =>
-    s.symbol?.startsWith(q) || (s.shortName || "").toUpperCase().includes(q)
-  ).slice(0, 8);
+  ).slice(0, 7);
 
   const dropdown = document.getElementById("searchDropdown");
-  if (!found.length) { dropdown.innerHTML = `<div style="padding:12px 14px;color:var(--text3);font-size:12px">No matches found</div>`; }
-  else {
+  // Always include a direct chart link so any ticker (incl. 2330.TW) is reachable
+  const directItem = `<div class="search-result-item" onclick="window.location='/stock/${q}'" style="border-top:1px solid var(--border);opacity:.7">
+    <span class="search-ticker">${q}</span>
+    <span class="search-name" style="color:var(--text3)">Go to chart →</span>
+    <span class="search-sector"></span>
+  </div>`;
+
+  if (!found.length) {
+    dropdown.innerHTML = directItem;
+  } else {
     dropdown.innerHTML = found.map(s => `
       <div class="search-result-item" onclick="showStockDetail('${s.symbol}');closeSearch()">
         <span class="search-ticker">${s.symbol}</span>
         <span class="search-name">${s.shortName || s.longName || "—"}</span>
         <span class="search-sector">${s.sector || ""}</span>
-      </div>`).join("");
+      </div>`).join("") + directItem;
   }
   dropdown.classList.add("open");
 }

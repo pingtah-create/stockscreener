@@ -1,5 +1,6 @@
 """
-US stock universe: S&P 500 (via Wikipedia) + NASDAQ 100 + additional large/mid caps.
+US + Taiwan stock universe: S&P 500 (via Wikipedia) + NASDAQ 100 + additional large/mid caps
++ major Taiwan Stock Exchange (TWSE) companies.
 Falls back to a hardcoded list if Wikipedia is unreachable.
 """
 import requests
@@ -55,6 +56,64 @@ ADDITIONAL = [
     "HIMS","RH","W","ETSY","OSTK","CVNA","KMX","AN","LAD","PAG",
     "SPCE","JOBY","ACHR","EVX","ENVX","WOLF","LAZR","MVIS","OUST","LIDR",
 ]
+
+# Major Taiwan Stock Exchange (TWSE) companies — suffix .TW for Yahoo Finance
+TAIWAN = [
+    # Semiconductors & Tech Hardware
+    "2330.TW",   # TSMC
+    "2303.TW",   # United Microelectronics (UMC)
+    "2454.TW",   # MediaTek
+    "3711.TW",   # ASE Technology
+    "3034.TW",   # Novatek Microelectronics
+    "2408.TW",   # Nanya Technology
+    "3008.TW",   # Largan Precision
+    "2379.TW",   # Realtek Semiconductor
+    "6770.TW",   # Chroma ATE
+    "2308.TW",   # Delta Electronics
+    # Electronics & Manufacturing
+    "2317.TW",   # Hon Hai Precision (Foxconn)
+    "2382.TW",   # Quanta Computer
+    "2357.TW",   # ASUS
+    "2353.TW",   # Acer
+    "2395.TW",   # Advantech
+    "2354.TW",   # Foxconn Industrial Internet
+    "2347.TW",   # Synnex Technology
+    "2301.TW",   # Lite-On Technology
+    "3231.TW",   # Wistron
+    "2356.TW",   # Inventec
+    # Financials
+    "2881.TW",   # Fubon Financial
+    "2882.TW",   # Cathay Financial
+    "2891.TW",   # CTBC Financial
+    "2886.TW",   # Mega Financial
+    "2892.TW",   # First Financial
+    "2884.TW",   # E.SUN Financial
+    "2885.TW",   # Yuanta Financial
+    "2887.TW",   # Taishin Financial
+    "2888.TW",   # SinoPac Financial
+    "5880.TW",   # Cooperative Bank
+    # Telecom
+    "2412.TW",   # Chunghwa Telecom
+    "3045.TW",   # Taiwan Mobile
+    "4904.TW",   # Far EasTone
+    # Petrochemicals & Materials
+    "1301.TW",   # Formosa Plastics
+    "1303.TW",   # Nan Ya Plastics
+    "1326.TW",   # Formosa Chemicals & Fibre
+    "6505.TW",   # Formosa Petrochemical
+    "1305.TW",   # Asia Polymer
+    # Steel & Metals
+    "2002.TW",   # China Steel
+    # Automotive & Transportation
+    "2207.TW",   # Hotai Motor
+    "2201.TW",   # Yulon Motor
+    # Consumer & Retail
+    "2912.TW",   # President Chain Store (7-Eleven)
+    "9904.TW",   # Pou Chen (Nike/Adidas OEM)
+    # Infrastructure & Utilities
+    "9910.TW",   # Feng TAY Enterprise
+]
+
 
 def get_sp500_tickers():
     """Fetch S&P 500 tickers from Wikipedia."""
@@ -119,12 +178,12 @@ SP500_FALLBACK = [
 ]
 
 def get_all_tickers():
-    """Return deduplicated list of all US stock tickers."""
+    """Return deduplicated list of all US + Taiwan stock tickers."""
     sp500 = get_sp500_tickers()
     if not sp500:
         sp500 = SP500_FALLBACK
 
-    all_tickers = set(sp500) | set(NASDAQ_100) | set(ADDITIONAL)
+    all_tickers = set(sp500) | set(NASDAQ_100) | set(ADDITIONAL) | set(TAIWAN)
     # Remove known problematic tickers
     exclude = {"GOOGL", "BRK.A", "BF.A"}
     all_tickers -= exclude

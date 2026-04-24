@@ -310,13 +310,11 @@ async function loadNewsMarkers() {
       newsData[nearest].push(item);
     }
 
-    // One marker per date — limit to the 10 most recent dates so they
-    // don't stack up and crowd the chart. Sidebar still shows all news.
+    // One marker per date that has news — show all within the chart range
     const allDates = Object.keys(newsData).sort();
-    const recentDates = allDates.slice(-10);
-    _newsMarkers = recentDates.map(date => ({
+    _newsMarkers = allDates.map(date => ({
       time:     date,
-      position: 'belowBar',        // below bars so they don't clash with signals above
+      position: 'belowBar',
       color:    '#ff6b00',
       shape:    'circle',
       text:     newsData[date].length > 1 ? `${newsData[date].length}` : '',
@@ -338,7 +336,7 @@ function findNearestDate(target, chartDates) {
     const diff = Math.abs(new Date(d).getTime() - t);
     if (diff < bestDiff) { bestDiff = diff; best = d; }
   }
-  return bestDiff < 86400000 * 4 ? best : null;
+  return bestDiff < 86400000 * 7 ? best : null;  // up to 7 days gap (handles long holidays)
 }
 
 function renderSidebarNews(items) {
@@ -643,16 +641,22 @@ function renderChartSearchResults(q) {
     s.symbol?.toUpperCase().startsWith(q) ||
     s.symbol?.toUpperCase().includes(q) ||
     (s.shortName || '').toUpperCase().includes(q)
-  ).slice(0, 8);
+  ).slice(0, 7);
+
+  // Always append a direct-lookup option so any ticker (e.g. 2330.TW) can be navigated to
+  const directLink = `<a class="chart-search-result" href="/stock/${q}" style="border-top:1px solid #1a2540;opacity:.7">
+    <span class="csr-ticker">${q}</span>
+    <span class="csr-name" style="color:#8899aa">Go to chart →</span>
+  </a>`;
 
   if (!found.length) {
-    dropdown.innerHTML = `<div style="padding:10px 14px;color:#4a5568;font-size:11px">No matches</div>`;
+    dropdown.innerHTML = directLink;
   } else {
     dropdown.innerHTML = found.map(s => `
       <a class="chart-search-result" href="/stock/${s.symbol}">
         <span class="csr-ticker">${s.symbol}</span>
         <span class="csr-name">${s.shortName || s.longName || ''}</span>
-      </a>`).join('');
+      </a>`).join('') + directLink;
   }
   dropdown.classList.add('open');
 }
