@@ -108,8 +108,24 @@
 <!-- DASHBOARD BODY: 2 columns -->
 <div class="dashboard-body">
 
-  <!-- COL 1: Top Movers + Heatmap -->
+  <!-- COL 1: Watchlist + Top Movers + Heatmap -->
   <div class="dash-col">
+
+    <!-- WATCHLIST -->
+    <div class="dash-panel">
+      <div class="dash-panel-header">
+        <span class="dash-panel-title">WATCHLIST</span>
+        <button class="watchlist-add-btn" id="watchlistAddBtn" title="Add ticker">+</button>
+      </div>
+      <div class="watchlist-input-wrap" id="watchlistInputWrap" style="display:none">
+        <input class="watchlist-input" id="watchlistInput" type="text"
+               placeholder="Add ticker (AAPL, NVDA, 2330.TW)…" autocomplete="off" />
+      </div>
+      <div class="watchlist-list" id="watchlistList">
+        <div class="watchlist-empty">No stocks. Click + to add.</div>
+      </div>
+    </div>
+
     <div class="dash-panel">
       <div class="dash-panel-header">
         <span class="dash-panel-title">TOP MOVERS</span>

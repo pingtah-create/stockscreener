@@ -5,17 +5,20 @@ let allResults = [];
 document.addEventListener("DOMContentLoaded", async () => {
   setupSearch();
   setupKeyboardShortcuts();
+  setupWatchlist();
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
   await Promise.all([loadIndices(), checkStatus()]);
   loadMovers();
   loadHeatmap();
   loadNews();
+  loadWatchlist();
   preloadStocksForSearch();
   setInterval(checkStatus, 4000);
   setInterval(loadIndices, 60000);
   setInterval(loadMovers, 120000);
   setInterval(loadNews, 300000);
+  setInterval(loadWatchlist, 60000);
 });
 
 async function preloadStocksForSearch() {
@@ -157,6 +160,103 @@ async function loadNews() {
   } catch (e) {
     feed.innerHTML = `<div class="news-loading" style="color:var(--red)">Failed to load news.</div>`;
   }
+}
+
+// ── WATCHLIST ─────────────────────────────────────────
+const WATCHLIST_KEY = "watchlist";
+
+function getWatchlist() {
+  try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || "[]"); }
+  catch { return []; }
+}
+function saveWatchlist(list) {
+  localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list));
+}
+function addToWatchlist(ticker) {
+  ticker = (ticker || "").trim().toUpperCase();
+  if (!ticker) return;
+  const list = getWatchlist();
+  if (list.includes(ticker)) return;
+  list.push(ticker);
+  saveWatchlist(list);
+  loadWatchlist();
+}
+function removeFromWatchlist(ticker) {
+  saveWatchlist(getWatchlist().filter(t => t !== ticker));
+  loadWatchlist();
+}
+
+async function loadWatchlist() {
+  const el = document.getElementById("watchlistList");
+  if (!el) return;
+  const list = getWatchlist();
+  if (!list.length) {
+    el.innerHTML = `<div class="watchlist-empty">No stocks. Click + to add.</div>`;
+    return;
+  }
+  try {
+    const res = await fetch("/api/quotes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tickers: list }),
+      cache: "no-store",
+    });
+    const data = await res.json();
+    const byTicker = Object.fromEntries(data.map(d => [d.symbol, d]));
+    el.innerHTML = list.map(t => {
+      const q = byTicker[t];
+      if (!q) {
+        return `<div class="watchlist-row missing">
+          <div class="watchlist-row-left">
+            <span class="mover-row-ticker">${t}</span>
+            <span class="mover-row-name">No data</span>
+          </div>
+          <span class="watchlist-remove" onclick="event.stopPropagation();removeFromWatchlist('${t}')" title="Remove">×</span>
+        </div>`;
+      }
+      const cls = q.change_pct >= 0 ? "up" : "down";
+      const sign = q.change_pct >= 0 ? "+" : "";
+      const shortName = (q.name || "").split(" ").slice(0, 2).join(" ");
+      const priceStr = q.price >= 1000
+        ? q.price.toLocaleString("en-US", { maximumFractionDigits: 2 })
+        : q.price.toFixed(2);
+      return `<div class="watchlist-row ${cls}" onclick="window.location='/stock/${q.symbol}'">
+        <div class="watchlist-row-left">
+          <span class="mover-row-ticker">${q.symbol}</span>
+          <span class="mover-row-name">${shortName}</span>
+        </div>
+        <div class="watchlist-row-right">
+          <span class="watchlist-price">$${priceStr}</span>
+          <span class="watchlist-pct">${sign}${q.change_pct.toFixed(2)}%</span>
+          <span class="watchlist-remove" onclick="event.stopPropagation();removeFromWatchlist('${q.symbol}')" title="Remove">×</span>
+        </div>
+      </div>`;
+    }).join("");
+  } catch (e) {
+    el.innerHTML = `<div class="watchlist-empty">Failed to load.</div>`;
+  }
+}
+
+function setupWatchlist() {
+  const btn  = document.getElementById("watchlistAddBtn");
+  const wrap = document.getElementById("watchlistInputWrap");
+  const inp  = document.getElementById("watchlistInput");
+  if (!btn || !wrap || !inp) return;
+  btn.addEventListener("click", () => {
+    const open = wrap.style.display !== "none";
+    wrap.style.display = open ? "none" : "block";
+    if (!open) inp.focus();
+  });
+  inp.addEventListener("keydown", e => {
+    if (e.key === "Enter") {
+      addToWatchlist(inp.value);
+      inp.value = "";
+      wrap.style.display = "none";
+    } else if (e.key === "Escape") {
+      inp.value = "";
+      wrap.style.display = "none";
+    }
+  });
 }
 
 // ── KEYBOARD SHORTCUTS ─────────────────────────────────

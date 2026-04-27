@@ -42,6 +42,45 @@ SPARKLINE_CACHE.mkdir(parents=True, exist_ok=True)
 _SEED_FILE = Path(__file__).parent / "data" / "stocks.json"
 
 
+def _live_quote(ticker: str):
+    """Return (current_price, previous_close) using the same data path the
+    chart endpoint uses — guarantees the header price matches the rightmost
+    candle on the chart. Falls back to 1-min bars then fast_info."""
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="5d", interval="1d", timeout=15)
+        if not hist.empty:
+            cur  = float(hist["Close"].iloc[-1])
+            prev = float(hist["Close"].iloc[-2]) if len(hist) >= 2 else cur
+            if cur > 0:
+                return cur, prev
+    except Exception:
+        pass
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="2d", interval="1m", prepost=True)
+        if not hist.empty:
+            cur   = float(hist["Close"].iloc[-1])
+            dates = [d.date() for d in hist.index]
+            today = dates[-1]
+            prev_idx = [i for i, d in enumerate(dates) if d < today]
+            prev = float(hist["Close"].iloc[prev_idx[-1]]) if prev_idx else \
+                   float(getattr(t.fast_info, "previous_close", None) or 0)
+            if cur > 0:
+                return cur, prev
+    except Exception:
+        pass
+    try:
+        info = yf.Ticker(ticker).fast_info
+        cur  = float(getattr(info, "last_price", None) or 0)
+        prev = float(getattr(info, "previous_close", None) or 0)
+        if cur > 0:
+            return cur, prev
+    except Exception:
+        pass
+    return None, None
+
+
 def _load_all_from_cache() -> list[dict]:
     global _tickers
     _tickers = get_all_tickers()
@@ -414,6 +453,46 @@ def api_refresh():
     return jsonify({"started": started})
 
 
+@app.route("/api/quotes", methods=["POST"])
+def api_quotes():
+    """Batch live quotes for watchlist — uses Yahoo's quote endpoint (real-time)
+    in parallel for each ticker. Cache is only used for company names."""
+    _ensure_stocks_loaded()
+    body = request.json or {}
+    tickers = [t.upper().strip() for t in (body.get("tickers") or []) if t]
+    if not tickers:
+        return jsonify([])
+
+    cache_map = {s.get("symbol"): s for s in _stock_cache}
+    def name_for(tkr: str) -> str:
+        s = cache_map.get(tkr) or {}
+        return s.get("shortName") or s.get("longName") or tkr
+
+    def fetch_one(tkr: str):
+        cur, prev = _live_quote(tkr)
+        if cur is None:
+            return tkr, None
+        chg = (cur - prev) / prev * 100 if prev else 0
+        return tkr, {
+            "symbol":     tkr,
+            "name":       name_for(tkr),
+            "price":      round(cur, 2),
+            "change_pct": round(chg, 2),
+        }
+
+    from concurrent.futures import ThreadPoolExecutor
+    results: dict = {}
+    with ThreadPoolExecutor(max_workers=min(10, len(tickers))) as ex:
+        for tkr, data in ex.map(fetch_one, tickers):
+            if data:
+                results[tkr] = data
+
+    payload = [results[t] for t in tickers if t in results]
+    resp = jsonify(payload)
+    resp.headers["Cache-Control"] = "no-store, max-age=0"
+    return resp
+
+
 @app.route("/api/screen", methods=["POST"])
 def api_screen():
     _ensure_stocks_loaded()
@@ -480,15 +559,29 @@ def api_insider(ticker: str):
 @app.route("/api/stock/<ticker>")
 def api_stock(ticker: str):
     ticker = ticker.upper()
+    data = None
     for s in _stock_cache:
         if s.get("symbol") == ticker:
-            s["scores"] = compute_scores(s)
-            return jsonify(s)
-    data = fetch_ticker(ticker, force=False)
-    if data:
-        data["scores"] = compute_scores(data)
-        return jsonify(data)
-    return jsonify({"error": f"No data for {ticker}"}), 404
+            data = s
+            break
+    if data is None:
+        data = fetch_ticker(ticker, force=False)
+    if not data:
+        return jsonify({"error": f"No data for {ticker}"}), 404
+
+    # Overlay live price so the header shows the current market price
+    # instead of whatever the slow-moving cache held.
+    cur, prev = _live_quote(ticker)
+    if cur is not None:
+        data["currentPrice"] = round(cur, 2)
+        if prev and prev > 0:
+            data["regularMarketChangePercent"] = round((cur - prev) / prev * 100, 4)
+            data["previousClose"] = round(prev, 2)
+
+    data["scores"] = compute_scores(data)
+    resp = jsonify(data)
+    resp.headers["Cache-Control"] = "no-store, max-age=0"
+    return resp
 
 
 if __name__ == "__main__":

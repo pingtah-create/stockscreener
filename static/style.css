@@ -419,6 +419,58 @@ body {
 }
 .dash-panel-sub { font-size: 10px; color: var(--text3); }
 
+/* ── WATCHLIST ────────────────────────────────── */
+.watchlist-add-btn {
+  background: none; border: 1px solid var(--border); border-radius: 3px;
+  color: var(--accent); font-size: 14px; font-weight: 700; cursor: pointer;
+  line-height: 1; padding: 2px 8px 3px; transition: all var(--transition);
+}
+.watchlist-add-btn:hover { background: var(--bg3); border-color: var(--accent); }
+
+.watchlist-input-wrap {
+  padding: 8px 14px; border-bottom: 1px solid var(--border); background: var(--bg2);
+}
+.watchlist-input {
+  width: 100%; background: var(--bg3); border: 1px solid var(--border);
+  color: var(--text); font-family: var(--mono); font-size: 12px;
+  padding: 6px 10px; border-radius: 3px; outline: none;
+  transition: border-color var(--transition);
+}
+.watchlist-input:focus { border-color: var(--accent); }
+
+.watchlist-list { display: flex; flex-direction: column; }
+.watchlist-empty {
+  padding: 14px; color: var(--text3); font-size: 11px; text-align: center;
+}
+.watchlist-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 5px 14px; cursor: pointer;
+  transition: background var(--transition);
+  border-left: 2px solid transparent;
+}
+.watchlist-row:hover { background: var(--bg3); }
+.watchlist-row.up   { border-left-color: var(--green); }
+.watchlist-row.down { border-left-color: var(--red); }
+.watchlist-row.missing { opacity: 0.55; }
+.watchlist-row-left  { display: flex; align-items: center; gap: 8px; min-width: 0; flex: 1; }
+.watchlist-row-right { display: flex; align-items: center; gap: 8px; }
+.watchlist-price {
+  font-family: var(--mono); font-size: 11px; color: var(--text2);
+}
+.watchlist-pct {
+  font-family: var(--mono); font-size: 12px; font-weight: 700;
+  min-width: 56px; text-align: right;
+}
+.watchlist-row.up   .watchlist-pct { color: var(--green); }
+.watchlist-row.down .watchlist-pct { color: var(--red); }
+.watchlist-remove {
+  color: var(--text3); cursor: pointer; padding: 0 4px;
+  font-size: 14px; line-height: 1;
+  opacity: 0; transition: opacity var(--transition), color var(--transition);
+}
+.watchlist-row:hover .watchlist-remove { opacity: 1; }
+.watchlist-remove:hover { color: var(--red); }
+
 /* ── MOVERS (dashboard version) ───────────────── */
 .movers-section { padding: 8px 0 4px; }
 .movers-section-label {

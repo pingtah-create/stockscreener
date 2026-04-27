@@ -317,11 +317,31 @@ async function loadData(period) {
     }
     hideChartOverlay();
     applyAllData();
+    syncHeaderFromChart();
     await loadNewsMarkers();
     loadInsider();
     if (autoTAOn) applyAutoTA();
   } catch (e) {
     showChartError(`Failed to load chart.<br><span style="color:#4a5568;font-size:11px">${e.message}</span>`);
+  }
+}
+
+// ── Sync header price from the chart's latest candle ───────────────
+// Guarantees the header price always matches what's drawn on the chart,
+// regardless of what /api/stock returned.
+function syncHeaderFromChart() {
+  const bars = chartData?.ohlcv;
+  if (!bars || !bars.length) return;
+  const last = bars[bars.length - 1];
+  const prev = bars.length >= 2 ? bars[bars.length - 2] : null;
+  const cur  = last.close;
+  const chg  = prev && prev.close ? (cur - prev.close) / prev.close * 100 : 0;
+  const priceEl = document.getElementById('stockPrice');
+  const chgEl   = document.getElementById('stockChg');
+  if (priceEl) priceEl.textContent = '$' + cur.toFixed(2);
+  if (chgEl)   {
+    chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+    chgEl.className   = 'stock-chg ' + (chg >= 0 ? 'chg-up' : 'chg-down');
   }
 }
 
@@ -1065,7 +1085,7 @@ function hexToRgba(hex, alpha) {
 // ══════════════════════════════════════════════════════════════════
 
 async function loadFundamentals() {
-  const res = await fetch(`/api/stock/${TICKER}`);
+  const res = await fetch(`/api/stock/${TICKER}`, { cache: "no-store" });
   const s   = await res.json();
 
   // Top bar
