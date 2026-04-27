@@ -12,7 +12,7 @@ import yfinance as yf
 from stock_list import get_all_tickers
 from screener import (
     fetch_ticker, fetch_batch, screen, compute_scores,
-    start_background_refresh, get_refresh_state, PRESETS, _load_cache,
+    start_background_refresh, get_refresh_state, _load_cache,
 )
 
 app = Flask(__name__)
@@ -131,11 +131,6 @@ def _ensure_stocks_loaded():
 @app.route("/")
 def index():
     return render_template("index.html")
-
-
-@app.route("/api/presets")
-def api_presets():
-    return jsonify(PRESETS)
 
 
 @app.route("/api/status")
@@ -417,13 +412,6 @@ def api_refresh():
     tickers = _tickers or get_all_tickers()
     started = start_background_refresh(tickers)
     return jsonify({"started": started})
-
-
-@app.route("/api/reload", methods=["POST"])
-def api_reload():
-    global _stock_cache
-    _stock_cache = _load_all_from_cache()
-    return jsonify({"loaded": len(_stock_cache)})
 
 
 @app.route("/api/screen", methods=["POST"])
