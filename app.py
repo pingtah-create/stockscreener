@@ -237,14 +237,29 @@ def api_sparkline(ticker: str):
 def api_chart(ticker: str):
     ticker = ticker.upper()
     period = request.args.get("period", "6mo")
+
+    # Map requested period → (yfinance fetch period, # of bars to keep).
+    # Fetch period is larger so SMA200/BB have full lookback for the visible
+    # range — otherwise overlays show a "warmup gap" on the left edge.
+    PERIOD_MAP = {
+        "5d":  ("1y",  5),
+        "1mo": ("1y",  21),
+        "3mo": ("2y",  63),
+        "6mo": ("2y",  126),
+        "1y":  ("5y",  252),
+        "2y":  ("5y",  504),
+        "5y":  ("10y", 1260),
+    }
+    fetch_period, keep_bars = PERIOD_MAP.get(period, (period, None))
+
     try:
         import pandas as pd
 
         t_obj = yf.Ticker(ticker)
-        hist = t_obj.history(period=period, interval="1d", timeout=20)
+        hist = t_obj.history(period=fetch_period, interval="1d", timeout=20)
         if hist.empty:
             # Try once more — Yahoo sometimes returns empty on first call
-            hist = t_obj.history(period=period, interval="1d", timeout=20)
+            hist = t_obj.history(period=fetch_period, interval="1d", timeout=20)
         if hist.empty:
             return jsonify({"ohlcv": [], "technicals": {}, "error": f"No data found for {ticker}"})
 
@@ -329,31 +344,35 @@ def api_chart(ticker: str):
                 "up":     float(row["Close"]) >= prev,
             })
 
-        return jsonify({
-            "ohlcv": ohlcv,
-            "technicals": {
-                "sma20":       to_list(sma20),
-                "sma50":       to_list(sma50),
-                "sma200":      to_list(sma200),
-                "ema9":        to_list(ema9),
-                "ema20":       to_list(ema20),
-                "bb_upper":    to_list(bb_upper),
-                "bb_mid":      to_list(bb_mid),
-                "bb_lower":    to_list(bb_lower),
-                "bb_width":    to_list(bb_width),
-                "rsi":         to_list(rsi),
-                "macd":        to_list(macd_line),
-                "macd_signal": to_list(macd_signal),
-                "macd_hist":   to_list(macd_hist),
-                "stoch_k":     to_list(stoch_k),
-                "stoch_d":     to_list(stoch_d),
-                "vwap":        to_list(vwap),
-                "atr":         to_list(atr),
-                "obv":         to_list(obv),
-                "will_r":      to_list(will_r),
-                "cci":         to_list(cci),
-            },
-        })
+        technicals = {
+            "sma20":       to_list(sma20),
+            "sma50":       to_list(sma50),
+            "sma200":      to_list(sma200),
+            "ema9":        to_list(ema9),
+            "ema20":       to_list(ema20),
+            "bb_upper":    to_list(bb_upper),
+            "bb_mid":      to_list(bb_mid),
+            "bb_lower":    to_list(bb_lower),
+            "bb_width":    to_list(bb_width),
+            "rsi":         to_list(rsi),
+            "macd":        to_list(macd_line),
+            "macd_signal": to_list(macd_signal),
+            "macd_hist":   to_list(macd_hist),
+            "stoch_k":     to_list(stoch_k),
+            "stoch_d":     to_list(stoch_d),
+            "vwap":        to_list(vwap),
+            "atr":         to_list(atr),
+            "obv":         to_list(obv),
+            "will_r":      to_list(will_r),
+            "cci":         to_list(cci),
+        }
+
+        # Trim to the requested range now that indicators are warmed up.
+        if keep_bars and len(ohlcv) > keep_bars:
+            ohlcv = ohlcv[-keep_bars:]
+            technicals = {k: v[-keep_bars:] for k, v in technicals.items()}
+
+        return jsonify({"ohlcv": ohlcv, "technicals": technicals})
     except Exception as e:
         return jsonify({"ohlcv": [], "technicals": {}, "error": str(e)})
 

@@ -28,8 +28,8 @@ let oscSeriesList = [];
 const overlayMap = {};   // key → LC series
 
 let chartData    = null;
-let currentOsc   = 'rsi';
-let currentType  = 'candle';
+let currentOsc   = localStorage.getItem('chartOsc')  || 'rsi';
+let currentType  = localStorage.getItem('chartType') || 'candle';
 let _syncingRange = false;
 
 // ── Period auto-extend ────────────────────────────────────────────
@@ -47,8 +47,24 @@ let   _insiderMarkers = [];
 let autoTAOn       = false;
 let _autoTAMarkers = [];
 
-// ── Indicator defaults ─────────────────────────────────────────────
-const IND_ON = { bb: true, sma20: true, sma50: false, sma200: false, ema9: false, ema20: false, vwap: false };
+// ── Indicator defaults (loaded from localStorage if present) ──────
+const IND_DEFAULT = { bb: true, sma20: true, sma50: false, sma200: false, ema9: false, ema20: false, vwap: false };
+const IND_ON = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('chartIndOn') || 'null');
+    if (saved && typeof saved === 'object') return { ...IND_DEFAULT, ...saved };
+  } catch {}
+  return { ...IND_DEFAULT };
+})();
+const _savedOsc  = localStorage.getItem('chartOsc');
+const _savedType = localStorage.getItem('chartType');
+function saveChartPrefs() {
+  try {
+    localStorage.setItem('chartIndOn', JSON.stringify(IND_ON));
+    localStorage.setItem('chartOsc',   currentOsc);
+    localStorage.setItem('chartType',  currentType);
+  } catch {}
+}
 
 // ── Drawing state ──────────────────────────────────────────────────
 const drawings     = [];   // committed drawings
@@ -67,10 +83,14 @@ window.addEventListener('DOMContentLoaded', () => {
   drawCtx      = drawCanvas.getContext('2d');
 
   initCharts();
+  applySavedPrefsToUI();
+  if (currentType === 'line') setChartType('line');
   loadData('3mo');
   loadFundamentals();
   setupPeriodBtns();
   setupDrawingCanvas();
+  setupPriceAlerts();
+  updateWatchStarUI();
   startRenderLoop();
 
   // Keyboard shortcuts
@@ -111,7 +131,7 @@ function initCharts() {
 
   buildPriceSeries();
   buildVolSeries();
-  buildOscSeries('rsi');
+  buildOscSeries(currentOsc);
 
   // Sync time-scale scroll/zoom across all three charts (bidirectional)
   function hideTooltips() {
@@ -167,6 +187,19 @@ function initCharts() {
     const tip = document.getElementById('candleTooltip');
     if (tip) tip.style.display = 'none';
   });
+
+  // Keep news tooltip open while hovered so user can click headlines
+  const nmTip = document.getElementById('newsMarkerTooltip');
+  if (nmTip) {
+    nmTip.addEventListener('mouseenter', () => {
+      _newsTipHovered = true;
+      if (_newsHideTimer) { clearTimeout(_newsHideTimer); _newsHideTimer = null; }
+    });
+    nmTip.addEventListener('mouseleave', () => {
+      _newsTipHovered = false;
+      hideNewsTooltip();
+    });
+  }
   volChart.subscribeCrosshairMove(p => {
     syncLine(priceChart, priLine, p.time);
     syncLine(oscChart,   oscLine, p.time);
@@ -343,6 +376,167 @@ function syncHeaderFromChart() {
     chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
     chgEl.className   = 'stock-chg ' + (chg >= 0 ? 'chg-up' : 'chg-down');
   }
+  checkAlerts(TICKER, cur);
+}
+
+// ══════════════════════════════════════════════════════════════════
+//  PRICE ALERTS
+// ══════════════════════════════════════════════════════════════════
+const ALERTS_KEY = 'priceAlerts';
+
+function getAllAlerts() {
+  try { return JSON.parse(localStorage.getItem(ALERTS_KEY) || '{}'); }
+  catch { return {}; }
+}
+function saveAllAlerts(all) {
+  localStorage.setItem(ALERTS_KEY, JSON.stringify(all));
+}
+function getAlerts(ticker) {
+  return getAllAlerts()[ticker] || [];
+}
+function setAlerts(ticker, list) {
+  const all = getAllAlerts();
+  if (list.length) all[ticker] = list;
+  else delete all[ticker];
+  saveAllAlerts(all);
+}
+
+function addAlertFromInput(dir) {
+  const inp = document.getElementById('alertPopupInput');
+  const target = parseFloat(inp.value);
+  if (!target || target <= 0) return;
+  const list = getAlerts(TICKER);
+  list.push({ price: target, dir, created: Date.now() });
+  setAlerts(TICKER, list);
+  inp.value = '';
+  renderAlertPopup();
+  updateAlertBadge();
+  if ('Notification' in window && Notification.permission === 'default') {
+    Notification.requestPermission();
+  }
+}
+
+function removeAlert(idx) {
+  const list = getAlerts(TICKER);
+  list.splice(idx, 1);
+  setAlerts(TICKER, list);
+  renderAlertPopup();
+  updateAlertBadge();
+}
+
+function renderAlertPopup() {
+  const el = document.getElementById('alertPopupList');
+  if (!el) return;
+  const list = getAlerts(TICKER);
+  if (!list.length) {
+    el.innerHTML = '<div class="alert-popup-empty">No alerts set.</div>';
+    return;
+  }
+  el.innerHTML = list.map((a, i) => {
+    const arrow = a.dir === 'above' ? '▲' : '▼';
+    const cls   = a.dir === 'above' ? 'above' : 'below';
+    return `<div class="alert-popup-row">
+      <span class="alert-popup-arrow ${cls}">${arrow}</span>
+      <span class="alert-popup-price">$${a.price.toFixed(2)}</span>
+      <span class="alert-popup-x" onclick="removeAlert(${i})" title="Remove">×</span>
+    </div>`;
+  }).join('');
+}
+
+function updateAlertBadge() {
+  const badge = document.getElementById('alertBellBadge');
+  const count = getAlerts(TICKER).length;
+  if (!badge) return;
+  if (count > 0) { badge.textContent = count; badge.style.display = 'flex'; }
+  else           { badge.style.display = 'none'; }
+}
+
+// ── Watchlist toggle (shared key with dashboard) ───────────────────
+const WATCHLIST_KEY = 'watchlist';
+function getWatchlist() {
+  try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || '[]'); }
+  catch { return []; }
+}
+function isInWatchlist(t) { return getWatchlist().includes(t); }
+function toggleWatchlistTicker() {
+  const list = getWatchlist();
+  const i = list.indexOf(TICKER);
+  if (i >= 0) { list.splice(i, 1); showAlertToast(`${TICKER} removed from watchlist`); }
+  else        { list.push(TICKER);  showAlertToast(`${TICKER} added to watchlist`); }
+  localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list));
+  updateWatchStarUI();
+}
+function updateWatchStarUI() {
+  const btn = document.getElementById('watchStar');
+  if (!btn) return;
+  const inList = isInWatchlist(TICKER);
+  btn.classList.toggle('active', inList);
+  btn.title = inList ? 'Remove from watchlist' : 'Add to watchlist';
+}
+
+function setupPriceAlerts() {
+  const bell = document.getElementById('alertBell');
+  const pop  = document.getElementById('alertPopup');
+  const inp  = document.getElementById('alertPopupInput');
+  if (!bell || !pop) return;
+  bell.addEventListener('click', e => {
+    e.stopPropagation();
+    const open = pop.style.display !== 'none';
+    pop.style.display = open ? 'none' : 'block';
+    if (!open) { renderAlertPopup(); inp?.focus(); }
+  });
+  document.addEventListener('click', e => {
+    if (!pop.contains(e.target) && !bell.contains(e.target)) pop.style.display = 'none';
+  });
+  inp?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') addAlertFromInput('above');
+    if (e.key === 'Escape') pop.style.display = 'none';
+  });
+  updateAlertBadge();
+}
+
+// Check current price against saved alerts. Fires browser notification +
+// in-page toast for any that triggered, then removes them (one-shot).
+function checkAlerts(ticker, currentPrice) {
+  if (!ticker || !currentPrice) return;
+  const list = getAlerts(ticker);
+  if (!list.length) return;
+  const remaining = [];
+  const fired     = [];
+  for (const a of list) {
+    const trigger = (a.dir === 'above' && currentPrice >= a.price) ||
+                    (a.dir === 'below' && currentPrice <= a.price);
+    if (trigger) fired.push(a);
+    else         remaining.push(a);
+  }
+  if (!fired.length) return;
+  setAlerts(ticker, remaining);
+  if (ticker === (typeof TICKER !== 'undefined' ? TICKER : null)) {
+    renderAlertPopup();
+    updateAlertBadge();
+  }
+  for (const a of fired) {
+    const msg = `${ticker} ${a.dir === 'above' ? 'rose to' : 'dropped to'} $${currentPrice.toFixed(2)} (alert: ${a.dir} $${a.price.toFixed(2)})`;
+    fireAlertNotification(ticker, msg);
+  }
+}
+
+function fireAlertNotification(ticker, msg) {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    try {
+      const n = new Notification(`📢 ${ticker} price alert`, { body: msg, tag: `alert-${ticker}-${Date.now()}` });
+      n.onclick = () => { window.focus(); window.location.href = `/stock/${ticker}`; };
+    } catch {}
+  }
+  showAlertToast(msg);
+}
+
+function showAlertToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'alert-toast';
+  t.textContent = '📢 ' + msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 6000);
 }
 
 // ── News markers ────────────────────────────────────────────────────
@@ -414,10 +608,13 @@ function renderSidebarNews(items) {
 }
 
 let _lastNewsDate = null;
+let _newsTipHovered = false;
 
 function showNewsTooltip(date) {
   const tooltip = document.getElementById('newsMarkerTooltip');
   if (!tooltip) return;
+  // Lock content while user is hovering the tooltip (so they can click)
+  if (_newsTipHovered) return;
   const items = newsData[date];
   if (!items?.length) { hideNewsTooltip(); return; }
 
@@ -632,14 +829,16 @@ function toggleInd(key, btn) {
   } else if (overlayMap[key]) {
     overlayMap[key].applyOptions({ visible: v });
   }
+  saveChartPrefs();
 }
 
 // ── Oscillator switch ──────────────────────────────────────────────
 function setOsc(osc, btn) {
   document.querySelectorAll('.osc-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  if (btn) btn.classList.add('active');
   currentOsc = osc;
   buildOscSeries(osc);
+  saveChartPrefs();
 }
 
 // ── Chart type switch ──────────────────────────────────────────────
@@ -649,6 +848,25 @@ function setChartType(type) {
   document.getElementById('btnLine')  .classList.toggle('active', type === 'line');
   candleSeries   .applyOptions({ visible: type === 'candle' });
   linePriceSeries.applyOptions({ visible: type === 'line' });
+  saveChartPrefs();
+}
+
+// ── Apply saved chart prefs to UI buttons ─────────────────────────
+function applySavedPrefsToUI() {
+  // Indicator buttons
+  document.querySelectorAll('.ind-btn[data-ind]').forEach(btn => {
+    const key = btn.dataset.ind;
+    btn.classList.toggle('active', !!IND_ON[key]);
+  });
+  // Oscillator buttons — match by visible label text (lowercased)
+  document.querySelectorAll('.osc-btn').forEach(b => {
+    const label = b.textContent.trim().toLowerCase().replace('willr', 'willr');
+    const key = label === 'willr' ? 'willr' : label;
+    b.classList.toggle('active', key === currentOsc);
+  });
+  // Chart type
+  document.getElementById('btnCandle')?.classList.toggle('active', currentType === 'candle');
+  document.getElementById('btnLine')  ?.classList.toggle('active', currentType === 'line');
 }
 
 // ── Chart page search ──────────────────────────────────────────────

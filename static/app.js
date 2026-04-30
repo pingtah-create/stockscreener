@@ -162,6 +162,46 @@ async function loadNews() {
   }
 }
 
+// ── PRICE ALERTS (shared with chart page via localStorage) ─────────
+const ALERTS_KEY = "priceAlerts";
+function getAllAlerts() {
+  try { return JSON.parse(localStorage.getItem(ALERTS_KEY) || "{}"); }
+  catch { return {}; }
+}
+function saveAllAlerts(all) {
+  localStorage.setItem(ALERTS_KEY, JSON.stringify(all));
+}
+function checkAlerts(ticker, currentPrice) {
+  if (!ticker || !currentPrice) return;
+  const all = getAllAlerts();
+  const list = all[ticker] || [];
+  if (!list.length) return;
+  const remaining = [];
+  const fired     = [];
+  for (const a of list) {
+    const trigger = (a.dir === "above" && currentPrice >= a.price) ||
+                    (a.dir === "below" && currentPrice <= a.price);
+    if (trigger) fired.push(a);
+    else         remaining.push(a);
+  }
+  if (!fired.length) return;
+  if (remaining.length) all[ticker] = remaining; else delete all[ticker];
+  saveAllAlerts(all);
+  for (const a of fired) {
+    const msg = `${ticker} ${a.dir === "above" ? "rose to" : "dropped to"} $${currentPrice.toFixed(2)} (alert: ${a.dir} $${a.price.toFixed(2)})`;
+    fireAlertNotification(ticker, msg);
+  }
+}
+function fireAlertNotification(ticker, msg) {
+  if ("Notification" in window && Notification.permission === "granted") {
+    try {
+      const n = new Notification(`📢 ${ticker} price alert`, { body: msg, tag: `alert-${ticker}-${Date.now()}` });
+      n.onclick = () => { window.focus(); window.location.href = `/stock/${ticker}`; };
+    } catch {}
+  }
+  showToast(msg, "alert");
+}
+
 // ── WATCHLIST ─────────────────────────────────────────
 const WATCHLIST_KEY = "watchlist";
 
@@ -190,7 +230,10 @@ async function loadWatchlist() {
   const el = document.getElementById("watchlistList");
   if (!el) return;
   const list = getWatchlist();
-  if (!list.length) {
+  // Always include any tickers that have active alerts so they get checked
+  const alertTickers = Object.keys(getAllAlerts());
+  const checkSet = Array.from(new Set([...list, ...alertTickers]));
+  if (!list.length && !alertTickers.length) {
     el.innerHTML = `<div class="watchlist-empty">No stocks. Click + to add.</div>`;
     return;
   }
@@ -198,11 +241,14 @@ async function loadWatchlist() {
     const res = await fetch("/api/quotes", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ tickers: list }),
+      body: JSON.stringify({ tickers: checkSet }),
       cache: "no-store",
     });
     const data = await res.json();
     const byTicker = Object.fromEntries(data.map(d => [d.symbol, d]));
+    // Run alert checks against every fetched quote
+    for (const q of data) checkAlerts(q.symbol, q.price);
+    if (!list.length) { el.innerHTML = `<div class="watchlist-empty">No stocks. Click + to add.</div>`; return; }
     el.innerHTML = list.map(t => {
       const q = byTicker[t];
       if (!q) {
@@ -384,5 +430,5 @@ async function startRefresh() {
 function showToast(msg, type = "") {
   const t = Object.assign(document.createElement("div"), { className: `toast ${type}`, textContent: msg });
   document.body.appendChild(t);
-  setTimeout(() => t.remove(), 3200);
+  setTimeout(() => t.remove(), type === "alert" ? 6000 : 3200);
 }

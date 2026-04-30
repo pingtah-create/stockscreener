@@ -290,6 +290,10 @@ body {
 }
 .toast.success { border-color: var(--green); }
 .toast.error   { border-color: var(--red); }
+.toast.alert   {
+  border-color: var(--yellow); border-left: 3px solid var(--yellow);
+  font-weight: 600;
+}
 @keyframes slideIn { from { transform: translateY(10px); opacity: 0; } to { transform: none; opacity: 1; } }
 
 /* ── PULSE ────────────────────────────────────── */
