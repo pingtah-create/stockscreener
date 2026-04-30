@@ -1387,20 +1387,21 @@ function toggleAutoTA(btn) {
 }
 
 function clearAutoTA() {
-  // Remove auto-TA drawings
   for (let i = drawings.length - 1; i >= 0; i--) {
     if (drawings[i]._autoTA) drawings.splice(i, 1);
   }
   _autoTAMarkers = [];
   flushMarkers();
   markRender();
+  const panel = document.getElementById('autoTAPanel');
+  if (panel) panel.style.display = 'none';
 }
 
 function applyAutoTA() {
   if (!chartData?.ohlcv?.length) return;
   clearAutoTA();
 
-  // 1. Force-enable BB + SMA20 + SMA50
+  // Force-enable BB + SMA20 + SMA50 overlays
   ['bb', 'sma20', 'sma50'].forEach(key => {
     if (!IND_ON[key]) {
       IND_ON[key] = true;
@@ -1415,10 +1416,14 @@ function applyAutoTA() {
     }
   });
 
-  // 2. Trend line — find 2 recent rising pivot lows (uptrend) or falling pivot highs (downtrend)
   const ohlcv = chartData.ohlcv;
+  const t     = chartData.technicals;
+  const n     = ohlcv.length;
+  const dates = ohlcv.map(x => x.date);
+
+  // Pivot lows/highs for trendline + trend finding
   const W = 3;
-  const recent = ohlcv.slice(-Math.min(80, ohlcv.length));
+  const recent = ohlcv.slice(-Math.min(80, n));
   const rn = recent.length;
   const lows = [], highs = [];
   for (let i = W; i < rn - W; i++) {
@@ -1431,15 +1436,14 @@ function applyAutoTA() {
     if (isHigh) highs.push({ price: recent[i].high, date: recent[i].date });
   }
 
+  // Draw trendline on chart
   let trendDrawn = false;
-  // Try uptrend: two consecutive rising lows
   for (let i = lows.length - 1; i >= 1 && !trendDrawn; i--) {
     if (lows[i].price > lows[i-1].price) {
       drawings.push({ type: 'trendline', points: [lows[i-1], lows[i]], color: '#00e676', _autoTA: true });
       trendDrawn = true;
     }
   }
-  // Fallback: downtrend — two consecutive falling highs
   if (!trendDrawn) {
     for (let i = highs.length - 1; i >= 1; i--) {
       if (highs[i].price < highs[i-1].price) {
@@ -1449,23 +1453,168 @@ function applyAutoTA() {
     }
   }
 
-  // 3. MACD crossover buy/sell signals only
-  const t = chartData.technicals;
-  const dates = ohlcv.map(x => x.date);
+  // MACD crossover markers on chart
   if (t.macd && t.macd_signal) {
     for (let i = 1; i < t.macd.length; i++) {
       const m0 = t.macd[i-1], s0 = t.macd_signal[i-1];
       const m1 = t.macd[i],   s1 = t.macd_signal[i];
       if (m0 == null || s0 == null || m1 == null || s1 == null) continue;
       if (m0 < s0 && m1 >= s1)
-        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: 'Buy',  size: 1 });
+        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: '▲', size: 1 });
       else if (m0 > s0 && m1 <= s1)
-        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: 'Sell', size: 1 });
+        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: '▼', size: 1 });
     }
   }
 
   flushMarkers();
   markRender();
+  renderAutoTAPanel(ohlcv, t, lows, highs);
+}
+
+function renderAutoTAPanel(ohlcv, t, lows, highs) {
+  const panel = document.getElementById('autoTAPanel');
+  if (!panel) return;
+
+  const n     = ohlcv.length;
+  const close = ohlcv[n-1].close;
+  const high  = ohlcv[n-1].high;
+  const low   = ohlcv[n-1].low;
+  const findings = [];
+  let bull = 0, bear = 0;
+
+  // 1. Trend
+  let trendFinding = null;
+  for (let i = lows.length - 1; i >= 1; i--) {
+    if (lows[i].price > lows[i-1].price) {
+      trendFinding = { icon: '↗', lbl: 'TREND', val: `Uptrend · lows $${lows[i-1].price.toFixed(2)} → $${lows[i].price.toFixed(2)}`, color: '#00e676' };
+      bull++;
+      break;
+    }
+  }
+  if (!trendFinding) {
+    for (let i = highs.length - 1; i >= 1; i--) {
+      if (highs[i].price < highs[i-1].price) {
+        trendFinding = { icon: '↘', lbl: 'TREND', val: `Downtrend · highs $${highs[i-1].price.toFixed(2)} → $${highs[i].price.toFixed(2)}`, color: '#ff4f4f' };
+        bear++;
+        break;
+      }
+    }
+  }
+  findings.push(trendFinding || { icon: '→', lbl: 'TREND', val: 'Range-bound · no clear direction', color: 'var(--text2)' });
+
+  // 2. MACD — most recent crossover within last 40 bars, or current stance
+  let macdFinding = null;
+  if (t.macd && t.macd_signal) {
+    let cross = null;
+    const lookback = Math.min(40, n - 1);
+    for (let i = n - lookback; i < n; i++) {
+      const m0 = t.macd[i-1], s0 = t.macd_signal[i-1];
+      const m1 = t.macd[i],   s1 = t.macd_signal[i];
+      if (m0 == null || s0 == null || m1 == null || s1 == null) continue;
+      if (m0 < s0 && m1 >= s1) cross = { dir: 'bull', daysAgo: n - 1 - i };
+      else if (m0 > s0 && m1 <= s1) cross = { dir: 'bear', daysAgo: n - 1 - i };
+    }
+    if (cross) {
+      const ago = cross.daysAgo === 0 ? 'today' : `${cross.daysAgo}d ago`;
+      if (cross.dir === 'bull') {
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bullish crossover · ${ago}`, color: '#00e676' };
+        bull++;
+      } else {
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bearish crossover · ${ago}`, color: '#ff4f4f' };
+        bear++;
+      }
+    } else {
+      const mLast = t.macd[n-1], sLast = t.macd_signal[n-1];
+      if (mLast != null && sLast != null) {
+        const aboveSig = mLast > sLast;
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: aboveSig ? 'Above signal · bullish momentum' : 'Below signal · bearish momentum', color: aboveSig ? '#00e676' : '#ff4f4f' };
+        if (aboveSig) bull += 0.5; else bear += 0.5;
+      }
+    }
+  }
+  if (macdFinding) findings.push(macdFinding);
+
+  // 3. RSI
+  const rsiVal = t.rsi?.[n-1];
+  if (rsiVal != null) {
+    if (rsiVal >= 70) {
+      findings.push({ icon: '⚠', lbl: 'RSI', val: `${rsiVal.toFixed(0)} · overbought — pullback risk`, color: '#ff9800' });
+      bear += 0.5;
+    } else if (rsiVal <= 30) {
+      findings.push({ icon: '⚠', lbl: 'RSI', val: `${rsiVal.toFixed(0)} · oversold — bounce possible`, color: '#00bcd4' });
+      bull += 0.5;
+    } else {
+      findings.push({ icon: '○', lbl: 'RSI', val: `${rsiVal.toFixed(0)} · neutral zone`, color: 'var(--text2)' });
+    }
+  }
+
+  // 4. Bollinger Bands — where is price within the band?
+  const bbU = t.bb_upper?.[n-1], bbL = t.bb_lower?.[n-1];
+  if (bbU != null && bbL != null) {
+    const bbRange = bbU - bbL;
+    const bbPct   = bbRange > 0 ? (close - bbL) / bbRange : 0.5;
+    if (bbPct >= 0.85) {
+      findings.push({ icon: '⬆', lbl: 'BB', val: `Near upper band $${bbU.toFixed(2)} · stretched`, color: '#ff9800' });
+      bear += 0.5;
+    } else if (bbPct <= 0.15) {
+      findings.push({ icon: '⬇', lbl: 'BB', val: `Near lower band $${bbL.toFixed(2)} · support test`, color: '#00bcd4' });
+      bull += 0.5;
+    } else {
+      const pctStr = (bbPct * 100).toFixed(0);
+      findings.push({ icon: '◯', lbl: 'BB', val: `Mid-band (${pctStr}% of range) · no edge`, color: 'var(--text2)' });
+    }
+  }
+
+  // 5. SMA structure — price vs SMA20/50 + golden/death cross
+  const sma20v = t.sma20?.[n-1], sma50v = t.sma50?.[n-1];
+  if (sma20v != null && sma50v != null) {
+    const aboveBoth = close > sma20v && close > sma50v;
+    const belowBoth = close < sma20v && close < sma50v;
+    if (aboveBoth && sma20v > sma50v) {
+      findings.push({ icon: '✓', lbl: 'SMA', val: `Above SMA20 ($${sma20v.toFixed(2)}) & SMA50 · bullish structure`, color: '#00e676' });
+      bull++;
+    } else if (belowBoth && sma20v < sma50v) {
+      findings.push({ icon: '✗', lbl: 'SMA', val: `Below SMA20 ($${sma20v.toFixed(2)}) & SMA50 · bearish structure`, color: '#ff4f4f' });
+      bear++;
+    } else if (close > sma20v && close < sma50v) {
+      findings.push({ icon: '~', lbl: 'SMA', val: `Above SMA20 but below SMA50 ($${sma50v.toFixed(2)}) · recovery attempt`, color: '#ffd54f' });
+    } else {
+      findings.push({ icon: '~', lbl: 'SMA', val: `Below SMA20 ($${sma20v.toFixed(2)}) but above SMA50 · caution`, color: '#ffd54f' });
+    }
+  }
+
+  // Watch line
+  const bias = bull > bear ? 'bullish' : bear > bull ? 'bearish' : 'neutral';
+  let watchLine = '';
+  const biasColor = bias === 'bullish' ? '#00e676' : bias === 'bearish' ? '#ff4f4f' : '#ffd54f';
+
+  if (bias === 'bullish') {
+    if (rsiVal >= 70) {
+      watchLine = `Bullish but stretched (RSI ${rsiVal.toFixed(0)}) — expect consolidation near SMA20${sma20v ? ' ($' + sma20v.toFixed(2) + ')' : ''} before next leg up`;
+    } else if (bbU && close / bbU > 0.97) {
+      watchLine = `Bullish trend intact — near upper BB, watch for brief pause then continuation above $${high.toFixed(2)}`;
+    } else {
+      watchLine = `Momentum favors bulls — watch for continuation; break above $${high.toFixed(2)} confirms next leg`;
+    }
+  } else if (bias === 'bearish') {
+    const support = sma50v ? sma50v.toFixed(2) : low.toFixed(2);
+    watchLine = `Bias bearish — watch $${support} as key support; break lower opens $${(parseFloat(support) * 0.97).toFixed(2)}`;
+  } else {
+    watchLine = `Mixed signals — needs break above $${high.toFixed(2)} for bulls or below $${low.toFixed(2)} for bears to establish direction`;
+  }
+
+  // Render
+  panel.style.borderLeftColor = biasColor;
+  panel.innerHTML =
+    findings.map(f =>
+      `<div class="autota-finding">
+        <span class="autota-icon">${f.icon}</span>
+        <span class="autota-lbl">${f.lbl}</span>
+        <span class="autota-val" style="color:${f.color}">${f.val}</span>
+      </div>`
+    ).join('') +
+    `<div class="autota-watch" style="color:${biasColor}">▶ ${watchLine}</div>`;
+  panel.style.display = 'flex';
 }
 
 // ── Insider transactions ───────────────────────────────────────────

@@ -946,3 +946,35 @@ html, body {
   background: var(--accent);
   color: #000;
 }
+
+/* ── AUTO TA FINDINGS PANEL ──────────────────────────────── */
+.autota-panel {
+  background: rgba(9,14,26,.97);
+  border-bottom: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  padding: 7px 16px 7px 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 22px;
+  align-items: center;
+}
+.autota-finding {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  white-space: nowrap;
+  padding: 1px 0;
+}
+.autota-icon { font-size: 12px; line-height: 1; }
+.autota-lbl  { color: var(--text2); font-weight: 600; letter-spacing: .03em; }
+.autota-val  { color: var(--text); }
+.autota-watch {
+  width: 100%;
+  padding-top: 5px;
+  margin-top: 2px;
+  border-top: 1px solid rgba(26,37,64,.8);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
