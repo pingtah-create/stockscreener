@@ -86,6 +86,14 @@
         <button class="ind-btn"        data-ind="vwap"   style="--ic:#ffd54f" onclick="toggleInd('vwap',this)">VWAP</button>
       </div>
       <button class="auto-ta-btn" id="autoTaBtn" onclick="toggleAutoTA(this)">✦ Auto TA</button>
+
+      <!-- Comparison overlay -->
+      <div class="compare-wrap">
+        <span class="compare-label">vs</span>
+        <input class="compare-input" id="compareInput" type="text" placeholder="SPY…" autocomplete="off" maxlength="10" />
+        <button class="compare-clear" id="compareClear" style="display:none" onclick="clearCompare()" title="Remove comparison">×</button>
+        <span class="compare-result" id="compareResult" style="display:none"></span>
+      </div>
     </div>
 
     <!-- Auto TA findings panel -->
@@ -169,6 +177,7 @@
     <div class="sidebar-section">
       <div class="sidebar-title">Fundamentals</div>
       <div class="fund-grid" id="fundGrid"><div class="fund-loading">Loading…</div></div>
+      <div class="earnings-badge" id="earningsBadge" style="display:none"></div>
     </div>
 
     <div class="sidebar-section">
@@ -188,6 +197,11 @@
       <div id="insiderFeed" class="insider-feed">
         <div class="fund-loading">Loading…</div>
       </div>
+    </div>
+
+    <div class="sidebar-section">
+      <div class="sidebar-title">My Notes</div>
+      <textarea class="ticker-note" id="tickerNote" placeholder="Add your analysis notes on {{ ticker }}…" rows="3"></textarea>
     </div>
 
     <div class="sidebar-section">

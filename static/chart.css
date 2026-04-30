@@ -864,6 +864,87 @@ html, body {
   align-items: center;
 }
 .snews-pub { color: #ff6b00; font-weight: 700; }
+.snews-sent { font-size: 7px; line-height: 1; flex-shrink: 0; margin-top: 1px; }
+.sent-pos   { color: #00e676; }
+.sent-neg   { color: #ff4f4f; }
+
+/* ── EARNINGS BADGE ──────────────────────────────────────── */
+.earnings-badge {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: rgba(171,71,188,.1);
+  border: 1px solid rgba(171,71,188,.35);
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 11px;
+  color: #ce93d8;
+  font-weight: 600;
+}
+
+/* ── TICKER NOTES ────────────────────────────────────────── */
+.ticker-note {
+  width: 100%;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  line-height: 1.5;
+  padding: 7px 9px;
+  resize: vertical;
+  min-height: 68px;
+}
+.ticker-note::placeholder { color: var(--text3); }
+.ticker-note:focus { outline: none; border-color: var(--accent); }
+
+/* ── COMPARE OVERLAY ─────────────────────────────────────── */
+.compare-wrap {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+  flex-shrink: 0;
+}
+.compare-label {
+  font-size: 10px;
+  color: var(--text2);
+  font-weight: 700;
+  letter-spacing: .05em;
+}
+.compare-input {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 7px;
+  width: 64px;
+  text-transform: uppercase;
+  transition: border-color .15s;
+}
+.compare-input:focus { outline: none; border-color: var(--accent); }
+.compare-input::placeholder { color: var(--text3); font-weight: 400; text-transform: none; }
+.compare-clear {
+  background: transparent;
+  border: none;
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  transition: color .12s;
+}
+.compare-clear:hover { color: var(--red); }
+.compare-result {
+  font-size: 10px;
+  color: var(--text2);
+  white-space: nowrap;
+}
 
 /* ── DRAWING STATUS HINT ─────────────────────────────────── */
 .draw-hint {

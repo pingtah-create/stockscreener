@@ -537,6 +537,30 @@ def stock_page(ticker: str):
     return render_template("stock.html", ticker=ticker.upper())
 
 
+@app.route("/api/earnings/<ticker>")
+def api_earnings(ticker: str):
+    ticker = ticker.upper()
+    try:
+        t = yf.Ticker(ticker)
+        cal = t.calendar
+        next_date = None
+        if isinstance(cal, dict):
+            for key in ("Earnings Date", "earningsDate"):
+                if key in cal:
+                    dates = cal[key]
+                    if hasattr(dates, "__iter__") and not isinstance(dates, str):
+                        for d in dates:
+                            try:
+                                next_date = str(d.date()) if hasattr(d, "date") else str(d)[:10]
+                                break
+                            except Exception:
+                                pass
+                    break
+        return jsonify({"next_earnings": next_date})
+    except Exception:
+        return jsonify({"next_earnings": None})
+
+
 @app.route("/api/insider/<ticker>")
 def api_insider(ticker: str):
     ticker = ticker.upper()

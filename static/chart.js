@@ -46,6 +46,12 @@ let   _insiderMarkers = [];
 // ── Auto TA state ─────────────────────────────────────────────────
 let autoTAOn       = false;
 let _autoTAMarkers = [];
+let _srPriceLines  = [];
+let _earningsMarkers = [];
+
+// ── Comparison overlay state ──────────────────────────────────────
+let compSeries = null;
+let compTicker = null;
 
 // ── Indicator defaults (loaded from localStorage if present) ──────
 const IND_DEFAULT = { bb: true, sma20: true, sma50: false, sma200: false, ema9: false, ema20: false, vwap: false };
@@ -91,6 +97,8 @@ window.addEventListener('DOMContentLoaded', () => {
   setupDrawingCanvas();
   setupPriceAlerts();
   updateWatchStarUI();
+  setupCompare();
+  loadTickerNote();
   startRenderLoop();
 
   // Keyboard shortcuts
@@ -354,6 +362,7 @@ async function loadData(period) {
     await loadNewsMarkers();
     loadInsider();
     if (autoTAOn) applyAutoTA();
+    if (compTicker) loadCompareData(compTicker);
   } catch (e) {
     showChartError(`Failed to load chart.<br><span style="color:#4a5568;font-size:11px">${e.message}</span>`);
   }
@@ -588,6 +597,17 @@ function findNearestDate(target, chartDates) {
   return bestDiff < 86400000 * 7 ? best : null;  // up to 7 days gap (handles long holidays)
 }
 
+const SENT_POS = /\b(beat|beats|surge|surged|soar|soared|record|raised|raise|upgrade|upgraded|outperform|strong|profit|wins|win|bullish|growth|breakthrough|rises|rise|rally|rallied|high|higher|boost|boosts|tops|top|exceed|exceeds)\b/i;
+const SENT_NEG = /\b(miss|misses|missed|cut|cuts|downgrade|downgraded|warning|loss|losses|weak|decline|declines|falls|fall|below|disappoint|disappoints|bearish|risk|risks|caution|slump|slumps|crash|crashes|lower|plunge|plunges|warns|warned)\b/i;
+
+function newsSentiment(title) {
+  const pos = SENT_POS.test(title);
+  const neg = SENT_NEG.test(title);
+  if (pos && !neg) return '<span class="snews-sent sent-pos">●</span>';
+  if (neg && !pos) return '<span class="snews-sent sent-neg">●</span>';
+  return '<span class="snews-sent" style="color:var(--text3)">●</span>';
+}
+
 function renderSidebarNews(items) {
   const feed = document.getElementById('sidebarNewsFeed');
   if (!feed) return;
@@ -600,6 +620,7 @@ function renderSidebarNews(items) {
     return `<a class="snews-item" href="${n.link}" target="_blank" rel="noopener noreferrer">
       <div class="snews-title">${n.title}</div>
       <div class="snews-meta">
+        ${newsSentiment(n.title)}
         <span class="snews-pub">${n.publisher || ''}</span>
         ${age ? `<span>·</span><span>${age}</span>` : ''}
       </div>
@@ -1305,6 +1326,7 @@ function hexToRgba(hex, alpha) {
 async function loadFundamentals() {
   const res = await fetch(`/api/stock/${TICKER}`, { cache: "no-store" });
   const s   = await res.json();
+  loadEarnings();
 
   // Top bar
   const price = s.currentPrice || s.previousClose;
@@ -1373,7 +1395,7 @@ async function loadFundamentals() {
 // ── Merge all markers onto the price series ───────────────────────
 function flushMarkers() {
   if (!candleSeries) return;
-  const all = [..._newsMarkers, ..._insiderMarkers, ..._autoTAMarkers]
+  const all = [..._newsMarkers, ..._insiderMarkers, ..._autoTAMarkers, ..._earningsMarkers]
     .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
   candleSeries.setMarkers(all);
 }
@@ -1386,11 +1408,19 @@ function toggleAutoTA(btn) {
   else          clearAutoTA();
 }
 
+function clearSRLines() {
+  for (const pl of _srPriceLines) {
+    try { candleSeries.removePriceLine(pl); } catch {}
+  }
+  _srPriceLines = [];
+}
+
 function clearAutoTA() {
   for (let i = drawings.length - 1; i >= 0; i--) {
     if (drawings[i]._autoTA) drawings.splice(i, 1);
   }
   _autoTAMarkers = [];
+  clearSRLines();
   flushMarkers();
   markRender();
   const panel = document.getElementById('autoTAPanel');
@@ -1466,12 +1496,54 @@ function applyAutoTA() {
     }
   }
 
+  // Draw S/R levels
+  const srLevels = computeSRClusters([...lows.map(p => p.price), ...highs.map(p => p.price)]);
+  drawSRLines(srLevels, ohlcv[n - 1].close);
+
   flushMarkers();
   markRender();
-  renderAutoTAPanel(ohlcv, t, lows, highs);
+  renderAutoTAPanel(ohlcv, t, lows, highs, srLevels);
 }
 
-function renderAutoTAPanel(ohlcv, t, lows, highs) {
+function computeSRClusters(prices, tol = 0.015) {
+  if (!prices.length) return [];
+  const sorted = [...prices].sort((a, b) => a - b);
+  const clusters = [];
+  let cluster = [sorted[0]];
+  for (let i = 1; i < sorted.length; i++) {
+    if ((sorted[i] - cluster[0]) / cluster[0] <= tol) {
+      cluster.push(sorted[i]);
+    } else {
+      clusters.push(cluster);
+      cluster = [sorted[i]];
+    }
+  }
+  clusters.push(cluster);
+  return clusters
+    .map(c => ({ price: c.reduce((s, v) => s + v, 0) / c.length, touches: c.length }))
+    .sort((a, b) => b.touches - a.touches)
+    .slice(0, 6);
+}
+
+function drawSRLines(levels, currentPrice) {
+  clearSRLines();
+  if (!candleSeries) return;
+  for (const lvl of levels) {
+    if (lvl.touches < 2) continue;
+    const isSupport = lvl.price < currentPrice;
+    const pl = candleSeries.createPriceLine({
+      price: lvl.price,
+      color: isSupport ? 'rgba(0,230,118,0.5)' : 'rgba(255,79,79,0.5)',
+      lineWidth: 1,
+      lineStyle: 2,
+      axisLabelVisible: true,
+      title: `S/R ×${lvl.touches}`,
+    });
+    _srPriceLines.push(pl);
+  }
+}
+
+function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   const panel = document.getElementById('autoTAPanel');
   if (!panel) return;
 
@@ -1583,6 +1655,18 @@ function renderAutoTAPanel(ohlcv, t, lows, highs) {
     }
   }
 
+  // 6. S/R levels
+  if (srLevels && srLevels.length) {
+    const sig = srLevels.filter(l => l.touches >= 2);
+    const supports    = sig.filter(l => l.price < close).sort((a, b) => b.price - a.price);
+    const resistances = sig.filter(l => l.price >= close).sort((a, b) => a.price - b.price);
+    const parts = [];
+    if (supports.length)    parts.push(`support $${supports[0].price.toFixed(2)} (×${supports[0].touches})`);
+    if (resistances.length) parts.push(`resistance $${resistances[0].price.toFixed(2)} (×${resistances[0].touches})`);
+    if (parts.length)
+      findings.push({ icon: '⊟', lbl: 'S/R', val: parts.join(' · '), color: 'var(--text)' });
+  }
+
   // Watch line
   const bias = bull > bear ? 'bullish' : bear > bull ? 'bearish' : 'neutral';
   let watchLine = '';
@@ -1665,6 +1749,143 @@ function fmtMCapRaw(v) {
   if (v >= 1e6) return (v/1e6).toFixed(1)+'M';
   if (v >= 1e3) return (v/1e3).toFixed(0)+'K';
   return v.toFixed(0);
+}
+
+// ── Earnings date ─────────────────────────────────────────────────
+async function loadEarnings() {
+  try {
+    const res = await fetch(`/api/earnings/${TICKER}`);
+    const data = await res.json();
+    const dateStr = data.next_earnings;
+    if (!dateStr) return;
+
+    const badge = document.getElementById('earningsBadge');
+    if (badge) {
+      const earDate = new Date(dateStr);
+      const today   = new Date(); today.setHours(0, 0, 0, 0);
+      const diffMs  = earDate - today;
+      const diffD   = Math.round(diffMs / 86400000);
+      const when = diffD === 0 ? 'today' : diffD === 1 ? 'tomorrow' :
+                   diffD > 0  ? `in ${diffD}d` : `${-diffD}d ago`;
+      badge.innerHTML = `📅 Next earnings: <strong>${dateStr}</strong> &nbsp;(${when})`;
+      badge.style.display = 'flex';
+    }
+
+    // Add marker if the date falls within the chart's range
+    if (!chartData?.ohlcv?.length) return;
+    const chartDates = chartData.ohlcv.map(x => x.date);
+    const nearest = findNearestDate(dateStr, chartDates);
+    if (nearest) {
+      _earningsMarkers = [{
+        time: nearest, position: 'aboveBar',
+        color: '#ab47bc', shape: 'circle', text: 'E', size: 1,
+      }];
+      flushMarkers();
+    }
+  } catch {}
+}
+
+// ── Per-ticker notes ──────────────────────────────────────────────
+function loadTickerNote() {
+  const ta = document.getElementById('tickerNote');
+  if (!ta) return;
+  ta.value = localStorage.getItem(`note_${TICKER}`) || '';
+  ta.addEventListener('input', () => {
+    const v = ta.value.trim();
+    if (v) localStorage.setItem(`note_${TICKER}`, ta.value);
+    else   localStorage.removeItem(`note_${TICKER}`);
+  });
+}
+
+// ── Comparison overlay ────────────────────────────────────────────
+function setupCompare() {
+  const input = document.getElementById('compareInput');
+  if (!input) return;
+  input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { loadCompareData(input.value.trim()); input.blur(); }
+    if (e.key === 'Escape') clearCompare();
+  });
+}
+
+async function loadCompareData(ticker) {
+  ticker = (ticker || '').toUpperCase().replace(/[^A-Z0-9.]/g, '');
+  if (!ticker || ticker === TICKER || !chartData?.ohlcv?.length) return;
+
+  // Remove previous comparison series
+  if (compSeries) {
+    try { priceChart.removeSeries(compSeries); } catch {}
+    compSeries = null;
+  }
+
+  try {
+    const res = await fetch(`/api/chart/${ticker}?period=${currentPeriod}`);
+    if (!res.ok) throw new Error('bad response');
+    const data = await res.json();
+    if (!data?.ohlcv?.length) throw new Error('no data');
+
+    // Align: find first comp bar >= main start date
+    const mainBars = chartData.ohlcv;
+    const mainStart = mainBars[0].date;
+    const compBars  = data.ohlcv.filter(b => b.date >= mainStart);
+    if (!compBars.length) throw new Error('no overlap');
+
+    const mainBase = mainBars[0].close;
+    const compBase = compBars[0].close;
+
+    const normalized = compBars.map(b => ({
+      time: b.date,
+      value: (b.close / compBase) * mainBase,
+    }));
+
+    compSeries = priceChart.addLineSeries({
+      color: '#ab47bc',
+      lineWidth: 1.5,
+      priceLineVisible: false,
+      lastValueVisible: false,
+      crosshairMarkerVisible: false,
+      title: ticker,
+    });
+    compSeries.setData(normalized);
+    compTicker = ticker;
+
+    // Show result: % change for each
+    const mainPct = ((mainBars[mainBars.length-1].close / mainBase - 1) * 100).toFixed(1);
+    const compPct = ((compBars[compBars.length-1].close / compBase - 1) * 100).toFixed(1);
+    const mainSign = mainPct >= 0 ? '+' : '';
+    const compSign = compPct >= 0 ? '+' : '';
+    const mainColor = mainPct >= 0 ? '#00e676' : '#ff4f4f';
+    const compColor = compPct >= 0 ? '#00e676' : '#ff4f4f';
+
+    const resultEl = document.getElementById('compareResult');
+    if (resultEl) {
+      resultEl.innerHTML =
+        `<span style="color:#8899aa">${TICKER}</span> <span style="color:${mainColor}">${mainSign}${mainPct}%</span>` +
+        ` <span style="color:#555"> | </span>` +
+        `<span style="color:#ab47bc">${ticker}</span> <span style="color:${compColor}">${compSign}${compPct}%</span>`;
+      resultEl.style.display = '';
+    }
+    const clearBtn = document.getElementById('compareClear');
+    if (clearBtn) clearBtn.style.display = '';
+
+  } catch {
+    const input = document.getElementById('compareInput');
+    if (input) { input.style.borderColor = '#ff4f4f'; setTimeout(() => { input.style.borderColor = ''; }, 1500); }
+  }
+}
+
+function clearCompare() {
+  if (compSeries) {
+    try { priceChart.removeSeries(compSeries); } catch {}
+    compSeries = null;
+  }
+  compTicker = null;
+  const input   = document.getElementById('compareInput');
+  const clearBtn = document.getElementById('compareClear');
+  const resultEl = document.getElementById('compareResult');
+  if (input)   input.value = '';
+  if (clearBtn) clearBtn.style.display = 'none';
+  if (resultEl) resultEl.style.display = 'none';
 }
 
 // ── Format helpers ─────────────────────────────────────────────────
