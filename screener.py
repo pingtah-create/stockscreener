@@ -114,6 +114,23 @@ def _cache_path(ticker: str) -> Path:
     return CACHE_DIR / f"{ticker.upper()}.json"
 
 
+def _compute_rsi14(closes: list) -> float | None:
+    """Wilder RSI-14 from a list of closing prices."""
+    if len(closes) < 15:
+        return None
+    deltas = [closes[i] - closes[i - 1] for i in range(1, len(closes))]
+    gains  = [max(d, 0) for d in deltas[:14]]
+    losses = [max(-d, 0) for d in deltas[:14]]
+    avg_g  = sum(gains) / 14
+    avg_l  = sum(losses) / 14
+    for d in deltas[14:]:
+        avg_g = (avg_g * 13 + max(d, 0)) / 14
+        avg_l = (avg_l * 13 + max(-d, 0)) / 14
+    if avg_l == 0:
+        return 100.0
+    return round(100 - 100 / (1 + avg_g / avg_l), 1)
+
+
 def _is_cache_fresh(ticker: str) -> bool:
     path = _cache_path(ticker)
     if not path.exists():
@@ -182,11 +199,21 @@ def fetch_ticker(ticker: str, force: bool = False) -> dict | None:
     if not force and _is_cache_fresh(ticker):
         return _load_cache(ticker)
     try:
-        info = yf.Ticker(ticker).info
-        if not info or info.get("trailingPE") is None and info.get("currentPrice") is None:
-            cached = _load_cache(ticker)
-            return cached
+        t_obj = yf.Ticker(ticker)
+        info  = t_obj.info
+        if not info or (info.get("trailingPE") is None and info.get("currentPrice") is None):
+            return _load_cache(ticker)
         data = _extract_fields(info, ticker)
+        # RSI-14 from ~1 month of daily history
+        try:
+            hist = t_obj.history(period="1mo")
+            if not hist.empty:
+                closes = hist["Close"].dropna().tolist()
+                data["rsi14"] = _compute_rsi14(closes)
+            else:
+                data["rsi14"] = None
+        except Exception:
+            data["rsi14"] = None
         _save_cache(ticker, data)
         return data
     except Exception:

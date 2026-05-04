@@ -49,6 +49,13 @@ let _autoTAMarkers = [];
 let _srPriceLines  = [];
 let _earningsMarkers = [];
 
+// ── Pattern state ─────────────────────────────────────────────────
+let patternOn      = false;
+let _patternMarkers = [];
+
+// ── Volume Profile state ──────────────────────────────────────────
+let volProfileOn   = false;
+
 // ── Comparison overlay state ──────────────────────────────────────
 let compSeries = null;
 let compTicker = null;
@@ -91,8 +98,10 @@ window.addEventListener('DOMContentLoaded', () => {
   initCharts();
   applySavedPrefsToUI();
   if (currentType === 'line') setChartType('line');
+  else if (currentType === 'ha') setChartType('ha');
   loadData('3mo');
   loadFundamentals();
+  startLivePricePolling();
   setupPeriodBtns();
   setupDrawingCanvas();
   setupPriceAlerts();
@@ -362,6 +371,10 @@ async function loadData(period) {
     await loadNewsMarkers();
     loadInsider();
     if (autoTAOn) applyAutoTA();
+    if (patternOn) {
+      const btn = document.getElementById('patternBtn');
+      if (btn) { patternOn = false; togglePatterns(btn); }
+    }
     if (compTicker) loadCompareData(compTicker);
   } catch (e) {
     showChartError(`Failed to load chart.<br><span style="color:#4a5568;font-size:11px">${e.message}</span>`);
@@ -689,7 +702,8 @@ function applyAllData() {
   const t     = chartData.technicals;
   const dates = ohlcv.map(x => x.date);
 
-  candleSeries.setData(ohlcv.map(x => ({ time: x.date, open: x.open, high: x.high, low: x.low, close: x.close })));
+  const displayOhlcv = currentType === 'ha' ? haTransform(ohlcv) : ohlcv;
+  candleSeries.setData(displayOhlcv.map(x => ({ time: x.date, open: x.open, high: x.high, low: x.low, close: x.close })));
   linePriceSeries.setData(ohlcv.map(x => ({ time: x.date, value: x.close })));
 
   overlayMap.bb_upper.setData(toSeries(dates, t.bb_upper));
@@ -862,13 +876,32 @@ function setOsc(osc, btn) {
   saveChartPrefs();
 }
 
+// ── Heikin-Ashi transform ──────────────────────────────────────────
+function haTransform(ohlcv) {
+  const out = [];
+  let prevHaOpen  = ohlcv[0].open;
+  let prevHaClose = (ohlcv[0].open + ohlcv[0].high + ohlcv[0].low + ohlcv[0].close) / 4;
+  for (const b of ohlcv) {
+    const haClose = (b.open + b.high + b.low + b.close) / 4;
+    const haOpen  = (prevHaOpen + prevHaClose) / 2;
+    const haHigh  = Math.max(b.high, haOpen, haClose);
+    const haLow   = Math.min(b.low,  haOpen, haClose);
+    out.push({ date: b.date, open: haOpen, high: haHigh, low: haLow, close: haClose, volume: b.volume });
+    prevHaOpen  = haOpen;
+    prevHaClose = haClose;
+  }
+  return out;
+}
+
 // ── Chart type switch ──────────────────────────────────────────────
 function setChartType(type) {
   currentType = type;
-  document.getElementById('btnCandle').classList.toggle('active', type === 'candle');
-  document.getElementById('btnLine')  .classList.toggle('active', type === 'line');
-  candleSeries   .applyOptions({ visible: type === 'candle' });
+  document.getElementById('btnCandle')?.classList.toggle('active', type === 'candle');
+  document.getElementById('btnLine')  ?.classList.toggle('active', type === 'line');
+  document.getElementById('btnHA')    ?.classList.toggle('active', type === 'ha');
+  candleSeries   .applyOptions({ visible: type !== 'line' });
   linePriceSeries.applyOptions({ visible: type === 'line' });
+  if (chartData?.ohlcv?.length) applyAllData();
   saveChartPrefs();
 }
 
@@ -888,6 +921,7 @@ function applySavedPrefsToUI() {
   // Chart type
   document.getElementById('btnCandle')?.classList.toggle('active', currentType === 'candle');
   document.getElementById('btnLine')  ?.classList.toggle('active', currentType === 'line');
+  document.getElementById('btnHA')    ?.classList.toggle('active', currentType === 'ha');
 }
 
 // ── Chart page search ──────────────────────────────────────────────
@@ -1112,6 +1146,69 @@ function clearDrawings() {
   markRender();
 }
 
+// ── Volume Profile ─────────────────────────────────────────────────
+function toggleVolProfile(btn) {
+  volProfileOn = !volProfileOn;
+  btn.classList.toggle('active', volProfileOn);
+  markRender();
+}
+
+function computeVolumeProfile(ohlcv, numBuckets = 30) {
+  let minP = Infinity, maxP = -Infinity;
+  for (const b of ohlcv) { if (b.low < minP) minP = b.low; if (b.high > maxP) maxP = b.high; }
+  if (maxP <= minP) return [];
+  const step = (maxP - minP) / numBuckets;
+  const vol  = new Array(numBuckets).fill(0);
+  for (const b of ohlcv) {
+    const idx = Math.min(Math.floor((b.close - minP) / step), numBuckets - 1);
+    if (idx >= 0) vol[idx] += b.volume || 0;
+  }
+  const maxVol = Math.max(...vol);
+  return vol.map((v, i) => ({
+    priceTop: minP + (i + 1) * step,
+    priceMid: minP + (i + 0.5) * step,
+    priceBot: minP + i * step,
+    volume: v,
+    pct: maxVol > 0 ? v / maxVol : 0,
+  }));
+}
+
+function renderVolumeProfile(ctx, W, H) {
+  if (!chartData?.ohlcv?.length) return;
+  const profile = computeVolumeProfile(chartData.ohlcv, 30);
+  if (!profile.length) return;
+
+  const maxBarW = Math.min(W * 0.1, 72);
+  const maxPct  = Math.max(...profile.map(r => r.pct));
+
+  ctx.save();
+  for (const row of profile) {
+    const yTop = priceToY(row.priceTop);
+    const yBot = priceToY(row.priceBot);
+    if (yTop === null || yBot === null) continue;
+    const barH = Math.abs(yBot - yTop);
+    if (barH < 0.5) continue;
+    const barW = row.pct * maxBarW;
+    const y    = Math.min(yTop, yBot);
+    const isPOC = row.pct === maxPct;
+    ctx.fillStyle = isPOC ? 'rgba(255,213,79,0.55)' : 'rgba(77,182,172,0.28)';
+    ctx.fillRect(W - barW - 1, y, barW, Math.max(barH - 1, 1));
+  }
+
+  // POC label
+  const poc = profile.find(r => r.pct === maxPct);
+  if (poc) {
+    const yMid = priceToY(poc.priceMid);
+    if (yMid !== null) {
+      ctx.font      = '9px Inter, system-ui, sans-serif';
+      ctx.fillStyle = 'rgba(255,213,79,0.9)';
+      ctx.textAlign = 'right';
+      ctx.fillText(`POC $${poc.priceMid.toFixed(2)}`, W - 4, yMid - 2);
+    }
+  }
+  ctx.restore();
+}
+
 // ── RAF render loop ────────────────────────────────────────────────
 function markRender() { needRender = true; }
 
@@ -1129,6 +1226,9 @@ function renderDrawings() {
   if (!drawCtx) return;
   const W = drawCanvas.width, H = drawCanvas.height;
   drawCtx.clearRect(0, 0, W, H);
+
+  // Volume Profile (drawn first, behind everything)
+  if (volProfileOn) renderVolumeProfile(drawCtx, W, H);
 
   // Draw hover cross when tool is active
   if (drawTool !== 'none' && hoverPt) drawCursorCross(hoverPt, W, H);
@@ -1323,6 +1423,103 @@ function hexToRgba(hex, alpha) {
 //  FUNDAMENTALS SIDEBAR
 // ══════════════════════════════════════════════════════════════════
 
+// ══════════════════════════════════════════════════════════════════
+//  COMPANY INTEL (Gemini AI)
+// ══════════════════════════════════════════════════════════════════
+
+function openIntelPanel(btn) {
+  toggleChartPanel('intelPanel', btn);
+  const panel = document.getElementById('intelPanel');
+  if (panel.style.display !== 'none' && !panel.dataset.loaded) {
+    panel.dataset.loaded = '1';
+    loadIntel();
+  }
+}
+
+async function loadIntel() {
+  const body = document.getElementById('intelBody');
+  if (!body) return;
+  body.innerHTML = '<div class="intel-loading">Generating analysis…<span class="intel-dots"></span></div>';
+  try {
+    const res = await fetch(`/api/intel/${TICKER}`, { cache: 'no-store' });
+    const text = await res.text();
+    let d;
+    try { d = JSON.parse(text); } catch { body.innerHTML = `<div class="intel-error">⚠ Server error:<br><small>${text.slice(0,200)}</small></div>`; return; }
+    if (d.error) { body.innerHTML = `<div class="intel-error">⚠ ${d.error}</div>`; return; }
+    body.innerHTML = renderIntel(d);
+  } catch (e) {
+    body.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
+  }
+}
+
+function renderIntel(d) {
+  const sw = `
+    <div class="intel-sw">
+      <div>
+        <div class="intel-sw-col-title green">Strengths</div>
+        ${(d.strengths || []).map(s => `<div class="intel-sw-item s">${s}</div>`).join('')}
+      </div>
+      <div>
+        <div class="intel-sw-col-title red">Weaknesses</div>
+        ${(d.weaknesses || []).map(w => `<div class="intel-sw-item w">${w}</div>`).join('')}
+      </div>
+    </div>`;
+
+  const comps = (d.competitors || []).map(c => `
+    <div class="intel-comp-row">
+      <div class="intel-comp-ticker" onclick="location.href='/stock/${c.ticker}'">${c.ticker}</div>
+      <div class="intel-comp-info">
+        <div class="intel-comp-name">${c.name}</div>
+        <div class="intel-comp-note">${c.note}</div>
+      </div>
+    </div>`).join('');
+
+  return `
+    <div class="intel-section">
+      <div class="intel-section-title">Business Overview</div>
+      <div class="intel-text">${d.overview || '—'}</div>
+    </div>
+    <div class="intel-section">
+      <div class="intel-section-title">Macro Exposure</div>
+      <div class="intel-text">${d.macro || '—'}</div>
+    </div>
+    <div class="intel-section">
+      <div class="intel-section-title">Strengths &amp; Weaknesses</div>
+      ${sw}
+    </div>
+    <div class="intel-section">
+      <div class="intel-section-title">Key Competitors</div>
+      ${comps}
+    </div>`;
+}
+
+// ── Live price polling via /api/quote (Finnhub → yfinance) ────────
+let _livePriceTimer = null;
+
+async function pollLivePrice() {
+  try {
+    const res = await fetch(`/api/quote/${TICKER}`, { cache: 'no-store' });
+    if (!res.ok) return;
+    const q = await res.json();
+    if (!q.price) return;
+    const priceEl = document.getElementById('stockPrice');
+    const chgEl   = document.getElementById('stockChg');
+    if (priceEl) priceEl.textContent = '$' + q.price.toFixed(2);
+    if (chgEl) {
+      const chg = q.change_pct || 0;
+      chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
+      chgEl.className   = 'stock-chg ' + (chg >= 0 ? 'chg-up' : 'chg-down');
+    }
+    checkAlerts(TICKER, q.price);
+  } catch {}
+}
+
+function startLivePricePolling() {
+  clearInterval(_livePriceTimer);
+  pollLivePrice();
+  _livePriceTimer = setInterval(pollLivePrice, 30000);
+}
+
 async function loadFundamentals() {
   const res = await fetch(`/api/stock/${TICKER}`, { cache: "no-store" });
   const s   = await res.json();
@@ -1395,9 +1592,105 @@ async function loadFundamentals() {
 // ── Merge all markers onto the price series ───────────────────────
 function flushMarkers() {
   if (!candleSeries) return;
-  const all = [..._newsMarkers, ..._insiderMarkers, ..._autoTAMarkers, ..._earningsMarkers]
+  const all = [..._newsMarkers, ..._insiderMarkers, ..._autoTAMarkers, ..._earningsMarkers, ..._patternMarkers]
     .sort((a, b) => (a.time < b.time ? -1 : a.time > b.time ? 1 : 0));
   candleSeries.setMarkers(all);
+}
+
+// ── Candlestick pattern recognition ──────────────────────────────
+function detectPatterns(ohlcv) {
+  const results = [];
+  for (let i = 2; i < ohlcv.length; i++) {
+    const c  = ohlcv[i],   p1 = ohlcv[i-1], p2 = ohlcv[i-2];
+    const body    = Math.abs(c.close - c.open);
+    const range   = c.high - c.low;
+    const lowerW  = Math.min(c.open, c.close) - c.low;
+    const upperW  = c.high - Math.max(c.open, c.close);
+    const isBull  = c.close > c.open;
+    const isBear  = c.close < c.open;
+    const p1Bull  = p1.close > p1.open;
+    const p1Bear  = p1.close < p1.open;
+    const p2Bull  = p2.close > p2.open;
+    const p2Bear  = p2.close < p2.open;
+    const p1Body  = Math.abs(p1.close - p1.open);
+    const p1Range = p1.high - p1.low;
+    const p2Body  = Math.abs(p2.close - p2.open);
+
+    if (range < 0.001 * c.close) continue; // skip tiny bars
+
+    // Doji — tiny body relative to range
+    if (body / range < 0.08) {
+      results.push({ time: c.date, name: 'Doji', bull: null });
+      continue; // one pattern per bar
+    }
+
+    // Hammer (bullish reversal) — small body at top, long lower wick ≥2× body
+    if (lowerW >= 2 * body && upperW <= 0.4 * body && body / range < 0.35) {
+      results.push({ time: c.date, name: 'Hammer', bull: true });
+      continue;
+    }
+
+    // Shooting Star (bearish reversal) — small body at bottom, long upper wick
+    if (upperW >= 2 * body && lowerW <= 0.4 * body && body / range < 0.35) {
+      results.push({ time: c.date, name: 'Shooting Star', bull: false });
+      continue;
+    }
+
+    // Bullish Engulfing
+    if (p1Bear && isBull &&
+        c.open  <  p1.close && c.close > p1.open &&
+        body > p1Body) {
+      results.push({ time: c.date, name: 'Bullish Engulfing', bull: true });
+      continue;
+    }
+
+    // Bearish Engulfing
+    if (p1Bull && isBear &&
+        c.open  >  p1.close && c.close < p1.open &&
+        body > p1Body) {
+      results.push({ time: c.date, name: 'Bearish Engulfing', bull: false });
+      continue;
+    }
+
+    // Morning Star (bullish 3-bar) — bearish + small body + bullish recovering past midpoint
+    if (p2Bear && p1Range > 0 && p1Body / p1Range < 0.3 && isBull &&
+        c.close > (p2.open + p2.close) / 2) {
+      results.push({ time: c.date, name: 'Morning Star', bull: true });
+      continue;
+    }
+
+    // Evening Star (bearish 3-bar) — bullish + small body + bearish recovering past midpoint
+    if (p2Bull && p1Range > 0 && p1Body / p1Range < 0.3 && isBear &&
+        c.close < (p2.open + p2.close) / 2) {
+      results.push({ time: c.date, name: 'Evening Star', bull: false });
+      continue;
+    }
+
+    // Marubozu (strong trend candle, no wicks)
+    if (body / range > 0.9 && body > 0.01 * c.close) {
+      results.push({ time: c.date, name: isBull ? 'Bullish Marubozu' : 'Bearish Marubozu', bull: isBull });
+    }
+  }
+  return results;
+}
+
+function togglePatterns(btn) {
+  patternOn = !patternOn;
+  btn.classList.toggle('active', patternOn);
+  if (patternOn && chartData?.ohlcv?.length) {
+    const patterns = detectPatterns(chartData.ohlcv);
+    _patternMarkers = patterns.map(p => ({
+      time:     p.time,
+      position: p.bull === true ? 'belowBar' : p.bull === false ? 'aboveBar' : 'belowBar',
+      color:    p.bull === true ? '#00e676'  : p.bull === false ? '#ff4f4f'  : '#ffd54f',
+      shape:    p.bull === true ? 'arrowUp'  : p.bull === false ? 'arrowDown': 'circle',
+      text:     p.name.split(' ').map(w => w[0]).join(''),
+      size: 1,
+    }));
+  } else {
+    _patternMarkers = [];
+  }
+  flushMarkers();
 }
 
 // ── Auto TA ───────────────────────────────────────────────────────
@@ -1558,7 +1851,7 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   let trendFinding = null;
   for (let i = lows.length - 1; i >= 1; i--) {
     if (lows[i].price > lows[i-1].price) {
-      trendFinding = { icon: '↗', lbl: 'TREND', val: `Uptrend · lows $${lows[i-1].price.toFixed(2)} → $${lows[i].price.toFixed(2)}`, color: '#00e676' };
+      trendFinding = { icon: '↗', lbl: 'TREND', val: `Uptrend — lows rising $${lows[i-1].price.toFixed(2)} → $${lows[i].price.toFixed(2)}`, color: '#00e676' };
       bull++;
       break;
     }
@@ -1566,13 +1859,13 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   if (!trendFinding) {
     for (let i = highs.length - 1; i >= 1; i--) {
       if (highs[i].price < highs[i-1].price) {
-        trendFinding = { icon: '↘', lbl: 'TREND', val: `Downtrend · highs $${highs[i-1].price.toFixed(2)} → $${highs[i].price.toFixed(2)}`, color: '#ff4f4f' };
+        trendFinding = { icon: '↘', lbl: 'TREND', val: `Downtrend — highs falling $${highs[i-1].price.toFixed(2)} → $${highs[i].price.toFixed(2)}`, color: '#ff4f4f' };
         bear++;
         break;
       }
     }
   }
-  findings.push(trendFinding || { icon: '→', lbl: 'TREND', val: 'Range-bound · no clear direction', color: 'var(--text2)' });
+  findings.push(trendFinding || { icon: '→', lbl: 'TREND', val: 'Range-bound — no clear direction in recent pivots', color: 'var(--text2)' });
 
   // 2. MACD — most recent crossover within last 40 bars, or current stance
   let macdFinding = null;
@@ -1589,17 +1882,18 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
     if (cross) {
       const ago = cross.daysAgo === 0 ? 'today' : `${cross.daysAgo}d ago`;
       if (cross.dir === 'bull') {
-        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bullish crossover · ${ago}`, color: '#00e676' };
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bullish crossover ${ago} — momentum shifting up`, color: '#00e676' };
         bull++;
       } else {
-        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bearish crossover · ${ago}`, color: '#ff4f4f' };
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bearish crossover ${ago} — momentum shifting down`, color: '#ff4f4f' };
         bear++;
       }
     } else {
       const mLast = t.macd[n-1], sLast = t.macd_signal[n-1];
       if (mLast != null && sLast != null) {
         const aboveSig = mLast > sLast;
-        macdFinding = { icon: '⚡', lbl: 'MACD', val: aboveSig ? 'Above signal · bullish momentum' : 'Below signal · bearish momentum', color: aboveSig ? '#00e676' : '#ff4f4f' };
+        const gap = Math.abs(mLast - sLast).toFixed(3);
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: aboveSig ? `Above signal line (gap ${gap}) — bullish momentum` : `Below signal line (gap ${gap}) — bearish momentum`, color: aboveSig ? '#00e676' : '#ff4f4f' };
         if (aboveSig) bull += 0.5; else bear += 0.5;
       }
     }
@@ -1610,86 +1904,177 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   const rsiVal = t.rsi?.[n-1];
   if (rsiVal != null) {
     if (rsiVal >= 70) {
-      findings.push({ icon: '⚠', lbl: 'RSI', val: `${rsiVal.toFixed(0)} · overbought — pullback risk`, color: '#ff9800' });
+      findings.push({ icon: '⚠', lbl: 'RSI', val: `${rsiVal.toFixed(1)} — overbought territory, pullback risk elevated`, color: '#ff9800' });
       bear += 0.5;
     } else if (rsiVal <= 30) {
-      findings.push({ icon: '⚠', lbl: 'RSI', val: `${rsiVal.toFixed(0)} · oversold — bounce possible`, color: '#00bcd4' });
+      findings.push({ icon: '⚠', lbl: 'RSI', val: `${rsiVal.toFixed(1)} — oversold territory, mean-reversion bounce possible`, color: '#00bcd4' });
       bull += 0.5;
+    } else if (rsiVal >= 55) {
+      findings.push({ icon: '○', lbl: 'RSI', val: `${rsiVal.toFixed(1)} — upper neutral, bullish bias`, color: '#a5d6a7' });
+      bull += 0.25;
+    } else if (rsiVal <= 45) {
+      findings.push({ icon: '○', lbl: 'RSI', val: `${rsiVal.toFixed(1)} — lower neutral, bearish bias`, color: '#ef9a9a' });
+      bear += 0.25;
     } else {
-      findings.push({ icon: '○', lbl: 'RSI', val: `${rsiVal.toFixed(0)} · neutral zone`, color: 'var(--text2)' });
+      findings.push({ icon: '○', lbl: 'RSI', val: `${rsiVal.toFixed(1)} — mid neutral, no directional edge`, color: 'var(--text2)' });
     }
   }
 
   // 4. Bollinger Bands — where is price within the band?
-  const bbU = t.bb_upper?.[n-1], bbL = t.bb_lower?.[n-1];
+  const bbU = t.bb_upper?.[n-1], bbL = t.bb_lower?.[n-1], bbM = t.bb_mid?.[n-1] || t.sma20?.[n-1];
   if (bbU != null && bbL != null) {
     const bbRange = bbU - bbL;
     const bbPct   = bbRange > 0 ? (close - bbL) / bbRange : 0.5;
+    const bw = bbRange > 0 && close > 0 ? (bbRange / close * 100).toFixed(1) : null;
+    const bwNote = bw ? ` · bandwidth ${bw}%` : '';
     if (bbPct >= 0.85) {
-      findings.push({ icon: '⬆', lbl: 'BB', val: `Near upper band $${bbU.toFixed(2)} · stretched`, color: '#ff9800' });
+      findings.push({ icon: '⬆', lbl: 'BB', val: `Near upper band $${bbU.toFixed(2)}${bwNote} — price stretched, expect mean reversion toward $${bbM ? bbM.toFixed(2) : 'mid'}`, color: '#ff9800' });
       bear += 0.5;
     } else if (bbPct <= 0.15) {
-      findings.push({ icon: '⬇', lbl: 'BB', val: `Near lower band $${bbL.toFixed(2)} · support test`, color: '#00bcd4' });
+      findings.push({ icon: '⬇', lbl: 'BB', val: `Near lower band $${bbL.toFixed(2)}${bwNote} — testing support, watch for bounce toward $${bbM ? bbM.toFixed(2) : 'mid'}`, color: '#00bcd4' });
       bull += 0.5;
     } else {
       const pctStr = (bbPct * 100).toFixed(0);
-      findings.push({ icon: '◯', lbl: 'BB', val: `Mid-band (${pctStr}% of range) · no edge`, color: 'var(--text2)' });
+      findings.push({ icon: '◯', lbl: 'BB', val: `${pctStr}% of band range${bwNote} — mid-band, no squeeze or breakout signal`, color: 'var(--text2)' });
     }
   }
 
   // 5. SMA structure — price vs SMA20/50 + golden/death cross
-  const sma20v = t.sma20?.[n-1], sma50v = t.sma50?.[n-1];
+  const sma20v = t.sma20?.[n-1], sma50v = t.sma50?.[n-1], sma200v = t.sma200?.[n-1];
   if (sma20v != null && sma50v != null) {
     const aboveBoth = close > sma20v && close > sma50v;
     const belowBoth = close < sma20v && close < sma50v;
+    const dist20 = ((close - sma20v) / sma20v * 100).toFixed(1);
+    const dist50 = ((close - sma50v) / sma50v * 100).toFixed(1);
     if (aboveBoth && sma20v > sma50v) {
-      findings.push({ icon: '✓', lbl: 'SMA', val: `Above SMA20 ($${sma20v.toFixed(2)}) & SMA50 · bullish structure`, color: '#00e676' });
+      findings.push({ icon: '✓', lbl: 'SMA', val: `Above SMA20 (+${dist20}%) & SMA50 (+${dist50}%) — bullish alignment; golden structure`, color: '#00e676' });
       bull++;
     } else if (belowBoth && sma20v < sma50v) {
-      findings.push({ icon: '✗', lbl: 'SMA', val: `Below SMA20 ($${sma20v.toFixed(2)}) & SMA50 · bearish structure`, color: '#ff4f4f' });
+      findings.push({ icon: '✗', lbl: 'SMA', val: `Below SMA20 (${dist20}%) & SMA50 (${dist50}%) — bearish alignment; death cross structure`, color: '#ff4f4f' });
       bear++;
     } else if (close > sma20v && close < sma50v) {
-      findings.push({ icon: '~', lbl: 'SMA', val: `Above SMA20 but below SMA50 ($${sma50v.toFixed(2)}) · recovery attempt`, color: '#ffd54f' });
+      findings.push({ icon: '~', lbl: 'SMA', val: `Above SMA20 (+${dist20}%) but below SMA50 — recovery attempt, $${sma50v.toFixed(2)} is resistance`, color: '#ffd54f' });
     } else {
-      findings.push({ icon: '~', lbl: 'SMA', val: `Below SMA20 ($${sma20v.toFixed(2)}) but above SMA50 · caution`, color: '#ffd54f' });
+      findings.push({ icon: '~', lbl: 'SMA', val: `Below SMA20 (${dist20}%) but above SMA50 — caution, watch SMA20 at $${sma20v.toFixed(2)} as resistance`, color: '#ffd54f' });
+    }
+    if (sma200v != null) {
+      const dist200 = ((close - sma200v) / sma200v * 100).toFixed(1);
+      const above200 = close > sma200v;
+      findings.push({ icon: above200 ? '✓' : '✗', lbl: 'SMA200', val: `${above200 ? 'Above' : 'Below'} long-term average $${sma200v.toFixed(2)} (${dist200}%) — ${above200 ? 'secular uptrend intact' : 'secular downtrend, caution'}`, color: above200 ? '#a5d6a7' : '#ef9a9a' });
+      if (above200) bull += 0.5; else bear += 0.5;
     }
   }
 
-  // 6. S/R levels
+  // 6. Volume analysis
+  const volumes = ohlcv.map(b => b.volume).filter(v => v != null && v > 0);
+  if (volumes.length >= 10) {
+    const lastVol   = volumes[volumes.length - 1];
+    const avg20     = volumes.slice(-Math.min(20, volumes.length - 1)).reduce((a, b) => a + b, 0) / Math.min(20, volumes.length - 1);
+    const volRatio  = lastVol / avg20;
+    const priceUp   = ohlcv[n-1].close >= ohlcv[n-2]?.close;
+    const volFmtK   = v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v.toFixed(0);
+    if (volRatio >= 1.5) {
+      const dir = priceUp ? 'up on heavy volume — institutional buying likely' : 'down on heavy volume — distribution pressure';
+      findings.push({ icon: '📊', lbl: 'VOL', val: `${volRatio.toFixed(1)}× avg (${volFmtK(lastVol)}) — ${dir}`, color: priceUp ? '#00e676' : '#ff4f4f' });
+      if (priceUp) bull += 0.5; else bear += 0.5;
+    } else if (volRatio <= 0.5) {
+      findings.push({ icon: '📊', lbl: 'VOL', val: `${volRatio.toFixed(1)}× avg (${volFmtK(lastVol)}) — low conviction, move may not sustain`, color: 'var(--text2)' });
+    } else {
+      findings.push({ icon: '📊', lbl: 'VOL', val: `${volRatio.toFixed(1)}× avg (${volFmtK(lastVol)}) — normal activity, no surge or exhaustion`, color: 'var(--text2)' });
+    }
+  }
+
+  // 7. ATR / Volatility
+  const atrArr = t.atr?.filter(v => v != null);
+  let atrVal = null;
+  if (atrArr && atrArr.length >= 5) {
+    atrVal = atrArr[atrArr.length - 1];
+    const atrAvg = atrArr.slice(-10).reduce((a, b) => a + b, 0) / Math.min(10, atrArr.length);
+    const atrPct = (atrVal / close * 100).toFixed(2);
+    if (atrVal > atrAvg * 1.2) {
+      findings.push({ icon: '〰', lbl: 'ATR', val: `$${atrVal.toFixed(2)} daily range (${atrPct}%) — volatility expanding, widen stops`, color: '#ffd54f' });
+    } else if (atrVal < atrAvg * 0.8) {
+      findings.push({ icon: '〰', lbl: 'ATR', val: `$${atrVal.toFixed(2)} daily range (${atrPct}%) — volatility contracting, potential breakout building`, color: '#00bcd4' });
+    }
+  }
+
+  // 8. S/R levels
+  let nearestSupport = null, nearestResist = null;
   if (srLevels && srLevels.length) {
     const sig = srLevels.filter(l => l.touches >= 2);
     const supports    = sig.filter(l => l.price < close).sort((a, b) => b.price - a.price);
     const resistances = sig.filter(l => l.price >= close).sort((a, b) => a.price - b.price);
+    nearestSupport = supports[0] || null;
+    nearestResist  = resistances[0] || null;
     const parts = [];
-    if (supports.length)    parts.push(`support $${supports[0].price.toFixed(2)} (×${supports[0].touches})`);
-    if (resistances.length) parts.push(`resistance $${resistances[0].price.toFixed(2)} (×${resistances[0].touches})`);
+    if (nearestSupport)  parts.push(`support $${nearestSupport.price.toFixed(2)} (tested ×${nearestSupport.touches})`);
+    if (nearestResist)   parts.push(`resistance $${nearestResist.price.toFixed(2)} (tested ×${nearestResist.touches})`);
     if (parts.length)
       findings.push({ icon: '⊟', lbl: 'S/R', val: parts.join(' · '), color: 'var(--text)' });
   }
 
-  // Watch line
+  // ── Outlook / Watch section ───────────────────────────────────────
   const bias = bull > bear ? 'bullish' : bear > bull ? 'bearish' : 'neutral';
-  let watchLine = '';
   const biasColor = bias === 'bullish' ? '#00e676' : bias === 'bearish' ? '#ff4f4f' : '#ffd54f';
+  const totalPts = bull + bear;
+  const scoreLabel = `${bull % 1 === 0 ? bull.toFixed(0) : bull.toFixed(1)} bull / ${bear % 1 === 0 ? bear.toFixed(0) : bear.toFixed(1)} bear`;
 
+  // Target and stop logic
+  const targetPrice  = nearestResist?.price  || (close * 1.05);
+  const stopPrice    = nearestSupport?.price || (sma20v ? sma20v : close * 0.97);
+  const targetPct    = ((targetPrice - close) / close * 100).toFixed(1);
+  const stopPct      = ((close - stopPrice) / close * 100).toFixed(1);
+  const riskReward   = stopPct > 0 ? (parseFloat(targetPct) / parseFloat(stopPct)).toFixed(1) : null;
+
+  let watchLines = [];
   if (bias === 'bullish') {
-    if (rsiVal >= 70) {
-      watchLine = `Bullish but stretched (RSI ${rsiVal.toFixed(0)}) — expect consolidation near SMA20${sma20v ? ' ($' + sma20v.toFixed(2) + ')' : ''} before next leg up`;
-    } else if (bbU && close / bbU > 0.97) {
-      watchLine = `Bullish trend intact — near upper BB, watch for brief pause then continuation above $${high.toFixed(2)}`;
-    } else {
-      watchLine = `Momentum favors bulls — watch for continuation; break above $${high.toFixed(2)} confirms next leg`;
-    }
+    let line1 = `Bias bullish (${scoreLabel}). `;
+    if (rsiVal >= 70) line1 += `RSI at ${rsiVal.toFixed(0)} is overbought — high risk of a brief consolidation or pullback before any continuation.`;
+    else if (bbU && close / bbU > 0.97) line1 += `Price is pressing the upper Bollinger Band — expect a short pause or minor dip before bulls re-test the highs.`;
+    else line1 += `Multiple indicators align bullish with no immediate warning signals.`;
+    watchLines.push(line1);
+
+    let line2 = `Watch for a break above $${high.toFixed(2)} to confirm next leg up toward ${nearestResist ? `$${nearestResist.price.toFixed(2)}` : `$${targetPrice.toFixed(2)}`}`;
+    if (sma20v) line2 += `. Dips to SMA20 ($${sma20v.toFixed(2)}) would be a low-risk entry zone.`;
+    else line2 += '.';
+    watchLines.push(line2);
+
+    let line3 = `Suggested stop below $${stopPrice.toFixed(2)} (${stopPct}% risk)`;
+    if (riskReward) line3 += `, targeting $${targetPrice.toFixed(2)} — implied R/R ${riskReward}:1.`;
+    else line3 += '.';
+    watchLines.push(line3);
+
   } else if (bias === 'bearish') {
-    const support = sma50v ? sma50v.toFixed(2) : low.toFixed(2);
-    watchLine = `Bias bearish — watch $${support} as key support; break lower opens $${(parseFloat(support) * 0.97).toFixed(2)}`;
+    let line1 = `Bias bearish (${scoreLabel}). `;
+    if (rsiVal <= 30) line1 += `RSI at ${rsiVal.toFixed(0)} is oversold — bears dominate but a technical bounce is possible near key support.`;
+    else line1 += `Downside pressure is building across multiple timeframes.`;
+    watchLines.push(line1);
+
+    const keySupport = nearestSupport ? `$${nearestSupport.price.toFixed(2)}` : (sma50v ? `SMA50 $${sma50v.toFixed(2)}` : `$${low.toFixed(2)}`);
+    watchLines.push(`Key support to watch: ${keySupport}. A close below that level opens further downside toward $${(stopPrice * 0.97).toFixed(2)}.`);
+    watchLines.push(`Resistance overhead at ${nearestResist ? `$${nearestResist.price.toFixed(2)}` : `$${high.toFixed(2)}`} — bulls need a clear close above that to invalidate the bearish setup.`);
+
   } else {
-    watchLine = `Mixed signals — needs break above $${high.toFixed(2)} for bulls or below $${low.toFixed(2)} for bears to establish direction`;
+    watchLines.push(`Mixed signals (${scoreLabel}) — neither bulls nor bears have conviction.`);
+    watchLines.push(`Bulls need a break above $${high.toFixed(2)}${nearestResist ? ` / $${nearestResist.price.toFixed(2)} resistance` : ''} to take control. Bears need a break below $${low.toFixed(2)}${nearestSupport ? ` / $${nearestSupport.price.toFixed(2)} support` : ''}.`);
+    watchLines.push(`Watch volume on the next directional move — the side with higher volume wins.`);
   }
+
+  // ── Score bar ────────────────────────────────────────────────────
+  const barBullPct = totalPts > 0 ? Math.round(bull / totalPts * 100) : 50;
+  const barBearPct = 100 - barBullPct;
 
   // Render
   panel.style.borderLeftColor = biasColor;
   panel.innerHTML =
+    `<div class="autota-score-row">
+       <span class="autota-score-lbl" style="color:${biasColor}">${bias.toUpperCase()}</span>
+       <div class="autota-score-bar">
+         <div class="autota-score-bull" style="width:${barBullPct}%"></div>
+         <div class="autota-score-bear" style="width:${barBearPct}%"></div>
+       </div>
+       <span class="autota-score-pts">${scoreLabel}</span>
+     </div>` +
     findings.map(f =>
       `<div class="autota-finding">
         <span class="autota-icon">${f.icon}</span>
@@ -1697,8 +2082,11 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
         <span class="autota-val" style="color:${f.color}">${f.val}</span>
       </div>`
     ).join('') +
-    `<div class="autota-watch" style="color:${biasColor}">▶ ${watchLine}</div>`;
-  panel.style.display = 'flex';
+    `<div class="autota-outlook">
+       <div class="autota-outlook-title" style="color:${biasColor}">▶ Outlook</div>
+       ${watchLines.map(l => `<div class="autota-outlook-line">${l}</div>`).join('')}
+     </div>`;
+  panel.style.display = 'block';
 }
 
 // ── Insider transactions ───────────────────────────────────────────
@@ -1886,6 +2274,15 @@ function clearCompare() {
   if (input)   input.value = '';
   if (clearBtn) clearBtn.style.display = 'none';
   if (resultEl) resultEl.style.display = 'none';
+}
+
+// ── Floating chart overlay panels (News / Insider) ────────────────
+function toggleChartPanel(panelId, btn) {
+  const panel = document.getElementById(panelId);
+  if (!panel) return;
+  const isOpen = panel.style.display !== 'none';
+  panel.style.display = isOpen ? 'none' : 'flex';
+  btn?.classList.toggle('active', !isOpen);
 }
 
 // ── Format helpers ─────────────────────────────────────────────────

@@ -33,8 +33,25 @@ _indices_cache: dict = {}
 _indices_cached_at: datetime | None = None
 
 import os as _os
+# Load .env for local development
+_env_file = Path(__file__).parent / ".env"
+if _env_file.exists():
+    for _line in _env_file.read_text().splitlines():
+        if _line.strip() and not _line.startswith("#") and "=" in _line:
+            _k, _v = _line.split("=", 1)
+            _os.environ.setdefault(_k.strip(), _v.strip())
+
 _IS_SERVERLESS = bool(_os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"))
 _CACHE_BASE = Path("/tmp/cache") if _IS_SERVERLESS else Path("cache")
+
+# ── Finnhub live-quote cache (30-second TTL per ticker) ───────────
+_quote_cache: dict = {}
+_QUOTE_TTL = 30
+
+# ── Gemini intel cache (7-day TTL, stored on disk) ────────────────
+_INTEL_DIR = _CACHE_BASE / "intel"
+_INTEL_DIR.mkdir(parents=True, exist_ok=True)
+_INTEL_TTL = 7 * 24 * 3600
 SPARKLINE_CACHE = _CACHE_BASE / "sparklines"
 SPARKLINE_CACHE.mkdir(parents=True, exist_ok=True)
 
@@ -510,6 +527,116 @@ def api_quotes():
     resp = jsonify(payload)
     resp.headers["Cache-Control"] = "no-store, max-age=0"
     return resp
+
+
+@app.route("/api/intel/<ticker>")
+def api_intel(ticker: str):
+    """AI-generated company intel via Gemini. Cached 7 days on disk."""
+    ticker = ticker.upper()
+    p = _INTEL_DIR / f"{ticker}.json"
+
+    # Serve from cache if fresh
+    if p.exists():
+        age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
+        if age < _INTEL_TTL:
+            return jsonify(json.loads(p.read_text()))
+
+    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY not set"}), 503
+
+    # Pull fundamentals for richer prompt
+    data = next((s for s in _stock_cache if s.get("symbol") == ticker), None) or _load_cache(ticker) or {}
+    name     = data.get("shortName") or data.get("longName") or ticker
+    sector   = data.get("sector")   or "Unknown"
+    industry = data.get("industry") or "Unknown"
+    mcap     = data.get("marketCap")
+    pe       = data.get("trailingPE")
+    roe      = data.get("returnOnEquity")
+    rg       = data.get("revenueGrowth")
+
+    def _f(v, mult=1, sfx=""):
+        return f"{round(v * mult, 1)}{sfx}" if v is not None else "N/A"
+
+    prompt = f"""You are a senior financial analyst. Analyze {ticker} ({name}), a {sector} company in the {industry} industry.
+Key metrics: Market Cap {f"${round(mcap/1e9,1)}B" if mcap else "N/A"}, P/E {_f(pe)}, Revenue Growth {_f(rg,100,'%')}, ROE {_f(roe,100,'%')}
+
+Return ONLY a valid JSON object (no markdown, no code fences) with exactly these keys:
+{{
+  "overview": "2-3 sentence plain-English description of the business model and main revenue sources",
+  "macro": "2-3 sentences on which specific macroeconomic factors drive or hurt this company (interest rates, inflation, USD strength, oil prices, regulation, consumer spending, etc.)",
+  "strengths": ["concise strength 1", "concise strength 2", "concise strength 3", "concise strength 4"],
+  "weaknesses": ["concise risk/weakness 1", "concise risk/weakness 2", "concise risk/weakness 3"],
+  "competitors": [
+    {{"ticker": "XXX", "name": "Full Company Name", "note": "one sentence on how they compete with {ticker}"}},
+    {{"ticker": "YYY", "name": "Full Company Name", "note": "one sentence on how they compete with {ticker}"}}
+  ]
+}}
+Include 4-5 competitors. Be specific and factual."""
+
+    try:
+        import requests as _req
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"gemini-2.5-flash:generateContent?key={api_key}")
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "temperature": 0.25,
+                "maxOutputTokens": 2048,
+                "responseMimeType": "application/json",
+            },
+        }
+        r = _req.post(url, json=body, timeout=30)
+        r.raise_for_status()
+        text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        result = json.loads(text)
+        p.write_text(json.dumps(result))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/quote/<ticker>")
+def api_quote(ticker: str):
+    """Real-time quote: Finnhub for US stocks, yfinance fallback. 30s server cache."""
+    ticker = ticker.upper()
+    now = datetime.utcnow()
+
+    cached = _quote_cache.get(ticker)
+    if cached and (now - cached["at"]).total_seconds() < _QUOTE_TTL:
+        return jsonify({k: v for k, v in cached.items() if k != "at"})
+
+    cur = prev = None
+    source = "yfinance"
+
+    if not ticker.endswith(".TW"):
+        api_key = _os.environ.get("FINNHUB_API_KEY", "")
+        if api_key:
+            try:
+                import urllib.request as _ur, json as _js
+                url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={api_key}"
+                with _ur.urlopen(url, timeout=5) as r:
+                    d = _js.loads(r.read())
+                if d.get("c", 0) > 0:
+                    cur, prev, source = d["c"], d.get("pc") or d["c"], "finnhub"
+            except Exception:
+                pass
+
+    if cur is None:
+        cur, prev = _live_quote(ticker)
+
+    if cur is None:
+        return jsonify({"error": "No data"}), 404
+
+    prev = prev or cur
+    result = {
+        "price":      round(cur, 2),
+        "prev_close": round(prev, 2),
+        "change_pct": round((cur - prev) / prev * 100, 2) if prev else 0,
+        "source":     source,
+    }
+    _quote_cache[ticker] = {**result, "at": now}
+    return jsonify(result)
 
 
 @app.route("/api/screen", methods=["POST"])

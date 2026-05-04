@@ -74,6 +74,7 @@
       <div class="chart-type-btns">
         <button class="ct-btn active" id="btnCandle" onclick="setChartType('candle')">Candles</button>
         <button class="ct-btn" id="btnLine" onclick="setChartType('line')">Line</button>
+        <button class="ct-btn" id="btnHA" onclick="setChartType('ha')" title="Heikin-Ashi — smoother trend candles">HA</button>
       </div>
       <div class="ind-btns">
         <span class="ind-label">Overlays:</span>
@@ -84,7 +85,9 @@
         <button class="ind-btn"        data-ind="ema9"   style="--ic:#ab47bc" onclick="toggleInd('ema9',this)">EMA9</button>
         <button class="ind-btn"        data-ind="ema20"  style="--ic:#26c6da" onclick="toggleInd('ema20',this)">EMA20</button>
         <button class="ind-btn"        data-ind="vwap"   style="--ic:#ffd54f" onclick="toggleInd('vwap',this)">VWAP</button>
+        <button class="ind-btn"        data-ind="vp"     style="--ic:#4db6ac" onclick="toggleVolProfile(this)" title="Volume Profile — price-by-volume histogram">Vol Profile</button>
       </div>
+      <button class="auto-ta-btn" id="patternBtn" onclick="togglePatterns(this)" title="Detect candlestick patterns on chart">⌘ Patterns</button>
       <button class="auto-ta-btn" id="autoTaBtn" onclick="toggleAutoTA(this)">✦ Auto TA</button>
 
       <!-- Comparison overlay -->
@@ -171,8 +174,41 @@
 
   </div>
 
+  <!-- Floating overlay panels (News + Insider) — fixed over chart -->
+  <div class="chart-float-panel" id="newsPanel" style="display:none">
+    <div class="cfp-header">
+      <span class="cfp-title">📰 Recent News</span>
+      <button class="cfp-close" onclick="toggleChartPanel('newsPanel', document.getElementById('btnNewsPanel'))">×</button>
+    </div>
+    <div id="sidebarNewsFeed" class="cfp-body cfp-news"><div class="fund-loading">Loading…</div></div>
+  </div>
+
+  <div class="chart-float-panel" id="insiderPanel" style="display:none">
+    <div class="cfp-header">
+      <span class="cfp-title">👤 Insider Transactions</span>
+      <button class="cfp-close" onclick="toggleChartPanel('insiderPanel', document.getElementById('btnInsiderPanel'))">×</button>
+    </div>
+    <div id="insiderFeed" class="cfp-body insider-feed"><div class="fund-loading">Loading…</div></div>
+  </div>
+
+  <!-- Intel panel -->
+  <div class="chart-float-panel intel-float-panel" id="intelPanel" style="display:none">
+    <div class="cfp-header">
+      <span class="cfp-title">🧠 Company Intel · {{ ticker }}</span>
+      <button class="cfp-close" onclick="toggleChartPanel('intelPanel', document.getElementById('btnIntelPanel'))">×</button>
+    </div>
+    <div id="intelBody" class="cfp-body intel-body"><div class="intel-loading">Generating analysis…<span class="intel-dots"></span></div></div>
+  </div>
+
   <!-- RIGHT: sidebar -->
   <aside class="sidebar">
+
+    <!-- News / Insider / Intel toggle buttons -->
+    <div class="panel-toggle-row">
+      <button class="cpt-btn" id="btnNewsPanel"    onclick="toggleChartPanel('newsPanel',this)"    title="Recent news">📰 News</button>
+      <button class="cpt-btn" id="btnInsiderPanel" onclick="toggleChartPanel('insiderPanel',this)" title="Insider transactions">👤 Insider</button>
+      <button class="cpt-btn" id="btnIntelPanel"   onclick="openIntelPanel(this)"                  title="AI company analysis">🧠 Intel</button>
+    </div>
 
     <div class="sidebar-section">
       <div class="sidebar-title">Fundamentals</div>
@@ -183,20 +219,6 @@
     <div class="sidebar-section">
       <div class="sidebar-title">Strategy Scores</div>
       <div class="scores-list" id="scoresList"><div class="fund-loading">Loading…</div></div>
-    </div>
-
-    <div class="sidebar-section sidebar-news-section">
-      <div class="sidebar-title">Recent News</div>
-      <div id="sidebarNewsFeed" class="sidebar-news-feed">
-        <div class="fund-loading">Loading…</div>
-      </div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-title">Insider Transactions</div>
-      <div id="insiderFeed" class="insider-feed">
-        <div class="fund-loading">Loading…</div>
-      </div>
     </div>
 
     <div class="sidebar-section">
