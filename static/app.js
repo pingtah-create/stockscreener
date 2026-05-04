@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   await Promise.all([loadIndices(), checkStatus()]);
   loadMovers();
   loadHeatmap();
+  loadSwingScan();
   loadNews();
   loadWatchlist();
   preloadStocksForSearch();
@@ -125,6 +126,39 @@ function renderHeatmap(data) {
       <div class="heatmap-pct ${chg >= 0 ? 'up' : 'down'}">${sign}${chg.toFixed(2)}%</div>
     </div>`;
   }).join("");
+}
+
+// ── SWING SCAN ────────────────────────────────────────
+async function loadSwingScan() {
+  const el = document.getElementById("swingScanList");
+  if (!el) return;
+  el.innerHTML = `<div class="heatmap-loading">Scanning…</div>`;
+  try {
+    const data = await fetch("/api/swingscan").then(r => r.json());
+    if (!data.length) { el.innerHTML = `<div class="heatmap-loading">No setups found.</div>`; return; }
+    const TYPE_COLOR = {
+      "Oversold Bounce": "#00e676",
+      "Pullback to 50MA": "#0e84ff",
+      "Deep Pullback":    "#ff9800",
+      "Momentum":         "#ab47bc",
+    };
+    el.innerHTML = data.map(s => {
+      const c   = TYPE_COLOR[s.setup.type] || "#8899aa";
+      const rr  = s.setup.rr;
+      const rrCls = rr >= 3 ? "rr-hi" : rr >= 2 ? "rr-mid" : "rr-lo";
+      return `<div class="swing-row" onclick="window.location='/stock/${s.symbol}'">
+        <div class="swing-row-left">
+          <span class="swing-ticker">${s.symbol}</span>
+          <span class="swing-type" style="color:${c}">${s.setup.type}</span>
+        </div>
+        <div class="swing-row-right">
+          <span class="swing-rr ${rrCls}">R:R ${rr}</span>
+          <span class="swing-upside">+${s.setup.upside_pct}%</span>
+          <span class="swing-rsi">RSI ${s.rsi != null ? Math.round(s.rsi) : "—"}</span>
+        </div>
+      </div>`;
+    }).join("");
+  } catch { el.innerHTML = `<div class="heatmap-loading">Failed to load.</div>`; }
 }
 
 // ── NEWS FEED ─────────────────────────────────────────

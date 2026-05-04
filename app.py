@@ -11,7 +11,7 @@ import yfinance as yf
 
 from stock_list import get_all_tickers
 from screener import (
-    fetch_ticker, fetch_batch, screen, compute_scores,
+    fetch_ticker, fetch_batch, screen, compute_scores, compute_swing_setup,
     start_background_refresh, get_refresh_state, _load_cache,
 )
 
@@ -529,6 +529,110 @@ def api_quotes():
     return resp
 
 
+@app.route("/api/swingscan")
+def api_swingscan():
+    """Top algorithmic swing trade setups across all cached stocks."""
+    _ensure_stocks_loaded()
+    results = []
+    for s in _stock_cache:
+        setup = compute_swing_setup(s)
+        if not setup:
+            continue
+        price = s.get("currentPrice") or s.get("previousClose")
+        results.append({
+            "symbol":  s.get("symbol"),
+            "name":    (s.get("shortName") or s.get("longName") or "")[:28],
+            "sector":  s.get("sector") or "",
+            "price":   round(price, 2) if price else None,
+            "rsi":     s.get("rsi14"),
+            "setup":   setup,
+        })
+    results.sort(key=lambda x: x["setup"]["rr"], reverse=True)
+    return jsonify(results[:20])
+
+
+@app.route("/api/swing/<ticker>")
+def api_swing(ticker: str):
+    """AI swing trade setup via Gemini. Cached 24h."""
+    ticker = ticker.upper()
+    p = _INTEL_DIR / f"{ticker}_swing.json"
+    if p.exists():
+        age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
+        if age < 86400:
+            try:
+                return jsonify(json.loads(p.read_text()))
+            except Exception:
+                p.unlink(missing_ok=True)  # delete corrupt cache, regenerate below
+
+    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY not set"}), 503
+
+    data   = next((s for s in _stock_cache if s.get("symbol") == ticker), None) or _load_cache(ticker) or {}
+    name   = data.get("shortName") or ticker
+    price  = data.get("currentPrice") or data.get("previousClose")
+    sma50  = data.get("fiftyDayAverage")
+    sma200 = data.get("twoHundredDayAverage")
+    rsi    = data.get("rsi14")
+    sector = data.get("sector") or "Unknown"
+    algo   = compute_swing_setup(data)
+
+    def _fv(v, pfx="$"): return f"{pfx}{v:.2f}" if v else "N/A"
+    lines = [
+        f"Price: {_fv(price)}",
+        f"50-Day MA: {_fv(sma50)} ({'above' if price and sma50 and price>sma50 else 'below'})",
+        f"200-Day MA: {_fv(sma200)} ({'above' if price and sma200 and price>sma200 else 'below'})",
+        f"RSI-14: {rsi or 'N/A'}",
+    ]
+    if algo:
+        lines.append(f"Algo signal: {algo['type']} — Entry {_fv(algo['entry'])}, Stop {_fv(algo['stop'])}, Target {_fv(algo['target'])}, R:R {algo['rr']}")
+
+    prompt = f"""You are an expert swing trader. Analyze {ticker} ({name}), a {sector} stock, for a 2-10 day swing trade.
+
+Technicals:
+{chr(10).join(lines)}
+
+Return ONLY valid JSON:
+{{
+  "signal": "Bullish" or "Bearish" or "Neutral",
+  "setup_type": "e.g. Pullback to 50MA",
+  "entry_low": number,
+  "entry_high": number,
+  "stop_loss": number,
+  "target_1": number,
+  "target_2": number,
+  "timeframe": "e.g. 3-5 days",
+  "confidence": "High" or "Medium" or "Low",
+  "thesis": "2-3 sentence explanation",
+  "risk_factors": "1-2 sentence warning"
+}}"""
+
+    try:
+        import requests as _req
+        url  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"gemini-2.5-flash:generateContent?key={api_key}")
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048,
+                                 "responseMimeType": "application/json"},
+        }
+        r = _req.post(url, json=body, timeout=25)
+        r.raise_for_status()
+        text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        import re as _re
+        m = _re.search(r'\{[\s\S]*\}', text)
+        raw = m.group() if m else text
+        # Fix common Gemini JSON issues
+        raw = _re.sub(r':\s*NaN\b',       ': null', raw)
+        raw = _re.sub(r':\s*undefined\b', ': null', raw)
+        raw = _re.sub(r',\s*([}\]])',     r'\1',    raw)  # trailing commas
+        result = json.loads(raw)
+        p.write_text(json.dumps(result))
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/intel/<ticker>")
 def api_intel(ticker: str):
     """AI-generated company intel via Gemini. Cached 7 days on disk."""
@@ -539,7 +643,10 @@ def api_intel(ticker: str):
     if p.exists():
         age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
         if age < _INTEL_TTL:
-            return jsonify(json.loads(p.read_text()))
+            try:
+                return jsonify(json.loads(p.read_text()))
+            except Exception:
+                p.unlink(missing_ok=True)
 
     api_key = _os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
@@ -589,7 +696,13 @@ Include 4-5 competitors. Be specific and factual."""
         r = _req.post(url, json=body, timeout=30)
         r.raise_for_status()
         text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
-        result = json.loads(text)
+        import re as _re
+        m = _re.search(r'\{[\s\S]*\}', text)
+        raw = m.group() if m else text
+        raw = _re.sub(r':\s*NaN\b',       ': null', raw)
+        raw = _re.sub(r':\s*undefined\b', ': null', raw)
+        raw = _re.sub(r',\s*([}\]])',     r'\1',    raw)
+        result = json.loads(raw)
         p.write_text(json.dumps(result))
         return jsonify(result)
     except Exception as e:

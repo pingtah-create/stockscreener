@@ -1493,6 +1493,85 @@ function renderIntel(d) {
     </div>`;
 }
 
+// ══════════════════════════════════════════════════════════════════
+//  AI SWING SETUP
+// ══════════════════════════════════════════════════════════════════
+
+function openSwingPanel(btn) {
+  toggleChartPanel('swingPanel', btn);
+  const panel = document.getElementById('swingPanel');
+  if (panel.style.display !== 'none' && !panel.dataset.loaded) {
+    panel.dataset.loaded = '1';
+    loadSwing();
+  }
+}
+
+async function loadSwing() {
+  const body = document.getElementById('swingBody');
+  if (!body) return;
+  body.innerHTML = '<div class="intel-loading">Generating setup…<span class="intel-dots"></span></div>';
+  try {
+    const res  = await fetch(`/api/swing/${TICKER}`, { cache: 'no-store' });
+    const text = await res.text();
+    let d;
+    try { d = JSON.parse(text); } catch { body.innerHTML = `<div class="intel-error">⚠ ${text.slice(0,200)}</div>`; return; }
+    if (d.error) { body.innerHTML = `<div class="intel-error">⚠ ${d.error}</div>`; return; }
+    body.innerHTML = renderSwing(d);
+  } catch (e) {
+    body.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
+  }
+}
+
+function renderSwing(d) {
+  const sigColor = d.signal === 'Bullish' ? 'var(--green)' : d.signal === 'Bearish' ? 'var(--red)' : 'var(--text2)';
+  const confColor = d.confidence === 'High' ? 'var(--green)' : d.confidence === 'Medium' ? '#ff9800' : 'var(--red)';
+  const fmt = v => v != null ? '$' + Number(v).toFixed(2) : '—';
+  const rr = d.stop_loss && d.entry_low && d.target_1
+    ? ((d.target_1 - d.entry_high) / (d.entry_low - d.stop_loss)).toFixed(1)
+    : null;
+
+  return `
+    <div class="swing-header-row">
+      <span class="swing-signal" style="color:${sigColor}">● ${d.signal || '—'}</span>
+      <span class="swing-setup-type">${d.setup_type || ''}</span>
+      <span class="swing-conf" style="color:${confColor}">${d.confidence || ''}</span>
+    </div>
+    <div class="swing-grid">
+      <div class="swing-box entry">
+        <div class="swing-box-label">Entry Zone</div>
+        <div class="swing-box-val">${fmt(d.entry_low)} – ${fmt(d.entry_high)}</div>
+      </div>
+      <div class="swing-box stop">
+        <div class="swing-box-label">Stop Loss</div>
+        <div class="swing-box-val">${fmt(d.stop_loss)}</div>
+      </div>
+      <div class="swing-box t1">
+        <div class="swing-box-label">Target 1</div>
+        <div class="swing-box-val">${fmt(d.target_1)}</div>
+      </div>
+      <div class="swing-box t2">
+        <div class="swing-box-label">Target 2</div>
+        <div class="swing-box-val">${fmt(d.target_2)}</div>
+      </div>
+      <div class="swing-box rr">
+        <div class="swing-box-label">R:R Ratio</div>
+        <div class="swing-box-val">${rr ? rr + ':1' : '—'}</div>
+      </div>
+      <div class="swing-box tf">
+        <div class="swing-box-label">Timeframe</div>
+        <div class="swing-box-val">${d.timeframe || '—'}</div>
+      </div>
+    </div>
+    <div class="intel-section">
+      <div class="intel-section-title">Thesis</div>
+      <div class="intel-text">${d.thesis || '—'}</div>
+    </div>
+    <div class="intel-section">
+      <div class="intel-section-title" style="color:var(--red)">Risk Factors</div>
+      <div class="intel-text" style="color:var(--text2)">${d.risk_factors || '—'}</div>
+    </div>`;
+}
+
 // ── Live price polling via /api/quote (Finnhub → yfinance) ────────
 let _livePriceTimer = null;
 

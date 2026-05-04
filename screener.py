@@ -304,6 +304,56 @@ def screen(all_stocks: list[dict], filters: dict,
     return results
 
 
+def compute_swing_setup(stock: dict) -> dict | None:
+    """Detect algorithmic swing trade setup from cached fundamentals + RSI."""
+    price  = stock.get("currentPrice") or stock.get("previousClose")
+    sma50  = stock.get("fiftyDayAverage")
+    sma200 = stock.get("twoHundredDayAverage")
+    rsi    = stock.get("rsi14")
+    if not (price and sma50 and sma200 and rsi is not None):
+        return None
+    if price <= 0 or sma50 <= 0 or sma200 <= 0:
+        return None
+
+    above200    = price > sma200
+    above50     = price > sma50
+    pct_from_50 = (price - sma50) / sma50 * 100
+
+    setup = stop = target = None
+
+    if above200 and rsi < 35:
+        setup  = "Oversold Bounce"
+        stop   = round(sma200 * 0.97, 2)
+        target = round(sma50, 2)
+    elif above200 and above50 and -6 <= pct_from_50 <= 1 and 35 <= rsi <= 55:
+        setup  = "Pullback to 50MA"
+        stop   = round(sma50 * 0.96, 2)
+        target = round(price * 1.10, 2)
+    elif above200 and not above50 and rsi < 45 and pct_from_50 > -15:
+        setup  = "Deep Pullback"
+        stop   = round(sma200 * 0.97, 2)
+        target = round(sma50 * 0.99, 2)
+    elif above200 and above50 and 50 <= rsi <= 63 and pct_from_50 > 0:
+        setup  = "Momentum"
+        stop   = round(sma50 * 0.97, 2)
+        target = round(price * 1.12, 2)
+
+    if not setup:
+        return None
+    risk   = price - stop
+    reward = target - price
+    if risk <= 0 or reward <= 0:
+        return None
+    return {
+        "type":       setup,
+        "entry":      round(price, 2),
+        "stop":       round(stop, 2),
+        "target":     round(target, 2),
+        "rr":         round(reward / risk, 1),
+        "upside_pct": round(reward / price * 100, 1),
+    }
+
+
 def compute_scores(stock: dict) -> dict:
     """Compute 0–100 fit scores for each preset strategy."""
 

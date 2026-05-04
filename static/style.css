@@ -573,6 +573,29 @@ body {
   gap: 4px; margin-top: 8px;
 }
 .heatmap-loading { color: var(--text3); font-size: 12px; grid-column: 1/-1; text-align: center; padding: 8px; }
+
+/* ── SWING SCAN (dashboard) ─────────────────────────── */
+.swing-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .12s;
+}
+.swing-row:last-child { border-bottom: none; }
+.swing-row:hover { background: rgba(14,132,255,.06); }
+.swing-row-left { display: flex; flex-direction: column; gap: 2px; }
+.swing-ticker { font-size: 12px; font-weight: 800; color: var(--text); }
+.swing-type   { font-size: 10px; font-weight: 600; }
+.swing-row-right { display: flex; align-items: center; gap: 8px; }
+.swing-rr  { font-size: 11px; font-weight: 800; padding: 2px 6px; border-radius: 4px; }
+.rr-hi  { background: rgba(0,230,118,.15); color: #00e676; }
+.rr-mid { background: rgba(14,132,255,.15); color: #0e84ff; }
+.rr-lo  { background: rgba(136,153,170,.1); color: #8899aa; }
+.swing-upside { font-size: 10px; color: #00e676; font-weight: 700; }
+.swing-rsi    { font-size: 10px; color: var(--text3); }
 .heatmap-tile {
   padding: 6px 8px; border-radius: 4px;
   cursor: pointer; transition: filter var(--transition), transform var(--transition);

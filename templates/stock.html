@@ -191,6 +191,15 @@
     <div id="insiderFeed" class="cfp-body insider-feed"><div class="fund-loading">Loading…</div></div>
   </div>
 
+  <!-- Swing panel -->
+  <div class="chart-float-panel swing-float-panel" id="swingPanel" style="display:none">
+    <div class="cfp-header">
+      <span class="cfp-title">🎯 Swing Setup · {{ ticker }}</span>
+      <button class="cfp-close" onclick="toggleChartPanel('swingPanel', document.getElementById('btnSwingPanel'))">×</button>
+    </div>
+    <div id="swingBody" class="cfp-body swing-body"><div class="intel-loading">Generating setup…<span class="intel-dots"></span></div></div>
+  </div>
+
   <!-- Intel panel -->
   <div class="chart-float-panel intel-float-panel" id="intelPanel" style="display:none">
     <div class="cfp-header">
@@ -208,6 +217,7 @@
       <button class="cpt-btn" id="btnNewsPanel"    onclick="toggleChartPanel('newsPanel',this)"    title="Recent news">📰 News</button>
       <button class="cpt-btn" id="btnInsiderPanel" onclick="toggleChartPanel('insiderPanel',this)" title="Insider transactions">👤 Insider</button>
       <button class="cpt-btn" id="btnIntelPanel"   onclick="openIntelPanel(this)"                  title="AI company analysis">🧠 Intel</button>
+      <button class="cpt-btn" id="btnSwingPanel"   onclick="openSwingPanel(this)"                  title="AI swing trade setup">🎯 Swing</button>
     </div>
 
     <div class="sidebar-section">
