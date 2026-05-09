@@ -433,6 +433,7 @@ def tool_get_macro_indicators() -> dict:
 
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.models.gemini import GeminiModel
+from pydantic_ai.providers.google_gla import GoogleGLAProvider
 
 
 @dataclass
@@ -638,7 +639,7 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     from pydantic_ai.settings import ModelSettings
 
     ticker = ticker.upper().strip()
-    model  = GeminiModel("gemini-2.5-flash", api_key=api_key)
+    model  = GeminiModel("gemini-2.5-flash", provider=GoogleGLAProvider(api_key=api_key))
 
     # ── Stage 1: collect data ─────────────────────────────────
     data = {
@@ -748,7 +749,7 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
         elif role == "assistant":
             history.append(ModelResponse(parts=[TextPart(content=content)]))
 
-    model = GeminiModel("gemini-2.5-flash", api_key=api_key)
+    model = GeminiModel("gemini-2.5-flash", provider=GoogleGLAProvider(api_key=api_key))
     deps  = FinBotDeps(stock_cache=stock_cache, indices_cache=indices_cache)
 
     result = finbot.run_sync(
