@@ -15,7 +15,7 @@ import yfinance as yf
 _IS_SERVERLESS = bool(os.environ.get("VERCEL") or os.environ.get("VERCEL_ENV"))
 CACHE_DIR = Path("/tmp/cache") if _IS_SERVERLESS else Path("cache")
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
-CACHE_TTL_HOURS = 24
+CACHE_TTL_HOURS = 12
 
 # Fields we care about from yfinance .info
 FIELDS = [

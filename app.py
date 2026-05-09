@@ -143,8 +143,8 @@ def _refresh_live_prices():
     global _stock_cache, _prices_refreshed_at
     if not _stock_cache:
         return
-    # Only refresh once every 15 minutes per warm instance
-    if _prices_refreshed_at and (datetime.utcnow() - _prices_refreshed_at).seconds < 900:
+    # Only refresh once every 5 minutes per warm instance
+    if _prices_refreshed_at and (datetime.utcnow() - _prices_refreshed_at).seconds < 300:
         return
     try:
         tickers = [s["symbol"] for s in _stock_cache if s.get("symbol")]
@@ -300,7 +300,7 @@ def api_sparkline(ticker: str):
     # Cache sparklines for 6 hours
     if path.exists():
         mtime = datetime.fromtimestamp(path.stat().st_mtime)
-        if datetime.now() - mtime < timedelta(hours=6):
+        if datetime.now() - mtime < timedelta(hours=2):
             with open(path) as f:
                 return jsonify(json.load(f))
     try:
