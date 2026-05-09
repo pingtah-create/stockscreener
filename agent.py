@@ -635,7 +635,6 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     Stage 2: bull + bear agents run in parallel.
     Stage 3: verdict agent synthesises both.
     """
-    from concurrent.futures import ThreadPoolExecutor
     from pydantic_ai.settings import ModelSettings
 
     ticker = ticker.upper().strip()
@@ -653,22 +652,13 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     data_text = json.dumps(data, default=str)
     analyst_prompt = f"Ticker: {ticker}\n\nData:\n{data_text}"
 
-    # ── Stage 2: bull + bear in parallel ──────────────────────
+    # ── Stage 2: bull + bear sequentially ────────────────────
     settings_creative = ModelSettings(temperature=0.4, max_tokens=512)
 
-    def run_bull():
-        return _bull_agent.run_sync(analyst_prompt, model=model,
-                                    model_settings=settings_creative).output
-
-    def run_bear():
-        return _bear_agent.run_sync(analyst_prompt, model=model,
-                                    model_settings=settings_creative).output
-
-    with ThreadPoolExecutor(max_workers=2) as pool:
-        bull_future = pool.submit(run_bull)
-        bear_future = pool.submit(run_bear)
-        bull_case = bull_future.result()
-        bear_case = bear_future.result()
+    bull_case = _bull_agent.run_sync(analyst_prompt, model=model,
+                                     model_settings=settings_creative).output
+    bear_case = _bear_agent.run_sync(analyst_prompt, model=model,
+                                     model_settings=settings_creative).output
 
     # ── Stage 3: verdict ──────────────────────────────────────
     verdict_prompt = f"""Ticker: {ticker}
