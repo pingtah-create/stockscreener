@@ -859,65 +859,14 @@ def _extract_tickers(text: str) -> list[str]:
     return found[:4]  # cap at 4 to keep prompt small
 
 
-def _stock_context(ticker: str) -> str:
-    """Compact one-stock fact sheet for the chat system prompt."""
-    data = next((s for s in _stock_cache if s.get("symbol") == ticker), None) \
-           or _load_cache(ticker) or {}
-    if not data:
-        return f"{ticker}: no data available."
-
-    cur, prev = _live_quote(ticker)
-    if cur:
-        data["currentPrice"] = round(cur, 2)
-        if prev:
-            data["regularMarketChangePercent"] = round((cur - prev) / prev * 100, 2)
-
-    def f(v, mult=1, sfx="", dec=2):
-        if v is None:
-            return "N/A"
-        try:
-            return f"{round(v * mult, dec)}{sfx}"
-        except Exception:
-            return "N/A"
-
-    mcap = data.get("marketCap")
-    mcap_s = f"${round(mcap/1e9,1)}B" if mcap else "N/A"
-    price = data.get("currentPrice") or data.get("previousClose")
-    chg = data.get("regularMarketChangePercent")
-
-    lines = [
-        f"{ticker} ({data.get('shortName') or data.get('longName') or ticker})",
-        f"  Sector: {data.get('sector') or 'N/A'} / {data.get('industry') or 'N/A'}",
-        f"  Price: ${f(price)} ({f(chg, sfx='%')} today)",
-        f"  Market cap: {mcap_s}, Beta: {f(data.get('beta'))}",
-        f"  P/E: {f(data.get('trailingPE'))}, FwdP/E: {f(data.get('forwardPE'))}, P/B: {f(data.get('priceToBook'))}, EV/EBITDA: {f(data.get('enterpriseToEbitda'))}",
-        f"  Rev growth: {f(data.get('revenueGrowth'),100,'%')}, Earn growth: {f(data.get('earningsGrowth'),100,'%')}, ROE: {f(data.get('returnOnEquity'),100,'%')}",
-        f"  Margins — gross: {f(data.get('grossMargins'),100,'%')}, op: {f(data.get('operatingMargins'),100,'%')}, profit: {f(data.get('profitMargins'),100,'%')}",
-        f"  Div yield: {f(data.get('dividendYield'),100,'%')}, Debt/Equity: {f(data.get('debtToEquity'))}",
-        f"  52w range: ${f(data.get('fiftyTwoWeekLow'))} - ${f(data.get('fiftyTwoWeekHigh'))}, 50DMA: ${f(data.get('fiftyDayAverage'))}, 200DMA: ${f(data.get('twoHundredDayAverage'))}",
-        f"  Analyst target: ${f(data.get('targetMeanPrice'))} ({data.get('recommendationKey') or 'N/A'})",
-    ]
-
-    # Recent news (top 3 headlines)
-    try:
-        news = _parse_news(yf.Ticker(ticker).news, 3)
-        if news:
-            lines.append("  Recent headlines:")
-            for n in news:
-                lines.append(f"    - {n['title']} ({n.get('publisher','')}, {n.get('date') or ''})")
-    except Exception:
-        pass
-
-    return "\n".join(lines)
-
 
 @app.route("/api/chat", methods=["POST"])
 @auth.require_login_api
 def api_chat():
-    """Multi-turn chat. Body: {messages: [{role, content}, ...]}.
-    Auto-detects tickers in the latest user message and injects context."""
+    """Agentic multi-turn chat via Gemini function-calling.
+    Body: {messages: [{role, content}, ...]}"""
     _ensure_stocks_loaded()
-    body = request.json or {}
+    body     = request.json or {}
     messages = body.get("messages") or []
     if not messages:
         return jsonify({"error": "no messages"}), 400
@@ -926,57 +875,15 @@ def api_chat():
     if not api_key:
         return jsonify({"error": "GEMINI_API_KEY not set on server"}), 503
 
-    # Pull tickers from the most recent user message
-    last_user = next((m for m in reversed(messages) if m.get("role") == "user"), None)
-    tickers = _extract_tickers(last_user.get("content", "") if last_user else "")
-
-    # Indices snapshot for market-wide questions
-    idx_lines = []
-    if _indices_cache:
-        for name, d in _indices_cache.items():
-            if d.get("price") is not None:
-                idx_lines.append(f"  {name}: {d['price']} ({d.get('change_pct',0):+.2f}%)")
-
-    sys_parts = [
-        "You are a sharp, concise financial research analyst built into a stock screener app.",
-        "Answer questions about stocks using the data provided. Be direct, opinionated, and cite the specific numbers in the context. Use markdown (bold, lists). Keep responses under 250 words unless the user asks for depth.",
-        "If you do not have data on something, say so — do not invent numbers. The data may be 5-30 minutes stale.",
-        f"Today's date: {datetime.utcnow().strftime('%Y-%m-%d')}.",
-    ]
-    if idx_lines:
-        sys_parts.append("Current market indices:\n" + "\n".join(idx_lines))
-    if tickers:
-        sys_parts.append("Live data for tickers mentioned by the user:\n\n" +
-                         "\n\n".join(_stock_context(t) for t in tickers))
-
-    system_prompt = "\n\n".join(sys_parts)
-
-    # Build Gemini conversation: user/model turns, system as systemInstruction
-    contents = []
-    for m in messages:
-        role = "user" if m.get("role") == "user" else "model"
-        text = (m.get("content") or "").strip()
-        if not text:
-            continue
-        contents.append({"role": role, "parts": [{"text": text}]})
-
-    if not contents:
-        return jsonify({"error": "no usable messages"}), 400
-
     try:
-        import requests as _req
-        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.5-flash:generateContent?key={api_key}")
-        payload = {
-            "systemInstruction": {"parts": [{"text": system_prompt}]},
-            "contents": contents,
-            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1024},
-        }
-        r = _req.post(url, json=payload, timeout=30)
-        r.raise_for_status()
-        j = r.json()
-        text = j["candidates"][0]["content"]["parts"][0]["text"]
-        return jsonify({"reply": text, "tickers": tickers})
+        from agent import run_agent
+        result  = run_agent(messages, _stock_cache, _indices_cache, api_key)
+        tickers = _extract_tickers(result.get("reply", ""))
+        return jsonify({
+            "reply":      result["reply"],
+            "tools_used": result.get("tools_used", []),
+            "tickers":    tickers,
+        })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

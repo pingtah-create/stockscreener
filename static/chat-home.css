@@ -303,6 +303,46 @@ body {
   30% { transform: scale(1.1); opacity: 1; }
 }
 
+/* Tools-used footer */
+.ch-tools-used {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-faint);
+}
+.ch-tool-pill {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 4px;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+}
+
+/* Loading text next to typing dots */
+.ch-bubble-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ch-loading-text {
+  font-size: 13px;
+  color: var(--text-faint);
+  font-style: italic;
+}
+
+/* Markdown headers inside bubbles */
+.ch-bubble h1, .ch-bubble h2, .ch-bubble h3 {
+  margin: 12px 0 4px;
+  color: #fff;
+  font-size: 14px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
 /* Bottom sticky input on chat state */
 .ch-input-wrap-bottom {
   margin: 12px 0 24px;

@@ -1,21 +1,45 @@
-// chat.js — barebone-style AI research chat
-// Multi-turn conversation with localStorage persistence, ticker detection,
-// and link-out to /stock/<TICKER> pages.
+// chat.js — FinBot agentic research chat
+// Multi-turn conversation with localStorage persistence, tool-call display,
+// rotating loading messages, and link-out to /stock/<TICKER> pages.
 
 const STORAGE_KEY = 'stockdash_chat_v1';
-const MAX_HISTORY = 20; // last N messages sent to backend
+const MAX_HISTORY = 20;
 
-const heroEl = document.getElementById('chHero');
-const chatEl = document.getElementById('chChat');
-const threadEl = document.getElementById('chThread');
-const formTop = document.getElementById('chForm');
-const formBot = document.getElementById('chFormBottom');
-const inputTop = document.getElementById('chInput');
-const inputBot = document.getElementById('chInputBottom');
+const heroEl    = document.getElementById('chHero');
+const chatEl    = document.getElementById('chChat');
+const threadEl  = document.getElementById('chThread');
+const formTop   = document.getElementById('chForm');
+const formBot   = document.getElementById('chFormBottom');
+const inputTop  = document.getElementById('chInput');
+const inputBot  = document.getElementById('chInputBottom');
 const newChatBtn = document.getElementById('newChatBtn');
 
 let messages = loadHistory();
-let pending = false;
+let pending  = false;
+
+const TOOL_LABELS = {
+  get_stock_fundamentals:  'Fundamentals',
+  get_technical_signals:   'Technicals',
+  get_recent_news:         'News',
+  get_peer_comparison:     'Competitors',
+  get_earnings_info:       'Earnings',
+  get_insider_activity:    'Insider Activity',
+  get_dividend_info:       'Dividends',
+  screen_stocks:           'Screening',
+  get_market_overview:     'Market Overview',
+  compare_stocks:          'Comparing Stocks',
+  get_analyst_consensus:   'Analyst Ratings',
+  get_watchlist_analysis:  'Watchlist Analysis',
+};
+
+const LOADING_PHRASES = [
+  'Calling tools…',
+  'Fetching data…',
+  'Analyzing…',
+  'Crunching numbers…',
+  'Reading the market…',
+  'Generating response…',
+];
 
 if (messages.length) renderThread();
 
@@ -26,8 +50,8 @@ newChatBtn.addEventListener('click', () => {
   messages = [];
   saveHistory();
   threadEl.innerHTML = '';
-  chatEl.hidden = true;
-  heroEl.hidden = false;
+  chatEl.hidden  = true;
+  heroEl.hidden  = false;
   inputTop.value = '';
   inputTop.focus();
 });
@@ -36,7 +60,6 @@ document.querySelectorAll('.ch-chip').forEach(b => {
   b.addEventListener('click', () => send(b.dataset.q));
 });
 
-// Ctrl+K / Cmd+K → focus the active input
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
@@ -60,7 +83,7 @@ async function send(text) {
   inputBot.value = '';
 
   pending = true;
-  const loadingNode = appendMessage('assistant', '', true);
+  const loadingNode = appendLoading();
 
   try {
     const r = await fetch('/api/chat', {
@@ -72,40 +95,76 @@ async function send(text) {
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
     const reply = data.reply || '(empty response)';
-    messages.push({ role: 'assistant', content: reply, tickers: data.tickers || [] });
+    messages.push({ role: 'assistant', content: reply, tickers: data.tickers || [], tools_used: data.tools_used || [] });
     saveHistory();
     loadingNode.remove();
-    appendMessage('assistant', reply, false, data.tickers || []);
+    appendMessage('assistant', reply, data.tickers || [], data.tools_used || []);
   } catch (err) {
     loadingNode.remove();
-    appendMessage('assistant', `**Error:** ${err.message || err}`, false, [], true);
+    appendMessage('assistant', `**Error:** ${err.message || err}`, [], [], true);
   } finally {
     pending = false;
     inputBot.focus();
   }
 }
 
-function appendMessage(role, text, isLoading = false, tickers = [], isError = false) {
-  const row = document.createElement('div');
+function appendLoading() {
+  const row    = document.createElement('div');
+  row.className = 'ch-msg ch-msg-assistant';
+  const bubble  = document.createElement('div');
+  bubble.className = 'ch-bubble ch-bubble-loading';
+
+  let phraseIdx = 0;
+  const label = document.createElement('span');
+  label.className = 'ch-loading-text';
+  label.textContent = LOADING_PHRASES[0];
+
+  bubble.innerHTML = `<span class="ch-typing"><span></span><span></span><span></span></span> `;
+  bubble.appendChild(label);
+  row.appendChild(bubble);
+  threadEl.appendChild(row);
+  threadEl.scrollTop = threadEl.scrollHeight;
+
+  // Rotate through loading phrases
+  const timer = setInterval(() => {
+    phraseIdx = (phraseIdx + 1) % LOADING_PHRASES.length;
+    label.textContent = LOADING_PHRASES[phraseIdx];
+  }, 2000);
+  row._clearTimer = () => clearInterval(timer);
+
+  const origRemove = row.remove.bind(row);
+  row.remove = () => { row._clearTimer(); origRemove(); };
+  return row;
+}
+
+function appendMessage(role, text, tickers = [], toolsUsed = [], isError = false) {
+  const row    = document.createElement('div');
   row.className = `ch-msg ch-msg-${role}` + (isError ? ' ch-msg-error' : '');
 
-  const bubble = document.createElement('div');
+  const bubble  = document.createElement('div');
   bubble.className = 'ch-bubble';
-
-  if (isLoading) {
-    bubble.innerHTML = `<span class="ch-typing"><span></span><span></span><span></span></span>`;
-  } else {
-    bubble.innerHTML = renderMarkdown(text);
-  }
+  bubble.innerHTML = renderMarkdown(text);
   row.appendChild(bubble);
 
-  if (role === 'assistant' && tickers && tickers.length) {
+  // Ticker pills — link out to chart page
+  if (role === 'assistant' && tickers.length) {
     const links = document.createElement('div');
     links.className = 'ch-ticker-links';
     links.innerHTML = tickers.map(t =>
       `<a href="/stock/${encodeURIComponent(t)}" class="ch-ticker-pill">${t} →</a>`
     ).join('');
     row.appendChild(links);
+  }
+
+  // Tools-used footer
+  if (role === 'assistant' && toolsUsed.length) {
+    const unique = [...new Set(toolsUsed)];
+    const footer = document.createElement('div');
+    footer.className = 'ch-tools-used';
+    footer.innerHTML = '🔧 ' + unique.map(t =>
+      `<span class="ch-tool-pill">${TOOL_LABELS[t] || t}</span>`
+    ).join('');
+    row.appendChild(footer);
   }
 
   threadEl.appendChild(row);
@@ -118,7 +177,7 @@ function renderThread() {
   chatEl.hidden = false;
   threadEl.innerHTML = '';
   for (const m of messages) {
-    appendMessage(m.role, m.content, false, m.tickers || []);
+    appendMessage(m.role, m.content, m.tickers || [], m.tools_used || []);
   }
 }
 
@@ -136,29 +195,32 @@ function saveHistory() {
   catch {}
 }
 
-// Tiny markdown renderer — bold, italic, inline code, lists, line breaks, links.
-// Intentionally minimal so we don't pull a library.
+// Minimal markdown renderer
 function renderMarkdown(s) {
   if (!s) return '';
-  // Escape HTML first
   let out = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
-  // Code blocks ```...```
+  // Headers
+  out = out.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+  out = out.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
+  out = out.replace(/^# (.+)$/gm,   '<h1>$1</h1>');
+
+  // Code blocks
   out = out.replace(/```([\s\S]*?)```/g, (_, code) =>
     `<pre><code>${code.trim()}</code></pre>`);
 
-  // Inline code `..`
+  // Inline code
   out = out.replace(/`([^`\n]+)`/g, '<code>$1</code>');
 
-  // Bold **..**
+  // Bold & italic
   out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
-  // Italic *..* (avoid matching ** already replaced)
   out = out.replace(/(^|[^\*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
 
-  // Links [text](url)
-  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+  // Links
+  out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g,
+    '<a href="$2" target="_blank" rel="noopener">$1</a>');
 
-  // Convert simple bullet lists (lines starting with - or *)
+  // Bullet lists
   out = out.replace(/(^|\n)((?:[ \t]*[-*][ \t]+.+(?:\n|$))+)/g, (_, lead, block) => {
     const items = block.trim().split(/\n/).map(l =>
       `<li>${l.replace(/^[ \t]*[-*][ \t]+/, '')}</li>`).join('');
@@ -172,7 +234,6 @@ function renderMarkdown(s) {
     return `${lead}<ol>${items}</ol>`;
   });
 
-  // Paragraphs / line breaks
   out = out.replace(/\n{2,}/g, '</p><p>');
   out = out.replace(/\n/g, '<br>');
   return `<p>${out}</p>`;
