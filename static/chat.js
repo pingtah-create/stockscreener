@@ -234,6 +234,24 @@ function renderMarkdown(s) {
     return `${lead}<ol>${items}</ol>`;
   });
 
+  // Tables  |col|col|
+  out = out.replace(/((?:^|\n)\|.+\|(?:\n\|[-| :]+\|)?(?:\n\|.+\|)*)/g, block => {
+    const lines = block.trim().split('\n').filter(l => l.trim().startsWith('|'));
+    if (lines.length < 2) return block;
+    const isSep = l => /^\|[-| :]+\|$/.test(l.trim());
+    let html = '<div class="ch-table-wrap"><table class="ch-table">';
+    let inBody = false;
+    for (const line of lines) {
+      if (isSep(line)) { html += '<tbody>'; inBody = true; continue; }
+      const tag  = inBody ? 'td' : 'th';
+      const cells = line.split('|').slice(1, -1).map(c => c.trim());
+      html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
+      if (!inBody && lines.some(isSep)) { html += '</thead>'; }
+    }
+    html += '</table></div>';
+    return html;
+  });
+
   out = out.replace(/\n{2,}/g, '</p><p>');
   out = out.replace(/\n/g, '<br>');
   return `<p>${out}</p>`;

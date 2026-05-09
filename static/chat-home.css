@@ -343,6 +343,37 @@ body {
   letter-spacing: 0.06em;
 }
 
+/* Comparison tables inside chat bubbles */
+.ch-table-wrap {
+  overflow-x: auto;
+  margin: 10px 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.ch-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+.ch-table th {
+  background: rgba(255,255,255,0.06);
+  color: var(--text-dim);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 7px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.ch-table td {
+  padding: 6px 12px;
+  color: var(--text);
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.ch-table tr:last-child td { border-bottom: none; }
+.ch-table tr:hover td { background: rgba(255,255,255,0.03); }
+
 /* Bottom sticky input on chat state */
 .ch-input-wrap-bottom {
   margin: 12px 0 24px;
