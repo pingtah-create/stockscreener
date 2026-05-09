@@ -2,6 +2,9 @@
 cache/
 static/cache/
 
+# Auth state (users.json, secret.key) — never commit
+auth/
+
 # Python
 __pycache__/
 *.py[cod]

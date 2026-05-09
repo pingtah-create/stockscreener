@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Stockdash · AI Research</title>
+  <link rel="stylesheet" href="/static/chat-home.css" />
+</head>
+<body>
+
+<header class="ch-nav">
+  <div class="ch-brand">
+    <span class="ch-logo">◈</span>
+    <span class="ch-name">STOCKDASH</span>
+  </div>
+  <nav class="ch-nav-links">
+    <a href="/dashboard" title="Open the full dashboard (movers, heatmap, swing setups)">Dashboard →</a>
+    <button id="newChatBtn" class="ch-link-btn" title="Start a new conversation">New chat</button>
+    {% if current_user %}
+      <span class="ch-user" title="Signed in as {{ current_user }}">{{ current_user }}</span>
+      <a href="/logout" class="ch-link-btn" title="Sign out">Logout</a>
+    {% endif %}
+  </nav>
+</header>
+
+<main class="ch-main" id="chMain">
+
+  <!-- HERO state: only shown before any messages -->
+  <section class="ch-hero" id="chHero">
+    <h1 class="ch-hero-title">Your AI Wall Street analyst.</h1>
+    <p class="ch-hero-sub">Ask anything about a stock. Mention a ticker and I'll pull live fundamentals, technicals, and news.</p>
+
+    <form class="ch-input-wrap" id="chForm">
+      <input class="ch-input" id="chInput" type="text"
+             placeholder="Ask about a stock — e.g. Is NVDA overvalued?"
+             autocomplete="off" autofocus />
+      <button class="ch-send" type="submit" title="Send (Enter)">→</button>
+    </form>
+
+    <div class="ch-suggestions" id="chSuggestions">
+      <button class="ch-chip" data-q="Why is NVDA up today?">Why is NVDA up today?</button>
+      <button class="ch-chip" data-q="Compare AAPL vs MSFT on growth and valuation">Compare AAPL vs MSFT</button>
+      <button class="ch-chip" data-q="Is TSLA overvalued at current price?">Is TSLA overvalued?</button>
+      <button class="ch-chip" data-q="Best dividend stocks in the S&P 500 right now?">Best dividend plays</button>
+      <button class="ch-chip" data-q="Walk me through 2330.TW (TSMC) — bull and bear case">TSMC bull/bear</button>
+    </div>
+  </section>
+
+  <!-- CHAT state: messages + sticky input -->
+  <section class="ch-chat" id="chChat" hidden>
+    <div class="ch-thread" id="chThread"></div>
+    <form class="ch-input-wrap ch-input-wrap-bottom" id="chFormBottom">
+      <input class="ch-input" id="chInputBottom" type="text"
+             placeholder="Ask a follow-up…" autocomplete="off" />
+      <button class="ch-send" type="submit" title="Send (Enter)">→</button>
+    </form>
+  </section>
+
+</main>
+
+<script src="/static/chat.js"></script>
+</body>
+</html>

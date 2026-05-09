@@ -5,7 +5,7 @@ Run: python app.py
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request
+from flask import Flask, render_template, jsonify, request, redirect, url_for
 
 import yfinance as yf
 
@@ -14,8 +14,15 @@ from screener import (
     fetch_ticker, fetch_batch, screen, compute_scores, compute_swing_setup,
     start_background_refresh, get_refresh_state, _load_cache,
 )
+import auth
 
 app = Flask(__name__)
+auth.init_app(app)
+
+
+@app.context_processor
+def _inject_user():
+    return {"current_user": auth.current_user()}
 
 _stock_cache: list[dict] = []
 _tickers: list[str] = []
@@ -101,24 +108,30 @@ def _live_quote(ticker: str):
 def _load_all_from_cache() -> list[dict]:
     global _tickers
     _tickers = get_all_tickers()
-    stocks = []
+
+    # Start from the bundled seed (committed to git, used on Vercel cold-start
+    # and as a fallback for any ticker whose individual cache file is missing).
+    by_sym: dict[str, dict] = {}
+    if _SEED_FILE.exists():
+        try:
+            for d in json.loads(_SEED_FILE.read_text()):
+                sym = d.get("symbol")
+                if sym:
+                    by_sym[sym] = d
+        except Exception:
+            pass
+
+    # Overlay individual disk-cache files (fresher than the seed).
     for ticker in _tickers:
         data = _load_cache(ticker)
         if data:
-            data["scores"] = compute_scores(data)
-            stocks.append(data)
+            by_sym[data.get("symbol") or ticker] = data
 
-    # On Vercel cold start the runtime cache is empty — fall back to
-    # the bundled seed file so the screener works immediately.
-    if not stocks and _SEED_FILE.exists():
-        try:
-            raw = json.loads(_SEED_FILE.read_text())
-            for d in raw:
-                if not d.get("scores"):
-                    d["scores"] = compute_scores(d)
-            stocks = raw
-        except Exception:
-            pass
+    stocks = []
+    for sym, data in by_sym.items():
+        if not data.get("scores"):
+            data["scores"] = compute_scores(data)
+        stocks.append(data)
     return stocks
 
 
@@ -184,12 +197,64 @@ def _ensure_stocks_loaded():
         threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
+@app.route("/login", methods=["GET", "POST"])
+def login_page():
+    if auth.current_user():
+        return redirect(url_for("index"))
+    error = None
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        if auth.verify_user(username, password):
+            auth.login_session(username)
+            nxt = request.args.get("next") or url_for("index")
+            if not nxt.startswith("/"):
+                nxt = url_for("index")
+            return redirect(nxt)
+        error = "Invalid username or password."
+    return render_template("login.html", mode="login", error=error)
+
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup_page():
+    if auth.current_user():
+        return redirect(url_for("index"))
+    error = None
+    if request.method == "POST":
+        username = (request.form.get("username") or "").strip()
+        password = request.form.get("password") or ""
+        confirm  = request.form.get("confirm")  or ""
+        if password != confirm:
+            error = "Passwords do not match."
+        else:
+            ok, msg = auth.create_user(username, password)
+            if ok:
+                auth.login_session(username)
+                return redirect(url_for("index"))
+            error = msg
+    return render_template("login.html", mode="signup", error=error)
+
+
+@app.route("/logout", methods=["POST", "GET"])
+def logout():
+    auth.logout_session()
+    return redirect(url_for("login_page"))
+
+
 @app.route("/")
+@auth.require_login
 def index():
-    return render_template("index.html")
+    return render_template("chat.html")
+
+
+@app.route("/dashboard")
+@auth.require_login
+def dashboard():
+    return render_template("dashboard.html")
 
 
 @app.route("/api/status")
+@auth.require_login_api
 def api_status():
     _ensure_stocks_loaded()
     refresh = get_refresh_state()
@@ -201,6 +266,7 @@ def api_status():
 
 
 @app.route("/api/indices")
+@auth.require_login_api
 def api_indices():
     global _indices_cache, _indices_cached_at
     # Cache for 5 minutes
@@ -227,6 +293,7 @@ def api_indices():
 
 
 @app.route("/api/sparkline/<ticker>")
+@auth.require_login_api
 def api_sparkline(ticker: str):
     ticker = ticker.upper()
     path = SPARKLINE_CACHE / f"{ticker}.json"
@@ -251,6 +318,7 @@ def api_sparkline(ticker: str):
 
 
 @app.route("/api/chart/<ticker>")
+@auth.require_login_api
 def api_chart(ticker: str):
     ticker = ticker.upper()
     period = request.args.get("period", "6mo")
@@ -436,6 +504,7 @@ def _parse_news(raw, max_items=20):
 
 
 @app.route("/api/news")
+@auth.require_login_api
 def api_news():
     try:
         return jsonify(_parse_news(yf.Ticker("SPY").news, 20))
@@ -444,6 +513,7 @@ def api_news():
 
 
 @app.route("/api/news/<ticker>")
+@auth.require_login_api
 def api_news_ticker(ticker: str):
     try:
         return jsonify(_parse_news(yf.Ticker(ticker.upper()).news, 30))
@@ -452,6 +522,7 @@ def api_news_ticker(ticker: str):
 
 
 @app.route("/api/movers")
+@auth.require_login_api
 def api_movers():
     _ensure_stocks_loaded()
     stocks = [s for s in _stock_cache if s.get("regularMarketChangePercent") is not None]
@@ -467,7 +538,58 @@ def api_movers():
     return jsonify({"gainers": [fmt(s) for s in gainers], "losers": [fmt(s) for s in losers]})
 
 
+_FX_CACHE: dict = {"TWDUSD": None, "at": None}
+def _twd_to_usd_rate() -> float:
+    """USD per 1 TWD. Cached for 1 hour. Falls back to ~0.031 (~32 TWD/USD)."""
+    now = datetime.utcnow()
+    if _FX_CACHE["at"] and (now - _FX_CACHE["at"]).total_seconds() < 3600 and _FX_CACHE["TWDUSD"]:
+        return _FX_CACHE["TWDUSD"]
+    try:
+        info = yf.Ticker("TWDUSD=X").fast_info
+        rate = float(getattr(info, "last_price", None) or 0)
+        if rate > 0:
+            _FX_CACHE["TWDUSD"] = rate
+            _FX_CACHE["at"] = now
+            return rate
+    except Exception:
+        pass
+    return 0.031  # ~32 TWD per USD, May 2026
+
+
+@app.route("/api/stockmap")
+@auth.require_login_api
+def api_stockmap():
+    """Per-stock treemap data: sector, market cap (USD), % change. Used by
+    the dashboard stock-map panel (Finviz-style)."""
+    _ensure_stocks_loaded()
+    twd_usd = _twd_to_usd_rate()
+    rows = []
+    for s in _stock_cache:
+        sym = s.get("symbol")
+        mcap = s.get("marketCap")
+        chg = s.get("regularMarketChangePercent")
+        if not sym or not mcap:
+            continue
+        # Taiwan stocks get their own top-level group AND have their TWD
+        # market cap converted to USD so tiles compare apples-to-apples.
+        if sym.endswith(".TW"):
+            sector = "Taiwan"
+            mcap = mcap * twd_usd
+        else:
+            sector = s.get("sector") or s.get("sectorDisp") or "Other"
+        rows.append({
+            "symbol":     sym,
+            "name":       (s.get("shortName") or s.get("longName") or sym)[:24],
+            "sector":     sector,
+            "mcap":       int(mcap),
+            "change_pct": round(chg, 2) if chg is not None else 0.0,
+        })
+    rows.sort(key=lambda r: r["mcap"], reverse=True)
+    return jsonify(rows)
+
+
 @app.route("/api/heatmap")
+@auth.require_login_api
 def api_heatmap():
     _ensure_stocks_loaded()
     totals: dict = {}
@@ -483,6 +605,7 @@ def api_heatmap():
 
 
 @app.route("/api/refresh", methods=["POST"])
+@auth.require_login_api
 def api_refresh():
     tickers = _tickers or get_all_tickers()
     started = start_background_refresh(tickers)
@@ -490,6 +613,7 @@ def api_refresh():
 
 
 @app.route("/api/quotes", methods=["POST"])
+@auth.require_login_api
 def api_quotes():
     """Batch live quotes for watchlist — uses Yahoo's quote endpoint (real-time)
     in parallel for each ticker. Cache is only used for company names."""
@@ -530,6 +654,7 @@ def api_quotes():
 
 
 @app.route("/api/swingscan")
+@auth.require_login_api
 def api_swingscan():
     """Top algorithmic swing trade setups across all cached stocks."""
     _ensure_stocks_loaded()
@@ -552,6 +677,7 @@ def api_swingscan():
 
 
 @app.route("/api/swing/<ticker>")
+@auth.require_login_api
 def api_swing(ticker: str):
     """AI swing trade setup via Gemini. Cached 24h."""
     ticker = ticker.upper()
@@ -634,6 +760,7 @@ Return ONLY valid JSON:
 
 
 @app.route("/api/intel/<ticker>")
+@auth.require_login_api
 def api_intel(ticker: str):
     """AI-generated company intel via Gemini. Cached 7 days on disk."""
     ticker = ticker.upper()
@@ -709,7 +836,151 @@ Include 4-5 competitors. Be specific and factual."""
         return jsonify({"error": str(e)}), 500
 
 
+_TICKER_RE = None
+def _extract_tickers(text: str) -> list[str]:
+    """Pull stock tickers out of free-text. Matches $AAPL, AAPL, 2330.TW.
+    Restricted to symbols actually in our universe to avoid false positives."""
+    global _TICKER_RE
+    import re
+    if _TICKER_RE is None:
+        # Match $AAPL, AAPL, BRK.B, 2330.TW (Taiwan tickers start with digits).
+        _TICKER_RE = re.compile(r"\$?(\d{4}\.TW|[A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b")
+    universe = {s.get("symbol") for s in _stock_cache if s.get("symbol")}
+    universe |= set(_tickers)
+    found = []
+    seen = set()
+    for m in _TICKER_RE.finditer(text or ""):
+        sym = m.group(1)
+        if sym in universe and sym not in seen:
+            found.append(sym)
+            seen.add(sym)
+    return found[:4]  # cap at 4 to keep prompt small
+
+
+def _stock_context(ticker: str) -> str:
+    """Compact one-stock fact sheet for the chat system prompt."""
+    data = next((s for s in _stock_cache if s.get("symbol") == ticker), None) \
+           or _load_cache(ticker) or {}
+    if not data:
+        return f"{ticker}: no data available."
+
+    cur, prev = _live_quote(ticker)
+    if cur:
+        data["currentPrice"] = round(cur, 2)
+        if prev:
+            data["regularMarketChangePercent"] = round((cur - prev) / prev * 100, 2)
+
+    def f(v, mult=1, sfx="", dec=2):
+        if v is None:
+            return "N/A"
+        try:
+            return f"{round(v * mult, dec)}{sfx}"
+        except Exception:
+            return "N/A"
+
+    mcap = data.get("marketCap")
+    mcap_s = f"${round(mcap/1e9,1)}B" if mcap else "N/A"
+    price = data.get("currentPrice") or data.get("previousClose")
+    chg = data.get("regularMarketChangePercent")
+
+    lines = [
+        f"{ticker} ({data.get('shortName') or data.get('longName') or ticker})",
+        f"  Sector: {data.get('sector') or 'N/A'} / {data.get('industry') or 'N/A'}",
+        f"  Price: ${f(price)} ({f(chg, sfx='%')} today)",
+        f"  Market cap: {mcap_s}, Beta: {f(data.get('beta'))}",
+        f"  P/E: {f(data.get('trailingPE'))}, FwdP/E: {f(data.get('forwardPE'))}, P/B: {f(data.get('priceToBook'))}, EV/EBITDA: {f(data.get('enterpriseToEbitda'))}",
+        f"  Rev growth: {f(data.get('revenueGrowth'),100,'%')}, Earn growth: {f(data.get('earningsGrowth'),100,'%')}, ROE: {f(data.get('returnOnEquity'),100,'%')}",
+        f"  Margins — gross: {f(data.get('grossMargins'),100,'%')}, op: {f(data.get('operatingMargins'),100,'%')}, profit: {f(data.get('profitMargins'),100,'%')}",
+        f"  Div yield: {f(data.get('dividendYield'),100,'%')}, Debt/Equity: {f(data.get('debtToEquity'))}",
+        f"  52w range: ${f(data.get('fiftyTwoWeekLow'))} - ${f(data.get('fiftyTwoWeekHigh'))}, 50DMA: ${f(data.get('fiftyDayAverage'))}, 200DMA: ${f(data.get('twoHundredDayAverage'))}",
+        f"  Analyst target: ${f(data.get('targetMeanPrice'))} ({data.get('recommendationKey') or 'N/A'})",
+    ]
+
+    # Recent news (top 3 headlines)
+    try:
+        news = _parse_news(yf.Ticker(ticker).news, 3)
+        if news:
+            lines.append("  Recent headlines:")
+            for n in news:
+                lines.append(f"    - {n['title']} ({n.get('publisher','')}, {n.get('date') or ''})")
+    except Exception:
+        pass
+
+    return "\n".join(lines)
+
+
+@app.route("/api/chat", methods=["POST"])
+@auth.require_login_api
+def api_chat():
+    """Multi-turn chat. Body: {messages: [{role, content}, ...]}.
+    Auto-detects tickers in the latest user message and injects context."""
+    _ensure_stocks_loaded()
+    body = request.json or {}
+    messages = body.get("messages") or []
+    if not messages:
+        return jsonify({"error": "no messages"}), 400
+
+    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY not set on server"}), 503
+
+    # Pull tickers from the most recent user message
+    last_user = next((m for m in reversed(messages) if m.get("role") == "user"), None)
+    tickers = _extract_tickers(last_user.get("content", "") if last_user else "")
+
+    # Indices snapshot for market-wide questions
+    idx_lines = []
+    if _indices_cache:
+        for name, d in _indices_cache.items():
+            if d.get("price") is not None:
+                idx_lines.append(f"  {name}: {d['price']} ({d.get('change_pct',0):+.2f}%)")
+
+    sys_parts = [
+        "You are a sharp, concise financial research analyst built into a stock screener app.",
+        "Answer questions about stocks using the data provided. Be direct, opinionated, and cite the specific numbers in the context. Use markdown (bold, lists). Keep responses under 250 words unless the user asks for depth.",
+        "If you do not have data on something, say so — do not invent numbers. The data may be 5-30 minutes stale.",
+        f"Today's date: {datetime.utcnow().strftime('%Y-%m-%d')}.",
+    ]
+    if idx_lines:
+        sys_parts.append("Current market indices:\n" + "\n".join(idx_lines))
+    if tickers:
+        sys_parts.append("Live data for tickers mentioned by the user:\n\n" +
+                         "\n\n".join(_stock_context(t) for t in tickers))
+
+    system_prompt = "\n\n".join(sys_parts)
+
+    # Build Gemini conversation: user/model turns, system as systemInstruction
+    contents = []
+    for m in messages:
+        role = "user" if m.get("role") == "user" else "model"
+        text = (m.get("content") or "").strip()
+        if not text:
+            continue
+        contents.append({"role": role, "parts": [{"text": text}]})
+
+    if not contents:
+        return jsonify({"error": "no usable messages"}), 400
+
+    try:
+        import requests as _req
+        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+               f"gemini-2.5-flash:generateContent?key={api_key}")
+        payload = {
+            "systemInstruction": {"parts": [{"text": system_prompt}]},
+            "contents": contents,
+            "generationConfig": {"temperature": 0.4, "maxOutputTokens": 1024},
+        }
+        r = _req.post(url, json=payload, timeout=30)
+        r.raise_for_status()
+        j = r.json()
+        text = j["candidates"][0]["content"]["parts"][0]["text"]
+        return jsonify({"reply": text, "tickers": tickers})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/quote/<ticker>")
+@auth.require_login_api
 def api_quote(ticker: str):
     """Real-time quote: Finnhub for US stocks, yfinance fallback. 30s server cache."""
     ticker = ticker.upper()
@@ -753,6 +1024,7 @@ def api_quote(ticker: str):
 
 
 @app.route("/api/screen", methods=["POST"])
+@auth.require_login_api
 def api_screen():
     _ensure_stocks_loaded()
     body = request.json or {}
@@ -773,11 +1045,13 @@ def api_screen():
 
 
 @app.route("/stock/<ticker>")
+@auth.require_login
 def stock_page(ticker: str):
     return render_template("stock.html", ticker=ticker.upper())
 
 
 @app.route("/api/earnings/<ticker>")
+@auth.require_login_api
 def api_earnings(ticker: str):
     ticker = ticker.upper()
     try:
@@ -802,6 +1076,7 @@ def api_earnings(ticker: str):
 
 
 @app.route("/api/insider/<ticker>")
+@auth.require_login_api
 def api_insider(ticker: str):
     ticker = ticker.upper()
     try:
@@ -840,6 +1115,7 @@ def api_insider(ticker: str):
 
 
 @app.route("/api/stock/<ticker>")
+@auth.require_login_api
 def api_stock(ticker: str):
     ticker = ticker.upper()
     data = None

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{{ 'Sign in' if mode == 'login' else 'Create account' }} · Stockdash</title>
+  <link rel="stylesheet" href="/static/chat-home.css" />
+  <link rel="stylesheet" href="/static/login.css" />
+</head>
+<body class="auth-body">
+
+<div class="auth-card">
+  <div class="auth-brand">
+    <span class="ch-logo">◈</span>
+    <span class="ch-name">STOCKDASH</span>
+  </div>
+
+  <div class="auth-tabs">
+    <a href="/login"  class="auth-tab {{ 'is-active' if mode == 'login' else '' }}">Sign in</a>
+    <a href="/signup" class="auth-tab {{ 'is-active' if mode == 'signup' else '' }}">Create account</a>
+  </div>
+
+  <h1 class="auth-title">
+    {% if mode == 'login' %}Welcome back.{% else %}Create your account.{% endif %}
+  </h1>
+  <p class="auth-sub">
+    {% if mode == 'login' %}Sign in to access your AI research analyst.
+    {% else %}Pick a username and password — accounts are stored locally on this server.
+    {% endif %}
+  </p>
+
+  {% if error %}<div class="auth-error">{{ error }}</div>{% endif %}
+
+  <form method="post" class="auth-form" autocomplete="on">
+    <label class="auth-label" for="username">Username</label>
+    <input class="auth-input" id="username" name="username" type="text"
+           autocomplete="username" required minlength="3" maxlength="32"
+           pattern="[a-zA-Z0-9_.\-]{3,32}" autofocus />
+
+    <label class="auth-label" for="password">Password</label>
+    <input class="auth-input" id="password" name="password" type="password"
+           autocomplete="{{ 'current-password' if mode == 'login' else 'new-password' }}"
+           required minlength="6" />
+
+    {% if mode == 'signup' %}
+      <label class="auth-label" for="confirm">Confirm password</label>
+      <input class="auth-input" id="confirm" name="confirm" type="password"
+             autocomplete="new-password" required minlength="6" />
+    {% endif %}
+
+    <button class="auth-submit" type="submit">
+      {{ 'Sign in →' if mode == 'login' else 'Create account →' }}
+    </button>
+  </form>
+
+  <div class="auth-foot">
+    {% if mode == 'login' %}
+      No account? <a href="/signup">Create one</a>
+    {% else %}
+      Already have an account? <a href="/login">Sign in</a>
+    {% endif %}
+  </div>
+</div>
+
+</body>
+</html>

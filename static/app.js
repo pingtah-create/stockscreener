@@ -12,13 +12,13 @@ document.addEventListener("DOMContentLoaded", async () => {
   loadMovers();
   loadHeatmap();
   loadSwingScan();
-  loadNews();
+  if (typeof loadStockMap === "function") loadStockMap();
   loadWatchlist();
   preloadStocksForSearch();
   setInterval(checkStatus, 4000);
   setInterval(loadIndices, 60000);
   setInterval(loadMovers, 120000);
-  setInterval(loadNews, 300000);
+  if (typeof loadStockMap === "function") setInterval(loadStockMap, 300000);
   setInterval(loadWatchlist, 60000);
 });
 

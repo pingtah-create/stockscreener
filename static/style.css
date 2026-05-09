@@ -171,6 +171,13 @@ body {
   background: var(--bg3); color: var(--text); border-color: var(--border2);
 }
 .btn-secondary:hover:not(:disabled) { border-color: var(--text2); }
+.nav-user {
+  display: inline-flex; align-items: center;
+  padding: 5px 10px; border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text2);
+  font-size: 11px; letter-spacing: 0.04em;
+  font-family: "JetBrains Mono", "SF Mono", Consolas, monospace;
+}
 .btn-ghost { background: transparent; color: var(--text2); border-color: var(--border); }
 .btn-ghost:hover { color: var(--text); border-color: var(--border2); }
 .btn-danger { background: rgba(255,79,79,0.12); color: var(--red); border-color: rgba(255,79,79,0.3); }
@@ -607,3 +614,75 @@ body {
 .heatmap-pct    { font-family: var(--mono); font-size: 12px; font-weight: 700; margin-top: 1px; }
 .heatmap-pct.up   { color: #fff; }
 .heatmap-pct.down { color: rgba(255,255,255,0.9); }
+
+/* ── Stock Map (Finviz-style treemap) ─────────────────────── */
+.stockmap-panel {
+  flex: 1; display: flex; flex-direction: column; overflow: hidden;
+  min-height: 600px;
+}
+.stockmap-panel .dash-panel-header { flex-shrink: 0; }
+.stockmap-controls { display: flex; align-items: center; gap: 8px; }
+.stockmap-filter {
+  background: var(--bg3); color: var(--text); border: 1px solid var(--border);
+  border-radius: 4px; padding: 3px 6px; font-size: 11px;
+  font-family: inherit; cursor: pointer;
+}
+.stockmap-filter:focus { outline: none; border-color: var(--text2); }
+.stockmap-legend {
+  display: flex; align-items: center; gap: 6px; padding: 6px 14px 8px;
+  font-size: 10px; color: var(--text3); flex-shrink: 0;
+}
+.sm-legend-bar {
+  display: inline-block; width: 60px; height: 6px; border-radius: 2px;
+  background: linear-gradient(90deg, #c82f2f 0%, #2a2f36 100%);
+}
+.sm-legend-bar-pos {
+  background: linear-gradient(90deg, #2a2f36 0%, #1faa3e 100%);
+}
+.stockmap-wrap {
+  flex: 1; position: relative; overflow: hidden;
+  background: var(--bg2);
+  margin: 0 8px 8px;
+  border-radius: 4px;
+}
+.sm-sector { position: absolute; box-sizing: border-box; }
+.sm-sector-label {
+  position: absolute; top: 0; left: 0; right: 0; height: 16px;
+  font-size: 10px; font-weight: 700; padding: 2px 6px;
+  color: rgba(255,255,255,0.95); background: rgba(0,0,0,0.35);
+  letter-spacing: 0.04em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  z-index: 2; pointer-events: none;
+}
+.sm-sector-inner { position: absolute; }
+.sm-tile {
+  position: absolute;
+  box-sizing: border-box;
+  border: 1px solid rgba(0,0,0,0.4);
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  text-decoration: none;
+  color: #fff;
+  font-family: var(--mono);
+  overflow: hidden;
+  transition: filter 0.12s, transform 0.12s;
+  cursor: pointer;
+}
+.sm-tile:hover {
+  filter: brightness(1.35);
+  z-index: 3;
+  border-color: rgba(255,255,255,0.6);
+}
+.sm-tile-sym {
+  font-size: 11px; font-weight: 800; line-height: 1.1;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  letter-spacing: 0.02em;
+}
+.sm-tile-chg {
+  font-size: 10px; font-weight: 600; opacity: 0.92;
+  margin-top: 2px;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+}
+@media (max-width: 900px) {
+  .stockmap-panel { min-height: 400px; }
+}

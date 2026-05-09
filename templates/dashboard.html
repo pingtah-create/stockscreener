@@ -56,6 +56,7 @@
   </div>
 
   <div class="nav-right">
+    <a href="/" class="btn btn-secondary sm" title="Open AI research chat">← Chat</a>
     <div class="market-status" id="marketStatus">
       <span class="market-dot" id="marketDot"></span>
       <span class="market-label" id="marketLabel">—</span>
@@ -68,6 +69,10 @@
       </div>
     </div>
     <button class="btn btn-secondary sm" id="btnRefresh" onclick="startRefresh()">⟳ Refresh</button>
+    {% if current_user %}
+      <span class="nav-user" title="Signed in as {{ current_user }}">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm" title="Sign out">Logout</a>
+    {% endif %}
   </div>
 </nav>
 
@@ -161,22 +166,33 @@
     </div>
   </div>
 
-  <!-- COL 2: News -->
+  <!-- COL 2: Stock Map -->
   <div class="dash-col dash-col-news">
-    <div class="dash-panel news-panel">
+    <div class="dash-panel stockmap-panel">
       <div class="dash-panel-header">
-        <span class="dash-panel-title">MARKET NEWS</span>
-        <button class="news-refresh-btn" onclick="loadNews()" title="Refresh news">⟳</button>
-      </div>
-      <div class="news-feed" id="newsFeed">
-        <div class="news-loading">
-          <span class="spinner"></span> Loading news…
+        <span class="dash-panel-title">STOCK MAP</span>
+        <div class="stockmap-controls">
+          <select class="stockmap-filter" id="stockmapSector" title="Filter by sector">
+            <option value="">All sectors</option>
+          </select>
+          <button class="news-refresh-btn" onclick="loadStockMap()" title="Refresh map">⟳</button>
         </div>
+      </div>
+      <div class="stockmap-legend">
+        <span class="sm-legend-label">−5%</span>
+        <span class="sm-legend-bar"></span>
+        <span class="sm-legend-label">0</span>
+        <span class="sm-legend-bar sm-legend-bar-pos"></span>
+        <span class="sm-legend-label">+5%</span>
+      </div>
+      <div class="stockmap-wrap" id="stockMap">
+        <div class="news-loading"><span class="spinner"></span> Loading map…</div>
       </div>
     </div>
   </div>
 
 </div><!-- /dashboard-body -->
+<script src="/static/stock-map.js"></script>
 
 <script src="/static/app.js"></script>
 </body>
