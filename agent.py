@@ -566,12 +566,157 @@ def get_macro_indicators() -> dict:
     return tool_get_macro_indicators()
 
 
+# ── DEBATE AGENTS (Bull / Bear / Verdict) ────────────────────────────────────
+
+_bull_agent: Agent[None, str] = Agent(
+    system_prompt="""You are a bullish equity analyst at a top hedge fund.
+Given stock data, make the strongest possible case FOR buying this stock.
+Be specific — cite the actual numbers from the data.
+Output 4-6 concise bullet points using "- " prefix. No headers, no preamble.""",
+)
+
+_bear_agent: Agent[None, str] = Agent(
+    system_prompt="""You are a bearish equity analyst (short-seller perspective) at a top hedge fund.
+Given stock data, make the strongest possible case AGAINST buying this stock.
+Be specific — cite the actual numbers from the data.
+Output 4-6 concise bullet points using "- " prefix. No headers, no preamble.""",
+)
+
+_verdict_agent: Agent[None, str] = Agent(
+    system_prompt="""You are the head of a trading desk making the final trade decision.
+You receive a bull case and bear case for a stock. Respond with exactly:
+
+**Verdict: BUY / HOLD / SELL** · Confidence: XX%
+**Entry:** $XXX–$XXX | **Stop:** $XXX | **Target:** $XXX
+[2-3 sentence rationale explaining which side wins and why]
+
+Omit Entry/Stop/Target line for HOLD.""",
+)
+
+
+def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
+    """Return a ticker if the message is a full stock analysis request."""
+    import re
+    text_lower = text.lower().strip()
+
+    # Exclude queries that are clearly not single-stock analysis
+    if any(w in text_lower for w in [" vs ", " versus ", "compare ", "comparison",
+                                      "find me", "screen", "best stocks", "top stocks",
+                                      "market ", "macro ", "sector "]):
+        return None
+
+    analysis_words = [
+        "analyze", "analyse", "analysis", "tell me about", "what do you think",
+        "should i buy", "should i sell", "overview", "research", "deep dive",
+        "breakdown", "report on", "thoughts on", "opinion on", "assess",
+        "evaluate", "review", "look at", "what about", "give me",
+    ]
+    has_intent = any(w in text_lower for w in analysis_words)
+
+    ticker_universe = {s.get("symbol", "") for s in stock_cache}
+    found = re.findall(r'\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b', text.upper())
+    valid = [t for t in found if t in ticker_universe]
+
+    if not valid:
+        return None
+
+    # Bare ticker query (1-2 words, e.g. "NVDA" or "NVDA?")
+    if len(text.strip().split()) <= 2:
+        return valid[0]
+
+    return valid[0] if has_intent else None
+
+
+def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
+    """
+    3-stage bull/bear/verdict debate for a single ticker.
+    Stage 1: collect data directly from tool functions (no LLM).
+    Stage 2: bull + bear agents run in parallel.
+    Stage 3: verdict agent synthesises both.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    from pydantic_ai.settings import ModelSettings
+
+    ticker = ticker.upper().strip()
+    model  = GeminiModel("gemini-2.5-flash", api_key=api_key)
+
+    # ── Stage 1: collect data ─────────────────────────────────
+    data = {
+        "fundamentals": tool_get_stock_fundamentals(ticker, stock_cache),
+        "technicals":   tool_get_technical_signals(ticker, stock_cache),
+        "news":         tool_get_recent_news(ticker, 5),
+        "consensus":    tool_get_analyst_consensus(ticker, stock_cache),
+        "peers":        tool_get_peer_comparison(ticker, stock_cache),
+        "earnings":     tool_get_earnings_info(ticker),
+    }
+    data_text = json.dumps(data, default=str)
+    analyst_prompt = f"Ticker: {ticker}\n\nData:\n{data_text}"
+
+    # ── Stage 2: bull + bear in parallel ──────────────────────
+    settings_creative = ModelSettings(temperature=0.4, max_tokens=512)
+
+    def run_bull():
+        return _bull_agent.run_sync(analyst_prompt, model=model,
+                                    model_settings=settings_creative).output
+
+    def run_bear():
+        return _bear_agent.run_sync(analyst_prompt, model=model,
+                                    model_settings=settings_creative).output
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        bull_future = pool.submit(run_bull)
+        bear_future = pool.submit(run_bear)
+        bull_case = bull_future.result()
+        bear_case = bear_future.result()
+
+    # ── Stage 3: verdict ──────────────────────────────────────
+    verdict_prompt = f"""Ticker: {ticker}
+
+BULL CASE:
+{bull_case}
+
+BEAR CASE:
+{bear_case}"""
+
+    verdict = _verdict_agent.run_sync(
+        verdict_prompt, model=model,
+        model_settings=ModelSettings(temperature=0.2, max_tokens=256),
+    ).output
+
+    # ── Format final reply ────────────────────────────────────
+    name  = data["fundamentals"].get("name") or ticker
+    price = data["fundamentals"].get("price")
+    chg   = data["fundamentals"].get("change_pct")
+    header_parts = [f"## {ticker} — {name}"]
+    if price:
+        chg_str = f" ({'+' if chg and chg > 0 else ''}{chg:.2f}%)" if chg else ""
+        header_parts.append(f"**${price}**{chg_str}")
+
+    reply = "\n".join(header_parts) + f"""
+
+### 🐂 Bull Case
+{bull_case}
+
+### 🐻 Bear Case
+{bear_case}
+
+### ⚖️ Verdict
+{verdict}"""
+
+    tools_used = [
+        "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
+        "get_analyst_consensus", "get_peer_comparison", "get_earnings_info",
+    ]
+    return {"reply": reply, "tools_used": tools_used}
+
+
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
     """
-    Called by /api/chat. Converts the chat history to PydanticAI message format,
-    runs the agent, and returns {"reply": str, "tools_used": [str]}.
+    Called by /api/chat. Routes stock analysis queries to the bull/bear/verdict
+    debate pipeline; all other queries go to the standard finbot agent.
+    Returns {"reply": str, "tools_used": [str]}.
     """
     from pydantic_ai.messages import (
         ModelRequest, ModelResponse,
@@ -586,7 +731,12 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
     if not last_msg:
         return {"reply": "No message provided.", "tools_used": []}
 
-    # Convert prior turns to PydanticAI message history
+    # Route single-stock analysis to the debate pipeline
+    analysis_ticker = _detect_analysis_ticker(last_msg, stock_cache)
+    if analysis_ticker:
+        return run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key)
+
+    # Standard finbot agent for everything else
     history = []
     for m in messages[:-1]:
         role    = m.get("role")
