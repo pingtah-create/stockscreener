@@ -1,11 +1,14 @@
 """
-FinBot agent — Gemini 2.5 Flash with function-calling tools.
-Each tool wraps existing data sources (yfinance, stock cache, indices cache).
+FinBot agent — PydanticAI with Gemini 2.5 Flash.
+All 14 tool implementations are unchanged; the raw Gemini HTTP loop is replaced
+with PydanticAI's Agent + RunContext dependency injection.
 run_agent() is the main entry point called by /api/chat in app.py.
 """
 import json
-import yfinance as yf
+from dataclasses import dataclass
 from datetime import datetime
+
+import yfinance as yf
 
 
 # ── TOOL IMPLEMENTATIONS ──────────────────────────────────────────────────────
@@ -308,7 +311,6 @@ def tool_get_analyst_consensus(ticker: str, stock_cache: list) -> dict:
 
 
 def tool_get_watchlist_analysis(tickers: list, stock_cache: list) -> dict:
-    """Analyse a user's watchlist: score each holding, flag best/worst."""
     rows = []
     for t in tickers:
         t = t.upper().strip()
@@ -336,17 +338,16 @@ def tool_get_watchlist_analysis(tickers: list, stock_cache: list) -> dict:
 
 
 def tool_get_options_chain(ticker: str) -> dict:
-    """Return the nearest-expiry options chain (calls + puts) for a ticker."""
     ticker = ticker.upper().strip()
     try:
-        t       = yf.Ticker(ticker)
+        t        = yf.Ticker(ticker)
         expiries = t.options
         if not expiries:
             return {"error": f"No options data for {ticker}"}
-        expiry  = expiries[0]  # nearest expiry
-        chain   = t.option_chain(expiry)
+        expiry = expiries[0]
+        chain  = t.option_chain(expiry)
 
-        def fmt_side(df, side):
+        def fmt_side(df):
             rows = []
             for _, r in df.iterrows():
                 rows.append({
@@ -359,11 +360,9 @@ def tool_get_options_chain(ticker: str) -> dict:
                     "iv":            round(float(r["impliedVolatility"]), 4) if r.get("impliedVolatility") else None,
                     "itm":           bool(r.get("inTheMoney", False)),
                 })
-            # Return top 8 by open interest
             rows.sort(key=lambda x: x.get("open_interest") or 0, reverse=True)
             return rows[:8]
 
-        # Current price for context
         price = None
         try:
             price = t.fast_info.last_price
@@ -371,12 +370,12 @@ def tool_get_options_chain(ticker: str) -> dict:
             pass
 
         return {
-            "ticker":       ticker,
-            "expiry":       expiry,
-            "all_expiries": list(expiries[:6]),
+            "ticker":        ticker,
+            "expiry":        expiry,
+            "all_expiries":  list(expiries[:6]),
             "current_price": round(price, 2) if price else None,
-            "calls":        fmt_side(chain.calls, "call"),
-            "puts":         fmt_side(chain.puts,  "put"),
+            "calls":         fmt_side(chain.calls),
+            "puts":          fmt_side(chain.puts),
             "put_call_ratio": round(
                 chain.puts["volume"].sum() / chain.calls["volume"].sum(), 2
             ) if chain.calls["volume"].sum() > 0 else None,
@@ -386,23 +385,21 @@ def tool_get_options_chain(ticker: str) -> dict:
 
 
 def tool_get_macro_indicators() -> dict:
-    """Return key macro indicators: rates, yields, inflation proxy, USD, oil, gold, market fear."""
     import urllib.request as _ur
     result = {}
 
-    # Market-based indicators via yfinance (real-time)
     market_tickers = {
-        "10Y_yield":   "^TNX",
-        "2Y_yield":    "^IRX",
-        "VIX":         "^VIX",
-        "USD_index":   "DX-Y.NYB",
-        "Gold":        "GC=F",
-        "Oil_WTI":     "CL=F",
-        "Bitcoin":     "BTC-USD",
+        "10Y_yield":  "^TNX",
+        "2Y_yield":   "^IRX",
+        "VIX":        "^VIX",
+        "USD_index":  "DX-Y.NYB",
+        "Gold":       "GC=F",
+        "Oil_WTI":    "CL=F",
+        "Bitcoin":    "BTC-USD",
     }
     for label, sym in market_tickers.items():
         try:
-            info = yf.Ticker(sym).fast_info
+            info  = yf.Ticker(sym).fast_info
             price = float(getattr(info, "last_price", None) or 0)
             prev  = float(getattr(info, "previous_close", None) or 0)
             chg   = round((price - prev) / prev * 100, 2) if prev else 0
@@ -411,7 +408,6 @@ def tool_get_macro_indicators() -> dict:
         except Exception:
             pass
 
-    # World Bank macro data (no API key, free)
     wb_series = {
         "US_GDP_growth_pct":   ("US", "NY.GDP.MKTP.KD.ZG"),
         "US_inflation_pct":    ("US", "FP.CPI.TOTL.ZG"),
@@ -426,164 +422,24 @@ def tool_get_macro_indicators() -> dict:
             entries = [e for e in (data[1] or []) if e.get("value") is not None]
             if entries:
                 latest = entries[0]
-                result[label] = {
-                    "value": round(float(latest["value"]), 2),
-                    "year":  latest.get("date"),
-                }
+                result[label] = {"value": round(float(latest["value"]), 2), "year": latest.get("date")}
         except Exception:
             pass
 
     return result
 
 
-# ── GEMINI TOOL DECLARATIONS ─────────────────────────────────────────────────
+# ── PYDANTIC-AI AGENT ─────────────────────────────────────────────────────────
 
-TOOL_DEFINITIONS = [{
-    "functionDeclarations": [
-        {
-            "name": "get_stock_fundamentals",
-            "description": "Get fundamental financial data for a stock: valuation ratios (P/E, P/B, EV/EBITDA), growth metrics, margins, moving averages, beta, analyst target.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker (e.g. NVDA, AAPL, 2330.TW)"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_technical_signals",
-            "description": "Get technical analysis for a stock: RSI, 50/200-day moving average position, golden/death cross, trend signals.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker symbol"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_recent_news",
-            "description": "Get recent news headlines for a stock or the market (use SPY for general market news).",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Ticker symbol (e.g. NVDA) or SPY for market news"},
-                "count":  {"type": "INTEGER", "description": "Number of headlines (default 5)"},
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_peer_comparison",
-            "description": "Find industry peers for a stock and compare P/E, growth, margins, and returns side by side.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker to find competitors for"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_earnings_info",
-            "description": "Get next earnings date and last 4 quarters of EPS estimates vs actuals (beat/miss history).",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker symbol"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_insider_activity",
-            "description": "Get recent insider buying and selling transactions (names, titles, share counts, values).",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker symbol"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_dividend_info",
-            "description": "Get dividend yield, annual dividend rate, payout ratio, and recent payment history.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker symbol"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "screen_stocks",
-            "description": "Screen stocks by sector and/or investment strategy to find top candidates. Use for 'find me good value stocks' or 'best momentum stocks in tech'.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "sector":   {"type": "STRING", "description": "Sector filter (e.g. Technology, Healthcare, Financial Services). Omit for all sectors."},
-                "strategy": {"type": "STRING", "description": "Rank by strategy score: value, growth, momentum, dividend, quality, deepvalue"},
-                "limit":    {"type": "INTEGER", "description": "Max results to return (default 10)"},
-            }, "required": []},
-        },
-        {
-            "name": "get_market_overview",
-            "description": "Get current market indices (S&P 500, NASDAQ, DOW, VIX) and sector performance. Use for macro / market-wide questions.",
-            "parameters": {"type": "OBJECT", "properties": {}},
-        },
-        {
-            "name": "compare_stocks",
-            "description": "Side-by-side comparison of multiple stocks on valuation, growth, margins, and analyst ratings.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "tickers": {"type": "ARRAY", "items": {"type": "STRING"},
-                            "description": "List of tickers to compare (max 6)"},
-            }, "required": ["tickers"]},
-        },
-        {
-            "name": "get_analyst_consensus",
-            "description": "Get analyst price target, upside/downside potential, consensus rating, and recent rating changes from brokerages.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker symbol"}
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_watchlist_analysis",
-            "description": "Analyse the user's watchlist holdings — scores, ratings, best strategy fit, and which look strongest.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "tickers": {"type": "ARRAY", "items": {"type": "STRING"},
-                            "description": "List of tickers from the user's watchlist"},
-            }, "required": ["tickers"]},
-        },
-        {
-            "name": "get_options_chain",
-            "description": "Get the options chain (calls and puts) for a stock — strikes, bid/ask, volume, open interest, implied volatility, and put/call ratio for the nearest expiry.",
-            "parameters": {"type": "OBJECT", "properties": {
-                "ticker": {"type": "STRING", "description": "Stock ticker symbol (e.g. AAPL, NVDA)"},
-            }, "required": ["ticker"]},
-        },
-        {
-            "name": "get_macro_indicators",
-            "description": "Get key macroeconomic indicators: 10Y/2Y treasury yields, VIX fear index, USD index, gold, oil, bitcoin, plus US GDP growth, inflation, and unemployment from World Bank.",
-            "parameters": {"type": "OBJECT", "properties": {}},
-        },
-    ]
-}]
+from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.gemini import GeminiModel
 
 
-# ── TOOL DISPATCHER ───────────────────────────────────────────────────────────
+@dataclass
+class FinBotDeps:
+    stock_cache: list
+    indices_cache: dict
 
-def execute_tool(name: str, args: dict, stock_cache: list, indices_cache: dict) -> dict:
-    try:
-        if name == "get_stock_fundamentals":
-            return tool_get_stock_fundamentals(args["ticker"], stock_cache)
-        if name == "get_technical_signals":
-            return tool_get_technical_signals(args["ticker"], stock_cache)
-        if name == "get_recent_news":
-            return tool_get_recent_news(args.get("ticker", "SPY"), int(args.get("count", 5)))
-        if name == "get_peer_comparison":
-            return tool_get_peer_comparison(args["ticker"], stock_cache)
-        if name == "get_earnings_info":
-            return tool_get_earnings_info(args["ticker"])
-        if name == "get_insider_activity":
-            return tool_get_insider_activity(args["ticker"])
-        if name == "get_dividend_info":
-            return tool_get_dividend_info(args["ticker"])
-        if name == "screen_stocks":
-            return tool_screen_stocks(stock_cache,
-                                      sector=args.get("sector"),
-                                      strategy=args.get("strategy"),
-                                      limit=int(args.get("limit", 10)))
-        if name == "get_market_overview":
-            return tool_get_market_overview(indices_cache, stock_cache)
-        if name == "compare_stocks":
-            return tool_compare_stocks(args.get("tickers", []), stock_cache)
-        if name == "get_analyst_consensus":
-            return tool_get_analyst_consensus(args["ticker"], stock_cache)
-        if name == "get_watchlist_analysis":
-            return tool_get_watchlist_analysis(args.get("tickers", []), stock_cache)
-        if name == "get_options_chain":
-            return tool_get_options_chain(args["ticker"])
-        if name == "get_macro_indicators":
-            return tool_get_macro_indicators()
-        return {"error": f"Unknown tool: {name}"}
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# ── MAIN AGENT LOOP ───────────────────────────────────────────────────────────
 
 SYSTEM_PROMPT = """You are FinBot — a sharp financial research agent embedded in a stock screener.
 
@@ -603,68 +459,161 @@ Rules:
 - Be concise but thorough. Aim for 200-400 words for full analysis."""
 
 
+finbot: Agent[FinBotDeps, str] = Agent(
+    system_prompt=SYSTEM_PROMPT,
+    deps_type=FinBotDeps,
+)
+
+
+@finbot.system_prompt
+def _add_date() -> str:
+    return f"Today: {datetime.utcnow().strftime('%Y-%m-%d')}."
+
+
+# ── Tools that need stock_cache / indices_cache (use RunContext) ──────────────
+
+@finbot.tool
+def get_stock_fundamentals(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Get fundamental financial data for a stock: valuation ratios (P/E, P/B, EV/EBITDA), growth metrics, margins, moving averages, beta, analyst target."""
+    return tool_get_stock_fundamentals(ticker, ctx.deps.stock_cache)
+
+
+@finbot.tool
+def get_technical_signals(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Get technical analysis for a stock: RSI, 50/200-day moving average position, golden/death cross, trend signals."""
+    return tool_get_technical_signals(ticker, ctx.deps.stock_cache)
+
+
+@finbot.tool
+def get_peer_comparison(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Find industry peers for a stock and compare P/E, growth, margins, and returns side by side."""
+    return tool_get_peer_comparison(ticker, ctx.deps.stock_cache)
+
+
+@finbot.tool
+def screen_stocks(ctx: RunContext[FinBotDeps],
+                  sector: str = "",
+                  strategy: str = "",
+                  limit: int = 10) -> dict:
+    """Screen stocks by sector and/or investment strategy to find top candidates. Strategies: value, growth, momentum, dividend, quality, deepvalue."""
+    return tool_screen_stocks(
+        ctx.deps.stock_cache,
+        sector=sector or None,
+        strategy=strategy or None,
+        limit=limit,
+    )
+
+
+@finbot.tool
+def get_market_overview(ctx: RunContext[FinBotDeps]) -> dict:
+    """Get current market indices (S&P 500, NASDAQ, DOW, VIX) and sector performance. Use for macro or market-wide questions."""
+    return tool_get_market_overview(ctx.deps.indices_cache, ctx.deps.stock_cache)
+
+
+@finbot.tool
+def compare_stocks(ctx: RunContext[FinBotDeps], tickers: list[str]) -> dict:
+    """Side-by-side comparison of multiple stocks on valuation, growth, margins, and analyst ratings (max 6 tickers)."""
+    return tool_compare_stocks(tickers, ctx.deps.stock_cache)
+
+
+@finbot.tool
+def get_analyst_consensus(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Get analyst price target, upside/downside potential, consensus rating, and recent rating changes from brokerages."""
+    return tool_get_analyst_consensus(ticker, ctx.deps.stock_cache)
+
+
+@finbot.tool
+def get_watchlist_analysis(ctx: RunContext[FinBotDeps], tickers: list[str]) -> dict:
+    """Analyse a list of tickers — scores, ratings, best strategy fit, and which look strongest."""
+    return tool_get_watchlist_analysis(tickers, ctx.deps.stock_cache)
+
+
+# ── Tools that don't need deps (tool_plain) ───────────────────────────────────
+
+@finbot.tool_plain
+def get_recent_news(ticker: str, count: int = 5) -> dict:
+    """Get recent news headlines for a stock or the market. Use SPY for general market news."""
+    return tool_get_recent_news(ticker, count)
+
+
+@finbot.tool_plain
+def get_earnings_info(ticker: str) -> dict:
+    """Get next earnings date and last 4 quarters of EPS estimates vs actuals (beat/miss history)."""
+    return tool_get_earnings_info(ticker)
+
+
+@finbot.tool_plain
+def get_insider_activity(ticker: str) -> dict:
+    """Get recent insider buying and selling transactions (names, titles, share counts, values)."""
+    return tool_get_insider_activity(ticker)
+
+
+@finbot.tool_plain
+def get_dividend_info(ticker: str) -> dict:
+    """Get dividend yield, annual dividend rate, payout ratio, and recent payment history."""
+    return tool_get_dividend_info(ticker)
+
+
+@finbot.tool_plain
+def get_options_chain(ticker: str) -> dict:
+    """Get the nearest-expiry options chain (calls + puts) with strikes, bid/ask, volume, open interest, implied volatility, and put/call ratio."""
+    return tool_get_options_chain(ticker)
+
+
+@finbot.tool_plain
+def get_macro_indicators() -> dict:
+    """Get key macro indicators: 10Y/2Y treasury yields, VIX, USD index, gold, oil, bitcoin, plus US GDP growth, inflation, and unemployment."""
+    return tool_get_macro_indicators()
+
+
+# ── Entry point ───────────────────────────────────────────────────────────────
+
 def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
     """
-    Agentic loop: send messages to Gemini with function-calling tools,
-    execute any tool calls, feed results back, repeat until final text.
-    Returns {"reply": str, "tools_used": [str]}.
+    Called by /api/chat. Converts the chat history to PydanticAI message format,
+    runs the agent, and returns {"reply": str, "tools_used": [str]}.
     """
-    import requests as _req
+    from pydantic_ai.messages import (
+        ModelRequest, ModelResponse,
+        UserPromptPart, TextPart, ToolCallPart,
+    )
+    from pydantic_ai.settings import ModelSettings
 
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={api_key}")
-
-    # Build conversation history
-    contents = []
-    for m in messages:
-        role = "user" if m.get("role") == "user" else "model"
-        text = (m.get("content") or "").strip()
-        if text:
-            contents.append({"role": role, "parts": [{"text": text}]})
-
-    if not contents:
+    if not messages:
         return {"reply": "No message provided.", "tools_used": []}
 
-    system = SYSTEM_PROMPT + f"\n\nToday: {datetime.utcnow().strftime('%Y-%m-%d')}."
-    tools_used = []
+    last_msg = (messages[-1].get("content") or "").strip()
+    if not last_msg:
+        return {"reply": "No message provided.", "tools_used": []}
 
-    for _ in range(8):  # max tool-call iterations
-        payload = {
-            "systemInstruction": {"parts": [{"text": system}]},
-            "contents": contents,
-            "tools": TOOL_DEFINITIONS,
-            "generationConfig": {"temperature": 0.3, "maxOutputTokens": 2048},
-        }
-        r = _req.post(url, json=payload, timeout=45)
-        r.raise_for_status()
+    # Convert prior turns to PydanticAI message history
+    history = []
+    for m in messages[:-1]:
+        role    = m.get("role")
+        content = (m.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "user":
+            history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
+        elif role == "assistant":
+            history.append(ModelResponse(parts=[TextPart(content=content)]))
 
-        candidate = r.json().get("candidates", [{}])[0]
-        parts     = candidate.get("content", {}).get("parts", [])
-        fn_calls  = [p["functionCall"] for p in parts if "functionCall" in p]
-        text_parts = [p["text"] for p in parts if "text" in p]
+    model = GeminiModel("gemini-2.5-flash", api_key=api_key)
+    deps  = FinBotDeps(stock_cache=stock_cache, indices_cache=indices_cache)
 
-        if not fn_calls:
-            return {"reply": "\n".join(text_parts).strip(), "tools_used": tools_used}
+    result = finbot.run_sync(
+        last_msg,
+        model=model,
+        deps=deps,
+        message_history=history,
+        model_settings=ModelSettings(temperature=0.3, max_tokens=2048),
+    )
 
-        # Execute all tool calls in this round
-        tool_response_parts = []
-        for fc in fn_calls:
-            name   = fc["name"]
-            args   = fc.get("args", {})
-            tools_used.append(name)
-            result = execute_tool(name, args, stock_cache, indices_cache)
-            tool_response_parts.append({
-                "functionResponse": {
-                    "name": name,
-                    "response": {"result": json.dumps(result, default=str)},
-                }
-            })
+    tools_used = [
+        part.tool_name
+        for msg in result.all_messages()
+        for part in getattr(msg, "parts", [])
+        if isinstance(part, ToolCallPart)
+    ]
 
-        # Append model's function-call turn + tool results
-        contents.append({"role": "model", "parts": [{"functionCall": fc} for fc in fn_calls]})
-        contents.append({"role": "user",  "parts": tool_response_parts})
-
-    return {
-        "reply": "I gathered the data but hit the processing limit. Try a more specific question.",
-        "tools_used": tools_used,
-    }
+    return {"reply": result.output, "tools_used": tools_used}
