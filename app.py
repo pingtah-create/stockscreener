@@ -525,7 +525,9 @@ def api_news_ticker(ticker: str):
 @auth.require_login_api
 def api_movers():
     _ensure_stocks_loaded()
-    stocks = [s for s in _stock_cache if s.get("regularMarketChangePercent") is not None]
+    stocks = [s for s in _stock_cache
+              if s.get("regularMarketChangePercent") is not None
+              and not str(s.get("symbol", "")).endswith(".TW")]
     stocks_sorted = sorted(stocks, key=lambda s: s.get("regularMarketChangePercent", 0), reverse=True)
     gainers = stocks_sorted[:5]
     losers  = stocks_sorted[-5:][::-1]
