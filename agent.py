@@ -571,16 +571,34 @@ def get_macro_indicators() -> dict:
 
 _bull_agent: Agent[None, str] = Agent(
     system_prompt="""You are a bullish equity analyst at a top hedge fund.
-Given stock data, make the strongest possible case FOR buying this stock.
-Be specific — cite the actual numbers from the data.
-Output 4-6 concise bullet points using "- " prefix. No headers, no preamble.""",
+Given detailed stock data, make the strongest possible case FOR buying this stock.
+Be specific — cite actual numbers from the data.
+Write 6-8 detailed bullet points (using "- " prefix) covering:
+- Valuation thesis: is it cheap or fair relative to growth?
+- Revenue and earnings growth trajectory
+- Technical momentum signals
+- Competitive position and business moat
+- Analyst sentiment and price target upside
+- Earnings beat/miss pattern and guidance outlook
+- Any favorable insider or institutional signals
+- Risk/reward asymmetry arguments
+Be detailed and analytical, not vague. No preamble, no headers.""",
 )
 
 _bear_agent: Agent[None, str] = Agent(
     system_prompt="""You are a bearish equity analyst (short-seller perspective) at a top hedge fund.
-Given stock data, make the strongest possible case AGAINST buying this stock.
-Be specific — cite the actual numbers from the data.
-Output 4-6 concise bullet points using "- " prefix. No headers, no preamble.""",
+Given detailed stock data, make the strongest possible case AGAINST buying this stock.
+Be specific — cite actual numbers from the data.
+Write 6-8 detailed bullet points (using "- " prefix) covering:
+- Valuation concerns: overvalued vs peers or growth rate?
+- Revenue slowdown or margin compression risks
+- Technical weakness or breakdown signals
+- Competitive threats and market share erosion risk
+- Debt load, cash burn, or financial health concerns
+- Earnings miss history or guidance risk
+- Any concerning insider selling or short interest
+- Macro headwinds specific to this sector/company
+Be detailed and analytical, not vague. No preamble, no headers.""",
 )
 
 _verdict_agent: Agent[None, str] = Agent(
@@ -589,10 +607,127 @@ You receive a bull case and bear case for a stock. Respond with exactly:
 
 **Verdict: BUY / HOLD / SELL** · Confidence: XX%
 **Entry:** $XXX–$XXX | **Stop:** $XXX | **Target:** $XXX
-[2-3 sentence rationale explaining which side wins and why]
+[3-4 sentence rationale: which side wins, the key deciding factor, and the main risk to monitor]
 
-Omit Entry/Stop/Target line for HOLD.""",
+Omit Entry/Stop/Target line for HOLD or SELL.""",
 )
+
+
+def _format_stock_sections(data: dict) -> str:
+    """Render pre-formatted markdown sections from raw data dict."""
+    f  = data.get("fundamentals", {})
+    t  = data.get("technicals", {})
+    c  = data.get("consensus", {})
+    n  = data.get("news", {})
+    e  = data.get("earnings", {})
+
+    def pct(v):   return f"{v*100:.1f}%" if v is not None else "—"
+    def fmtf(v, d=".2f"): return f"{v:{d}}" if v is not None else "—"
+
+    lines = []
+
+    # ── Fundamentals table ────────────────────────────────────
+    lines.append("### Fundamentals")
+    lines.append("| Metric | Value |")
+    lines.append("|---|---|")
+    mcap = f.get("market_cap_b")
+    lines.append(f"| Market Cap | {'$'+fmtf(mcap, '.1f')+'B' if mcap else '—'} |")
+    pe_ttm = fmtf(f.get("pe_trailing"), ".1f") if f.get("pe_trailing") else "—"
+    pe_fwd = fmtf(f.get("pe_forward"),  ".1f") if f.get("pe_forward")  else "—"
+    lines.append(f"| P/E (TTM / Fwd) | {pe_ttm} / {pe_fwd} |")
+    lines.append(f"| P/B | {fmtf(f.get('pb'))} |")
+    lines.append(f"| PEG | {fmtf(f.get('peg'))} |")
+    lines.append(f"| EV/EBITDA | {fmtf(f.get('ev_ebitda'), '.1f')} |")
+    lines.append(f"| Revenue Growth | {pct(f.get('revenue_growth'))} |")
+    lines.append(f"| Earnings Growth | {pct(f.get('earnings_growth'))} |")
+    lines.append(f"| ROE | {pct(f.get('roe'))} |")
+    lines.append(f"| Gross / Op / Net Margin | {pct(f.get('gross_margin'))} / {pct(f.get('operating_margin'))} / {pct(f.get('profit_margin'))} |")
+    lines.append(f"| Debt/Equity | {fmtf(f.get('debt_equity'), '.1f')} |")
+    lines.append(f"| Beta | {fmtf(f.get('beta'))} |")
+    lo, hi = f.get("52w_low"), f.get("52w_high")
+    lines.append(f"| 52W Range | {'$'+fmtf(lo)+' – $'+fmtf(hi) if lo and hi else '—'} |")
+    lines.append("")
+
+    # ── Technical Signals ─────────────────────────────────────
+    signals = t.get("signals") or []
+    price  = t.get("price")
+    sma50  = t.get("50dma")
+    sma200 = t.get("200dma")
+    extra = []
+    if sma50 and price:
+        diff = (price - sma50) / sma50 * 100
+        extra.append(f"50 DMA: ${sma50:.2f} | price {'+' if diff > 0 else ''}{diff:.1f}% from MA")
+    if sma200 and price:
+        diff = (price - sma200) / sma200 * 100
+        extra.append(f"200 DMA: ${sma200:.2f} | price {'+' if diff > 0 else ''}{diff:.1f}% from MA")
+    if signals or extra:
+        lines.append("### Technical Signals")
+        for s in signals + extra:
+            lines.append(f"- {s}")
+        lines.append("")
+
+    # ── Analyst Consensus ─────────────────────────────────────
+    rating    = (c.get("recommendation") or "—").upper()
+    n_ana     = c.get("num_analysts")
+    target    = c.get("target_mean")
+    upside    = c.get("upside_pct")
+    cur_price = c.get("current_price")
+    t_low     = c.get("target_low")
+    t_high    = c.get("target_high")
+    recent    = (c.get("recent_changes") or [])[:3]
+    lines.append("### Analyst Consensus")
+    lines.append(f"- **Rating:** {rating}{' | ' + str(n_ana) + ' analysts' if n_ana else ''}")
+    if target and cur_price:
+        up_str = f" → {'+' if upside and upside > 0 else ''}{upside:.1f}% upside" if upside else ""
+        lines.append(f"- **Price Target:** ${target:.2f} (current ${cur_price:.2f}{up_str})")
+    if t_low and t_high:
+        lines.append(f"- **Range:** ${t_low:.2f} low – ${t_high:.2f} high")
+    if recent:
+        lines.append("- **Recent changes:**")
+        for r in recent:
+            firm = r.get("firm", "")
+            action = r.get("action", "")
+            frm  = r.get("from_grade", "")
+            to   = r.get("to_grade", "")
+            date = r.get("date", "")
+            change = f"{frm} → {to}" if frm and to else to
+            lines.append(f"  - {date}: {firm} {action} ({change})" if change else f"  - {date}: {firm} {action}")
+    lines.append("")
+
+    # ── Earnings ──────────────────────────────────────────────
+    next_earn = e.get("next_earnings")
+    eps_hist  = e.get("eps_history") or []
+    if next_earn or eps_hist:
+        lines.append("### Earnings")
+        if next_earn:
+            lines.append(f"- **Next earnings:** {next_earn}")
+        if eps_hist:
+            lines.append("- **Recent EPS history:**")
+            for q in eps_hist[-4:]:
+                est  = q.get("eps_estimate")
+                act  = q.get("eps_actual")
+                surp = q.get("surprise_pct")
+                dt   = q.get("date", "")
+                beat = " ✓ beat" if surp and surp > 0 else " ✗ miss" if surp and surp < 0 else ""
+                parts = [dt]
+                if est is not None: parts.append(f"est ${est:.2f}")
+                if act is not None: parts.append(f"act ${act:.2f}")
+                if surp is not None: parts.append(f"({'+' if surp > 0 else ''}{surp:.1f}%){beat}")
+                lines.append(f"  - {' | '.join(parts)}")
+        lines.append("")
+
+    # ── Recent News ───────────────────────────────────────────
+    headlines = (n.get("headlines") or [])[:5]
+    if headlines:
+        lines.append("### Recent News")
+        for i, h in enumerate(headlines, 1):
+            title = h.get("title", "")
+            pub   = h.get("publisher", "")
+            pub_str = f" *({pub})*" if pub else ""
+            lines.append(f"{i}. {title}{pub_str}")
+        lines.append("")
+
+    return "\n".join(lines)
 
 
 def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
@@ -678,12 +813,27 @@ BEAR CASE:
     name  = data["fundamentals"].get("name") or ticker
     price = data["fundamentals"].get("price")
     chg   = data["fundamentals"].get("change_pct")
-    header_parts = [f"## {ticker} — {name}"]
-    if price:
-        chg_str = f" ({'+' if chg and chg > 0 else ''}{chg:.2f}%)" if chg else ""
-        header_parts.append(f"**${price}**{chg_str}")
+    sector   = data["fundamentals"].get("sector", "")
+    industry = data["fundamentals"].get("industry", "")
 
-    reply = "\n".join(header_parts) + f"""
+    chg_str = ""
+    if price and chg is not None:
+        chg_str = f" ({'+' if chg > 0 else ''}{chg:.2f}%)"
+
+    header = f"## {ticker} — {name}"
+    if price:
+        header += f"\n**${price:.2f}**{chg_str}"
+    if sector:
+        header += f"  |  {sector}"
+        if industry:
+            header += f" · {industry}"
+
+    sections = _format_stock_sections(data)
+
+    reply = f"""{header}
+
+{sections}
+---
 
 ### 🐂 Bull Case
 {bull_case}

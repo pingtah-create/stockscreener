@@ -86,9 +86,7 @@ def user_count() -> int:
 
 
 def create_user(username: str, password: str) -> tuple[bool, str]:
-    """Return (ok, message). Disabled on serverless when AUTH_USERS is set."""
-    if _IS_SERVERLESS and _ENV_USERS:
-        return False, "Signup is disabled; accounts are managed by the administrator."
+    """Return (ok, message). Writes to /tmp/auth/users.json on Vercel."""
     username = (username or "").strip().lower()
     if not USERNAME_RE.match(username):
         return False, "Username must be 3-32 chars, letters/numbers/._- only."
