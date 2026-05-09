@@ -17,9 +17,11 @@ document.addEventListener("DOMContentLoaded", async () => {
   preloadStocksForSearch();
   setInterval(checkStatus, 4000);
   setInterval(loadIndices, 60000);
-  setInterval(loadMovers, 120000);
-  if (typeof loadStockMap === "function") setInterval(loadStockMap, 300000);
-  setInterval(loadWatchlist, 60000);
+  setInterval(loadMovers, 60000);
+  setInterval(loadHeatmap, 60000);
+  setInterval(loadSwingScan, 120000);
+  if (typeof loadStockMap === "function") setInterval(loadStockMap, 60000);
+  setInterval(loadWatchlist, 30000);
 });
 
 async function preloadStocksForSearch() {
