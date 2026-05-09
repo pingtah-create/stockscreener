@@ -12,52 +12,97 @@ python app.py
 # Install dependencies
 pip install -r requirements.txt
 
+# One-off: fetch Taiwan tickers and merge into data/stocks.json seed file
+python fetch_taiwan.py
+
 # Check the full ticker universe
 python stock_list.py
 ```
 
-There are no tests. There is no lint configuration.
+There are no tests and no lint configuration.
+
+Local dev uses `.env` for secrets (auto-loaded by `app.py`):
+```
+GEMINI_API_KEY=...
+FINNHUB_API_KEY=...   # optional — enables real-time quotes on stock page
+```
 
 ## Architecture
 
-This is a Flask web app that screens US and Taiwan stocks using Yahoo Finance data, deployable to Vercel.
+Flask web app screening US and Taiwan stocks via Yahoo Finance, deployed to Vercel. No database, no build step — flat JSON files, vanilla JS.
+
+### Pages and routes
+
+| Route | Template | JS |
+|-------|----------|----|
+| `/` | `chat.html` | `chat.js`, `chat-home.css` |
+| `/dashboard` | `dashboard.html` | `app.js`, `stock-map.js`, `style.css` |
+| `/stock/<ticker>` | `stock.html` | `chart.js`, `chart.css` |
+| `/login`, `/signup`, `/logout` | `login.html` | `login.css` |
+
+All routes require login. HTML routes use `@auth.require_login` (redirects to `/login`). API routes use `@auth.require_login_api` (returns 401 JSON).
+
+### Auth (`auth.py`)
+
+Two modes depending on environment:
+- **Local dev**: flat-file `auth/users.json` with werkzeug scrypt hashes. Signup enabled.
+- **Vercel**: reads `AUTH_USERS=user1:pass1,user2:pass2` env var (hashed in memory at import time). Signup disabled. Secret key must be set via `FLASK_SECRET_KEY` env var — without it, every cold start generates a new key and sessions break immediately.
+
+Required Vercel env vars: `FLASK_SECRET_KEY`, `AUTH_USERS`, `GEMINI_API_KEY`.
 
 ### Backend (`app.py`, `screener.py`, `stock_list.py`)
 
 **`screener.py`** — core data layer:
-- `fetch_ticker()` / `fetch_batch()`: pull data from `yfinance`, persist to disk as JSON in `cache/<TICKER>.json` (TTL 24h). On Vercel uses `/tmp/cache/` instead (detected via `VERCEL` env var).
-- `screen()`: applies server-side filters (min/max numeric fields, boolean `above50dma`/`above200dma`).
-- `compute_scores()`: produces 0–100 strategy fit scores (value, growth, momentum, quality, dividend, deepvalue) for each stock.
-- `PRESETS`: dict of 6 named investment strategies with their filter definitions, used by both backend and frontend.
+- `fetch_ticker()` / `fetch_batch()`: pull from yfinance, persist to `cache/<TICKER>.json` (TTL 12h). Vercel uses `/tmp/cache/`.
+- `screen()`: server-side numeric and boolean filters.
+- `compute_scores()`: 0–100 strategy scores (value, growth, momentum, quality, dividend, deepvalue).
+- `compute_swing_setup()`: algorithmic swing trade signal with risk/reward ratio.
 
-**`app.py`** — Flask routes and startup:
-- `_stock_cache`: module-level list holding all stock dicts in memory.
-- `_ensure_stocks_loaded()`: lazy-loads cache on first request; on Vercel also spawns a background thread to refresh live prices via `yf.download()` (single bulk HTTP call, refreshes at most every 15 min per instance).
-- Vercel cold-start fallback: if `cache/` is empty, loads `data/stocks.json` (a bundled seed file committed to git) so the screener works immediately.
-- `/api/chart/<ticker>`: computes all TA indicators server-side (SMA, EMA, BB, RSI, MACD, Stochastic, VWAP, ATR, OBV, Williams %R, CCI) and returns OHLCV + technicals as JSON.
-- `/api/sparkline/<ticker>`: 3-month price history, cached for 6h.
-- `/api/refresh` (POST): starts background thread to re-fetch all tickers from Yahoo Finance.
+**`app.py`** — routes and in-memory cache:
+- `_stock_cache`: module-level list of all stock dicts.
+- `_load_all_from_cache()`: loads `data/stocks.json` seed first, then overlays individual `cache/<TICKER>.json` files on top. Both sources are always merged — never either/or.
+- `_ensure_stocks_loaded()`: lazy-loads on first request; on Vercel also spawns a background thread for `_refresh_live_prices()`.
+- `_refresh_live_prices()`: bulk `yf.download()` for all tickers, updates `currentPrice` and `regularMarketChangePercent` in memory. Throttled to once per 5 minutes per warm instance.
+- `_twd_to_usd_rate()`: fetches `TWDUSD=X` from yfinance, 1-hour cache, fallback 0.031. Used in `/api/stockmap` to normalize Taiwan market caps to USD.
 
-**`stock_list.py`** — ticker universe: S&P 500 (scraped from Wikipedia, with hardcoded fallback) + NASDAQ 100 + additional large/mid caps + major Taiwan TWSE stocks (`.TW` suffix for Yahoo Finance).
+Key API endpoints:
+- `POST /api/chat`: multi-turn Gemini 2.5 Flash chat. Extracts tickers from the latest user message using `_extract_tickers()` (regex filtered against the ticker universe), injects compact fundamentals + 3 headlines per ticker as system context.
+- `GET /api/stockmap`: treemap data. Taiwan `.TW` stocks get `sector="Taiwan"` and mcap × TWD/USD rate. US stocks excluded from movers but included in the map.
+- `GET /api/movers`: top 5 gainers/losers. Explicitly excludes `.TW` stocks (different market session, stale change%).
+- `POST /api/quotes`: batch live quotes for watchlist using `_live_quote()` in a ThreadPoolExecutor.
+- `GET /api/quote/<ticker>`: single live quote. Tries Finnhub first for US stocks (if `FINNHUB_API_KEY` set), falls back to yfinance. 30s server cache.
+- `GET /api/chart/<ticker>`: full OHLCV + all TA indicators (SMA, EMA, BB, RSI, MACD, Stochastic, VWAP, ATR, OBV, Williams %R, CCI) computed server-side.
+- `GET /api/sparkline/<ticker>`: 3-month close prices, 2h cache.
+
+**`stock_list.py`** — ticker universe: S&P 500 (Wikipedia-scraped with hardcoded fallback) + NASDAQ 100 + additional large/mid caps + major Taiwan TWSE stocks (`.TW` suffix).
 
 ### Frontend
 
-Two separate pages with independent JS:
+**`/` — AI Chat (`chat.js` + `chat-home.css`)**
+- Hero state (first load) collapses to thread view on first message send.
+- Conversation history persisted in `localStorage` (`stockdash_chat_v1`), last 20 messages sent to `/api/chat` per request.
+- Ticker pills auto-rendered from `data.tickers` in the API response, linking to `/stock/<ticker>`.
+- Suggestion chips send preset questions on click.
 
-**`/` — Screener (`templates/index.html` + `static/app.js` + `static/style.css`)**  
-Uses Chart.js (CDN). Features: ticker tape, market indices, sector heatmap, top movers, news feed, preset strategy buttons, filter panel, sortable results table with inline sparklines, watchlist (localStorage), side-by-side compare modal. Sector and market cap filters are applied **client-side** after the server returns results.
+**`/dashboard` — Dashboard (`app.js` + `stock-map.js` + `style.css`)**
+- Auto-refresh intervals: indices 60s, movers 60s, heatmap 60s, stock map 60s, watchlist 30s, swing setups 120s.
+- Watchlist stored in `localStorage`; quotes fetched live via `/api/quotes` (ThreadPoolExecutor on server).
+- Stock map (`stock-map.js`): squarified treemap (Bruls/Huijsen/van Wijk algorithm), outer layout = sectors, inner layout = individual stocks. Tile color = `colorForChange()` — red ↔ grey ↔ green capped at ±5%.
 
-**`/stock/<ticker>` — Full chart page (`templates/stock.html` + `static/chart.js` + `static/chart.css`)**  
-Uses TradingView Lightweight Charts v4 (CDN). Three synchronized panels: price (candle/line + overlays), volume (bar + 20MA), oscillator (RSI / MACD / Stochastic / CCI). Has drawing tools (trend lines, horizontal lines, free draw) on a canvas overlay. Auto-period extension: automatically loads a longer period if the chart has too few bars. Displays news markers and insider transaction markers on the price chart.
+**`/stock/<ticker>` — Chart (`chart.js` + `chart.css`)**
+- TradingView Lightweight Charts v4 (CDN). Three synchronized panels: price, volume, oscillator.
+- Drawing tools on canvas overlay. Auto-extends to a longer period if too few bars are returned.
+- News markers and insider transaction markers rendered on the price panel.
 
 ### Deployment (Vercel)
 
-`api/index.py` is the Vercel entry point — it just adds the repo root to `sys.path` and imports `app` from `app.py`. `vercel.json` routes all traffic there. The `cache/` directory is in `.gitignore`; only `data/stocks.json` is committed as seed data.
+`api/index.py` adds the repo root to `sys.path` and imports `app`. `vercel.json` routes all traffic there.
 
-### Key design constraints
+`data/stocks.json` (193 stocks: 150 US + 43 Taiwan) is committed to git as the cold-start seed. The `cache/` and `auth/` directories are gitignored.
 
-- **No database** — everything is flat JSON files on disk.
-- **No build step** — vanilla JS, no bundler or transpilation.
-- **`data/stocks.json`** must be kept reasonably fresh and committed for Vercel cold-start to work.
-- Adding a new TA indicator requires changes in both `app.py` (`/api/chart` endpoint) and `static/chart.js` (rendering logic).
-- Taiwan tickers use Yahoo Finance's `.TW` suffix (e.g., `2330.TW` for TSMC).
+### Key constraints
+
+- Adding a TA indicator requires changes in both `app.py` (`/api/chart`) and `static/chart.js`.
+- Taiwan mcap conversion happens only in `/api/stockmap` — the underlying cache values stay in TWD.
+- `_load_all_from_cache()` must always merge seed + disk cache, not choose one. Breaking this causes either US or Taiwan stocks to disappear.
+- Session cookies require a stable `FLASK_SECRET_KEY` on Vercel. Each cold start without it generates a new key, immediately invalidating all sessions.
