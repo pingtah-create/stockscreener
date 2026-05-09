@@ -30,6 +30,8 @@ const TOOL_LABELS = {
   compare_stocks:          'Comparing Stocks',
   get_analyst_consensus:   'Analyst Ratings',
   get_watchlist_analysis:  'Watchlist Analysis',
+  get_options_chain:       'Options Chain',
+  get_macro_indicators:    'Macro Indicators',
 };
 
 const LOADING_PHRASES = [

@@ -335,6 +335,107 @@ def tool_get_watchlist_analysis(tickers: list, stock_cache: list) -> dict:
     return {"watchlist": rows, "count": len(rows)}
 
 
+def tool_get_options_chain(ticker: str) -> dict:
+    """Return the nearest-expiry options chain (calls + puts) for a ticker."""
+    ticker = ticker.upper().strip()
+    try:
+        t       = yf.Ticker(ticker)
+        expiries = t.options
+        if not expiries:
+            return {"error": f"No options data for {ticker}"}
+        expiry  = expiries[0]  # nearest expiry
+        chain   = t.option_chain(expiry)
+
+        def fmt_side(df, side):
+            rows = []
+            for _, r in df.iterrows():
+                rows.append({
+                    "strike":        r.get("strike"),
+                    "bid":           round(float(r["bid"]), 2)  if r.get("bid")  else None,
+                    "ask":           round(float(r["ask"]), 2)  if r.get("ask")  else None,
+                    "last":          round(float(r["lastPrice"]), 2) if r.get("lastPrice") else None,
+                    "volume":        int(r["volume"])            if r.get("volume") and r["volume"] == r["volume"] else None,
+                    "open_interest": int(r["openInterest"])      if r.get("openInterest") and r["openInterest"] == r["openInterest"] else None,
+                    "iv":            round(float(r["impliedVolatility"]), 4) if r.get("impliedVolatility") else None,
+                    "itm":           bool(r.get("inTheMoney", False)),
+                })
+            # Return top 8 by open interest
+            rows.sort(key=lambda x: x.get("open_interest") or 0, reverse=True)
+            return rows[:8]
+
+        # Current price for context
+        price = None
+        try:
+            price = t.fast_info.last_price
+        except Exception:
+            pass
+
+        return {
+            "ticker":       ticker,
+            "expiry":       expiry,
+            "all_expiries": list(expiries[:6]),
+            "current_price": round(price, 2) if price else None,
+            "calls":        fmt_side(chain.calls, "call"),
+            "puts":         fmt_side(chain.puts,  "put"),
+            "put_call_ratio": round(
+                chain.puts["volume"].sum() / chain.calls["volume"].sum(), 2
+            ) if chain.calls["volume"].sum() > 0 else None,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def tool_get_macro_indicators() -> dict:
+    """Return key macro indicators: rates, yields, inflation proxy, USD, oil, gold, market fear."""
+    import urllib.request as _ur
+    result = {}
+
+    # Market-based indicators via yfinance (real-time)
+    market_tickers = {
+        "10Y_yield":   "^TNX",
+        "2Y_yield":    "^IRX",
+        "VIX":         "^VIX",
+        "USD_index":   "DX-Y.NYB",
+        "Gold":        "GC=F",
+        "Oil_WTI":     "CL=F",
+        "Bitcoin":     "BTC-USD",
+    }
+    for label, sym in market_tickers.items():
+        try:
+            info = yf.Ticker(sym).fast_info
+            price = float(getattr(info, "last_price", None) or 0)
+            prev  = float(getattr(info, "previous_close", None) or 0)
+            chg   = round((price - prev) / prev * 100, 2) if prev else 0
+            if price:
+                result[label] = {"value": round(price, 2), "change_pct": chg}
+        except Exception:
+            pass
+
+    # World Bank macro data (no API key, free)
+    wb_series = {
+        "US_GDP_growth_pct":   ("US", "NY.GDP.MKTP.KD.ZG"),
+        "US_inflation_pct":    ("US", "FP.CPI.TOTL.ZG"),
+        "US_unemployment_pct": ("US", "SL.UEM.TOTL.ZS"),
+    }
+    for label, (country, indicator) in wb_series.items():
+        try:
+            url = (f"https://api.worldbank.org/v2/country/{country}/indicator/{indicator}"
+                   f"?format=json&mrv=2&per_page=2")
+            with _ur.urlopen(url, timeout=8) as r:
+                data = json.loads(r.read())
+            entries = [e for e in (data[1] or []) if e.get("value") is not None]
+            if entries:
+                latest = entries[0]
+                result[label] = {
+                    "value": round(float(latest["value"]), 2),
+                    "year":  latest.get("date"),
+                }
+        except Exception:
+            pass
+
+    return result
+
+
 # ── GEMINI TOOL DECLARATIONS ─────────────────────────────────────────────────
 
 TOOL_DEFINITIONS = [{
@@ -426,6 +527,18 @@ TOOL_DEFINITIONS = [{
                             "description": "List of tickers from the user's watchlist"},
             }, "required": ["tickers"]},
         },
+        {
+            "name": "get_options_chain",
+            "description": "Get the options chain (calls and puts) for a stock — strikes, bid/ask, volume, open interest, implied volatility, and put/call ratio for the nearest expiry.",
+            "parameters": {"type": "OBJECT", "properties": {
+                "ticker": {"type": "STRING", "description": "Stock ticker symbol (e.g. AAPL, NVDA)"},
+            }, "required": ["ticker"]},
+        },
+        {
+            "name": "get_macro_indicators",
+            "description": "Get key macroeconomic indicators: 10Y/2Y treasury yields, VIX fear index, USD index, gold, oil, bitcoin, plus US GDP growth, inflation, and unemployment from World Bank.",
+            "parameters": {"type": "OBJECT", "properties": {}},
+        },
     ]
 }]
 
@@ -461,6 +574,10 @@ def execute_tool(name: str, args: dict, stock_cache: list, indices_cache: dict) 
             return tool_get_analyst_consensus(args["ticker"], stock_cache)
         if name == "get_watchlist_analysis":
             return tool_get_watchlist_analysis(args.get("tickers", []), stock_cache)
+        if name == "get_options_chain":
+            return tool_get_options_chain(args["ticker"])
+        if name == "get_macro_indicators":
+            return tool_get_macro_indicators()
         return {"error": f"Unknown tool: {name}"}
     except Exception as e:
         return {"error": str(e)}
@@ -470,7 +587,7 @@ def execute_tool(name: str, args: dict, stock_cache: list, indices_cache: dict) 
 
 SYSTEM_PROMPT = """You are FinBot — a sharp financial research agent embedded in a stock screener.
 
-You have tools to look up fundamentals, technical signals, news, peer comparisons, earnings history, insider activity, analyst ratings, dividends, stock screening, and market overview.
+You have tools to look up fundamentals, technical signals, news, peer comparisons, earnings history, insider activity, analyst ratings, dividends, stock screening, options chains, and macro indicators (rates, VIX, gold, oil, GDP, inflation).
 
 Rules:
 - ALWAYS call tools to get real data before answering. Never invent numbers.
@@ -479,6 +596,8 @@ Rules:
 - For "find me stocks" / screening: call screen_stocks with appropriate sector/strategy.
 - For "what's happening in the market": call get_market_overview.
 - For competitor questions: call get_peer_comparison.
+- For options / derivatives questions: call get_options_chain.
+- For macro / economy / rates / inflation questions: call get_macro_indicators.
 - Format with markdown: **bold** key numbers, use bullet lists, clear section headers.
 - Give a clear verdict: bullish / bearish / neutral with the key reasons.
 - Be concise but thorough. Aim for 200-400 words for full analysis."""
