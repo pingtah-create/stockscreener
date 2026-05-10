@@ -3,9 +3,11 @@ US Stock Screener — Flask backend
 Run: python app.py
 """
 import json
+import base64 as _b64
+import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response
 
 import yfinance as yf
 
@@ -26,6 +28,10 @@ def _inject_user():
 
 _stock_cache: list[dict] = []
 _tickers: list[str] = []
+_stock_cache_lock = threading.Lock()
+
+_swingscan_cache: dict = {"results": None, "at": None}
+_SWINGSCAN_TTL = 120
 
 INDICES = {
     "S&P 500": "^GSPC",
@@ -91,6 +97,15 @@ def _groq_complete(prompt: str, *, system: str = "",
     )
     r.raise_for_status()
     return r.json()["choices"][0]["message"]["content"].strip()
+
+
+_TICKER_PATTERN = __import__("re").compile(r"^[A-Z0-9]{1,5}(?:\.[A-Z]{1,2})?$")
+
+
+def _clean_ticker(raw: str) -> str | None:
+    """Return uppercased ticker if it looks valid, else None."""
+    t = (raw or "").strip().upper()
+    return t if _TICKER_PATTERN.match(t) else None
 
 
 def _live_quote(ticker: str):
@@ -217,10 +232,10 @@ def _refresh_live_prices():
 def _ensure_stocks_loaded():
     global _stock_cache
     if not _stock_cache:
-        _stock_cache = _load_all_from_cache()
-    # Refresh live prices on Vercel (seed data has stale prices)
+        with _stock_cache_lock:
+            if not _stock_cache:  # double-checked — only one thread loads
+                _stock_cache = _load_all_from_cache()
     if _IS_SERVERLESS:
-        import threading
         threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
@@ -322,7 +337,9 @@ def api_indices():
 @app.route("/api/sparkline/<ticker>")
 @auth.require_login_api
 def api_sparkline(ticker: str):
-    ticker = ticker.upper()
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"prices": [], "dates": []})
     path = SPARKLINE_CACHE / f"{ticker}.json"
     # Cache sparklines for 6 hours
     if path.exists():
@@ -347,7 +364,9 @@ def api_sparkline(ticker: str):
 @app.route("/api/chart/<ticker>")
 @auth.require_login_api
 def api_chart(ticker: str):
-    ticker = ticker.upper()
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"ohlcv": [], "technicals": {}, "error": "invalid ticker"})
     period = request.args.get("period", "6mo")
 
     # Map requested period → (yfinance fetch period, # of bars to keep).
@@ -552,7 +571,9 @@ def api_news_ticker(ticker: str):
 @auth.require_login_api
 def api_news_events(ticker: str):
     """AI-identified key price-moving events. Cached 6h."""
-    ticker = ticker.upper()
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify([])
     p = _INTEL_DIR / f"{ticker}_newsevents.json"
     if p.exists():
         age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
@@ -829,6 +850,12 @@ def api_quotes():
 def api_swingscan():
     """Top algorithmic swing trade setups across all cached stocks."""
     _ensure_stocks_loaded()
+    now = datetime.utcnow()
+    if (_swingscan_cache["at"] and
+            (now - _swingscan_cache["at"]).total_seconds() < _SWINGSCAN_TTL and
+            _swingscan_cache["results"] is not None):
+        return jsonify(_swingscan_cache["results"])
+
     results = []
     for s in _stock_cache:
         setup = compute_swing_setup(s)
@@ -844,14 +871,19 @@ def api_swingscan():
             "setup":   setup,
         })
     results.sort(key=lambda x: x["setup"]["rr"], reverse=True)
-    return jsonify(results[:20])
+    top = results[:20]
+    _swingscan_cache["results"] = top
+    _swingscan_cache["at"] = now
+    return jsonify(top)
 
 
 @app.route("/api/swing/<ticker>")
 @auth.require_login_api
 def api_swing(ticker: str):
     """AI swing trade setup via Groq. Cached 24h."""
-    ticker = ticker.upper()
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "invalid ticker"}), 400
     p = _INTEL_DIR / f"{ticker}_swing.json"
     if p.exists():
         age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
@@ -924,7 +956,9 @@ Return ONLY valid JSON:
 @auth.require_login_api
 def api_intel(ticker: str):
     """AI-generated company intel via Groq. Cached 7 days on disk."""
-    ticker = ticker.upper()
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "invalid ticker"}), 400
     p = _INTEL_DIR / f"{ticker}.json"
 
     # Serve from cache if fresh
@@ -1010,7 +1044,7 @@ def _extract_tickers(text: str) -> list[str]:
 @app.route("/api/chat", methods=["POST"])
 @auth.require_login_api
 def api_chat():
-    """Agentic multi-turn chat via Gemini function-calling.
+    """Agentic multi-turn chat via Groq + PydanticAI tool-calling.
     Body: {messages: [{role, content}, ...]}"""
     _ensure_stocks_loaded()
     body     = request.json or {}
@@ -1065,38 +1099,98 @@ def _portfolio_path(user: str):
     return _PORTFOLIO_DIR / f"{user}.json"
 
 
+def _pf_cookie(user: str) -> str:
+    return f"pf_{user}"
+
+
+def _pf_cookie_encode(user: str, holdings: list) -> str:
+    """Base64-encode holdings — no secret-key dependency, works across Vercel instances."""
+    payload = json.dumps({"u": user, "h": holdings}, separators=(",", ":"))
+    return _b64.b64encode(payload.encode()).decode()
+
+
+def _pf_cookie_load(user: str) -> list | None:
+    """Decode the portfolio cookie. Returns holdings list or None."""
+    try:
+        raw = request.cookies.get(_pf_cookie(user), "")
+        if raw:
+            data = json.loads(_b64.b64decode(raw).decode())
+            if data.get("u") == user and isinstance(data.get("h"), list):
+                return data["h"]
+    except Exception:
+        pass
+    return None
+
+
 @app.route("/api/portfolio/holdings", methods=["GET"])
 @auth.require_login_api
 def api_portfolio_holdings_get():
-    p = _portfolio_path(auth.current_user())
+    user = auth.current_user()
+    p = _portfolio_path(user)
     if p.exists():
         try:
-            return jsonify(json.loads(p.read_text()))
+            data = json.loads(p.read_text())
+            if data:
+                return jsonify(data)
         except Exception:
             p.unlink(missing_ok=True)
+    # Disk missing or empty — try cookie backup (survives Vercel cold starts)
+    cookie_data = _pf_cookie_load(user)
+    if cookie_data:
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(cookie_data))
+        except Exception:
+            pass
+        return jsonify(cookie_data)
     return jsonify([])
 
 
 @app.route("/api/portfolio/holdings", methods=["POST"])
 @auth.require_login_api
 def api_portfolio_holdings_save():
+    user = auth.current_user()
     holdings = request.json
     if not isinstance(holdings, list):
         return jsonify({"error": "expected list"}), 400
-    p = _portfolio_path(auth.current_user())
+    if len(holdings) > 100:
+        return jsonify({"error": "portfolio exceeds 100 holdings limit"}), 400
+    p = _portfolio_path(user)
     p.write_text(json.dumps(holdings))
-    return jsonify({"ok": True})
+    # Also persist in a long-lived cookie — survives Vercel cold starts and
+    # works across instances (no secret-key dependency, just base64 JSON).
+    resp = make_response(jsonify({"ok": True}))
+    try:
+        resp.set_cookie(_pf_cookie(user), _pf_cookie_encode(user, holdings),
+                        max_age=90 * 24 * 3600, httponly=True, samesite="Lax")
+    except Exception:
+        pass
+    return resp
 
 
-@app.route("/api/portfolio/summary")
+@app.route("/api/portfolio/summary", methods=["GET", "POST"])
 @auth.require_login_api
 def api_portfolio_summary():
-    """Live price summary for the portfolio — no historical data, no AI."""
-    p = _portfolio_path(auth.current_user())
-    try:
-        holdings = json.loads(p.read_text()) if p.exists() else []
-    except Exception:
-        holdings = []
+    """Live price summary. Client POSTs its holdings so this never depends on
+    server-side storage being warm (survives Vercel cold starts cleanly)."""
+    _ensure_stocks_loaded()
+    # Client always sends holdings in the body — server is just a price fetcher
+    body = request.get_json(silent=True) or {}
+    holdings = body.get("holdings") or []
+
+    # Fallback: load from disk/cookie for old GET callers
+    if not holdings:
+        user = auth.current_user()
+        p = _portfolio_path(user)
+        try:
+            holdings = json.loads(p.read_text()) if p.exists() else []
+        except Exception:
+            holdings = []
+        if not holdings:
+            cookie_data = _pf_cookie_load(user)
+            if cookie_data:
+                holdings = cookie_data
+
     if not holdings:
         return jsonify({"allocation": [], "metrics": {}})
 

@@ -640,8 +640,7 @@ def get_macro_indicators() -> dict:
 # ── DEBATE AGENTS (Bull / Bear / Verdict) ────────────────────────────────────
 
 
-
-def _format_stock_sections_UNUSED(data: dict) -> str:  # kept for reference only
+def _UNUSED_format_stock_sections(data: dict) -> str:  # dead code — kept for reference
     f  = data.get("fundamentals", {})
     t  = data.get("technicals", {})
     c  = data.get("consensus", {})
@@ -845,19 +844,26 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
 
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str,
                         user_question: str = "") -> dict:
-    """Gather data for a single ticker then ask Gemini to write an opinionated analysis."""
+    """Gather data for a single ticker then write an opinionated narrative analysis."""
     ticker = ticker.upper().strip()
 
     from screener import compute_swing_setup as _swing
+    from concurrent.futures import ThreadPoolExecutor
     raw_stock = next((s for s in stock_cache if s.get("symbol") == ticker), None)
 
+    # In-memory lookups are instant; network calls (news, consensus, earnings) run in parallel
     f  = tool_get_stock_fundamentals(ticker, stock_cache)
     t  = tool_get_technical_signals(ticker, stock_cache)
-    n  = tool_get_recent_news(ticker, 5)
-    c  = tool_get_analyst_consensus(ticker, stock_cache)
     pe = tool_get_peer_comparison(ticker, stock_cache)
-    e  = tool_get_earnings_info(ticker)
     sw = _swing(raw_stock) if raw_stock else None
+
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        fn = ex.submit(tool_get_recent_news, ticker, 5)
+        fc = ex.submit(tool_get_analyst_consensus, ticker, stock_cache)
+        fe = ex.submit(tool_get_earnings_info, ticker)
+        n  = fn.result()
+        c  = fc.result()
+        e  = fe.result()
 
     def pct(v):  return f"{v*100:.1f}%" if v is not None else "—"
     def fmt(v, d=1): return f"{v:.{d}f}" if v is not None else "—"

@@ -53,6 +53,7 @@ _parse_env_users()
 
 def init_app(app):
     """Wire the secret key into a Flask app."""
+    from datetime import timedelta as _td
     key = os.environ.get("FLASK_SECRET_KEY")
     if not key:
         if _SECRET_FILE.exists():
@@ -66,6 +67,7 @@ def init_app(app):
     app.secret_key = key
     app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
     app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
+    app.permanent_session_lifetime = _td(days=30)
 
 
 def _load() -> dict:

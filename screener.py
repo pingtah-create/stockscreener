@@ -151,8 +151,11 @@ def _load_cache(ticker: str) -> dict | None:
 
 
 def _save_cache(ticker: str, data: dict):
-    with open(_cache_path(ticker), "w") as f:
-        json.dump(data, f)
+    try:
+        with open(_cache_path(ticker), "w") as f:
+            json.dump(data, f)
+    except OSError:
+        pass
 
 
 def _extract_fields(info: dict, ticker: str) -> dict:

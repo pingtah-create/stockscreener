@@ -14,17 +14,27 @@ let tickerUniverse = [];
 
 async function init() {
   loadTickerUniverse();   // fire-and-forget, populates dropdown
+  const localData = _localLoad(); // read local BEFORE server call
   try {
     const r = await fetch('/api/portfolio/holdings');
     if (r.ok) {
-      const data = await r.json();
-      holdings = Array.isArray(data) ? data : [];
-      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
+      const serverData = await r.json();
+      if (Array.isArray(serverData) && serverData.length > 0) {
+        // Server has data — use it and update local backup
+        holdings = serverData;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
+      } else if (localData.length > 0) {
+        // Server is empty (cold start wiped /tmp) but local backup exists — restore
+        holdings = localData;
+        saveHoldings(); // sync back to server silently
+      } else {
+        holdings = [];
+      }
     } else {
-      holdings = _localLoad();
+      holdings = localData;
     }
   } catch {
-    holdings = _localLoad();
+    holdings = localData;
   }
   renderPills();
   setupTickerSearch();
@@ -60,11 +70,13 @@ function setupTickerSearch() {
       ).slice(0, 8);
       if (!found.length) { dropdown.classList.remove('open'); return; }
       dropdown.innerHTML = found.map(s => `
-        <div class="search-result-item" onclick="selectTicker('${s.symbol}')">
+        <div class="search-result-item" data-symbol="${s.symbol}">
           <span class="search-ticker">${s.symbol}</span>
-          <span class="search-name">${s.shortName || s.longName || '—'}</span>
-          <span class="search-sector">${s.sector || ''}</span>
+          <span class="search-name">${s.shortName || s.longName || ''}</span>
         </div>`).join('');
+      dropdown.querySelectorAll('.search-result-item').forEach(el => {
+        el.addEventListener('click', () => selectTicker(el.dataset.symbol));
+      });
       dropdown.classList.add('open');
     }, 150);
   });
@@ -157,8 +169,11 @@ function renderPills() {
     <div class="port-pill">
       <span class="port-pill-ticker">${h.ticker}</span>
       <span class="port-pill-shares">× ${h.shares}${h.buyin ? ` @ $${h.buyin}` : ''}</span>
-      <button class="port-pill-rm" onclick="removeHolding('${h.ticker}')" title="Remove">×</button>
+      <button class="port-pill-rm" data-ticker="${h.ticker}" title="Remove">×</button>
     </div>`).join('');
+  el.querySelectorAll('button[data-ticker]').forEach(btn => {
+    btn.addEventListener('click', () => removeHolding(btn.dataset.ticker));
+  });
 }
 
 // ── Live summary (auto-load) ───────────────────────────────────────────────────
@@ -167,7 +182,13 @@ async function fetchSummary() {
   const stamp = document.getElementById('priceStamp');
   if (stamp) stamp.textContent = 'Updating…';
   try {
-    const r    = await fetch('/api/portfolio/summary');
+    // Always send holdings in the body so the server never needs to read from
+    // disk — this survives Vercel cold starts and server-side storage misses.
+    const r    = await fetch('/api/portfolio/summary', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ holdings }),
+    });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     renderStats(data.metrics);
@@ -238,7 +259,8 @@ function renderTable(allocation) {
   };
   const fmtV = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  document.getElementById('holdingsTable').innerHTML = `
+  const tableEl = document.getElementById('holdingsTable');
+  tableEl.innerHTML = `
     <table class="port-table">
       <thead>
         <tr>
@@ -262,10 +284,13 @@ function renderTable(allocation) {
             ${hasCost ? `<td>${a.cost_basis != null ? fmtV(a.cost_basis) : '—'}</td><td>${fmtPnl(a.unrealized_pnl, a.unrealized_pnl_pct)}</td>` : ''}
             <td>${a.pct.toFixed(1)}%</td>
             <td style="color:var(--text3)">${a.sector !== 'Unknown' ? a.sector : '—'}</td>
-            <td><button class="port-pill-rm" onclick="removeHolding('${a.ticker}')" title="Remove">×</button></td>
+            <td><button class="port-pill-rm" data-ticker="${a.ticker}" title="Remove">×</button></td>
           </tr>`).join('')}
       </tbody>
     </table>`;
+  tableEl.querySelectorAll('button[data-ticker]').forEach(btn => {
+    btn.addEventListener('click', () => removeHolding(btn.dataset.ticker));
+  });
 }
 
 // ── Full analysis ─────────────────────────────────────────────────────────────
@@ -276,6 +301,7 @@ async function analyzePortfolio() {
   const loading = document.getElementById('portLoading');
   btn.disabled  = true;
   loading.style.display = 'flex';
+  document.getElementById('portAnalysis').style.display = 'none';
   try {
     const r    = await fetch('/api/portfolio-analysis', {
       method: 'POST',
@@ -286,7 +312,9 @@ async function analyzePortfolio() {
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     renderAnalysis(data);
   } catch (err) {
-    alert(`Error: ${err.message}`);
+    document.getElementById('portAnalysis').style.display = 'block';
+    document.getElementById('analysisBody').innerHTML =
+      `<p style="color:var(--red);font-size:13px">Analysis failed: ${err.message}. Check your holdings and try again.</p>`;
   } finally {
     btn.disabled = false;
     loading.style.display = 'none';
