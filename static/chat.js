@@ -8,10 +8,8 @@ const MAX_HISTORY = 20;
 const heroEl    = document.getElementById('chHero');
 const chatEl    = document.getElementById('chChat');
 const threadEl  = document.getElementById('chThread');
-const formTop   = document.getElementById('chForm');
-const formBot   = document.getElementById('chFormBottom');
-const inputTop  = document.getElementById('chInput');
-const inputBot  = document.getElementById('chInputBottom');
+const form      = document.getElementById('chForm');
+const input     = document.getElementById('chInput');
 const newChatBtn = document.getElementById('newChatBtn');
 
 let messages = loadHistory();
@@ -45,8 +43,7 @@ const LOADING_PHRASES = [
 
 if (messages.length) renderThread();
 
-formTop.addEventListener('submit', e => { e.preventDefault(); send(inputTop.value); });
-formBot.addEventListener('submit', e => { e.preventDefault(); send(inputBot.value); });
+form.addEventListener('submit', e => { e.preventDefault(); send(input.value); });
 newChatBtn.addEventListener('click', () => {
   if (messages.length && !confirm('Start a new chat? Current conversation will be cleared.')) return;
   messages = [];
@@ -54,8 +51,9 @@ newChatBtn.addEventListener('click', () => {
   threadEl.innerHTML = '';
   chatEl.hidden  = true;
   heroEl.hidden  = false;
-  inputTop.value = '';
-  inputTop.focus();
+  input.placeholder = 'Ask about a stock — e.g. Is NVDA overvalued?';
+  input.value = '';
+  input.focus();
 });
 
 document.querySelectorAll('.ch-chip').forEach(b => {
@@ -65,7 +63,7 @@ document.querySelectorAll('.ch-chip').forEach(b => {
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
-    (chatEl.hidden ? inputTop : inputBot).focus();
+    input.focus();
   }
 });
 
@@ -81,8 +79,8 @@ async function send(text) {
   messages.push({ role: 'user', content: text });
   saveHistory();
   appendMessage('user', text);
-  inputTop.value = '';
-  inputBot.value = '';
+  input.value = '';
+  input.placeholder = 'Ask anything…';
 
   pending = true;
   const loadingNode = appendLoading();
@@ -107,7 +105,7 @@ async function send(text) {
     appendMessage('assistant', `**Error:** ${err.message || err}`, [], [], true);
   } finally {
     pending = false;
-    inputBot.focus();
+    input.focus();
   }
 }
 

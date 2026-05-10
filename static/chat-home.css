@@ -156,7 +156,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   flex-direction: column;
   width: 100%;
   min-height: 0;
-  padding-top: 20px;
+  padding-top: 12px;
 }
 .ch-thread {
   flex: 1;
@@ -409,13 +409,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-table td.ch-cell-pos { color: #3d9e6e; }
 .ch-table td.ch-cell-neg { color: #b84444; }
 
-/* Bottom input */
+/* Single bottom input — always pinned */
 .ch-input-wrap-bottom {
   margin: 10px 0 20px;
-  position: sticky;
-  bottom: 0;
-  background: var(--bg);
-  padding-top: 8px;
+  flex-shrink: 0;
 }
 
 /* ── Responsive ───────────────────────────────────── */

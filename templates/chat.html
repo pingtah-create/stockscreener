@@ -29,14 +29,6 @@
   <section class="ch-hero" id="chHero">
     <h1 class="ch-hero-title">Your AI Wall Street analyst.</h1>
     <p class="ch-hero-sub">Ask anything about a stock. Mention a ticker and I'll pull live fundamentals, technicals, and news.</p>
-
-    <form class="ch-input-wrap" id="chForm">
-      <input class="ch-input" id="chInput" type="text"
-             placeholder="Ask about a stock — e.g. Is NVDA overvalued?"
-             autocomplete="off" autofocus />
-      <button class="ch-send" type="submit" title="Send (Enter)">→</button>
-    </form>
-
     <div class="ch-suggestions" id="chSuggestions">
       <button class="ch-chip" data-q="Why is NVDA up today?">Why is NVDA up today?</button>
       <button class="ch-chip" data-q="Compare AAPL vs MSFT on growth and valuation">Compare AAPL vs MSFT</button>
@@ -46,15 +38,18 @@
     </div>
   </section>
 
-  <!-- CHAT state: messages + sticky input -->
+  <!-- CHAT state: messages -->
   <section class="ch-chat" id="chChat" hidden>
     <div class="ch-thread" id="chThread"></div>
-    <form class="ch-input-wrap ch-input-wrap-bottom" id="chFormBottom">
-      <input class="ch-input" id="chInputBottom" type="text"
-             placeholder="Ask anything…" autocomplete="off" />
-      <button class="ch-send" type="submit" title="Send (Enter)">→</button>
-    </form>
   </section>
+
+  <!-- Single input — always visible at the bottom -->
+  <form class="ch-input-wrap ch-input-wrap-bottom" id="chForm">
+    <input class="ch-input" id="chInput" type="text"
+           placeholder="Ask about a stock — e.g. Is NVDA overvalued?"
+           autocomplete="off" autofocus />
+    <button class="ch-send" type="submit" title="Send (Enter)">→</button>
+  </form>
 
 </main>
 
