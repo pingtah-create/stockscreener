@@ -7,7 +7,7 @@ import base64 as _b64
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response, Response, stream_with_context
 
 import yfinance as yf
 
@@ -1100,7 +1100,6 @@ def api_chat():
         except Exception as e:
             yield f"data: {_json.dumps({'type': 'error', 'error': str(e)})}\n\n"
 
-    from flask import stream_with_context
     return Response(
         stream_with_context(generate()),
         content_type="text/event-stream",
