@@ -122,8 +122,16 @@ document.getElementById('importFile').addEventListener('change', function () {
   if (!file) return;
   this.value = '';  // reset so same file can be re-imported
   const reader = new FileReader();
-  reader.onload = e => handleImport(file.name, e.target.result);
-  reader.readAsText(file);
+  reader.onload = e => {
+    const buf = e.target.result;
+    const b = new Uint8Array(buf.slice(0, 3));
+    let enc = 'utf-8';
+    if (b[0] === 0xFF && b[1] === 0xFE) enc = 'utf-16le';
+    else if (b[0] === 0xFE && b[1] === 0xFF) enc = 'utf-16be';
+    const text = new TextDecoder(enc).decode(buf);
+    handleImport(file.name, text);
+  };
+  reader.readAsArrayBuffer(file);
 });
 
 function handleImport(filename, text) {
@@ -178,38 +186,42 @@ function parseImportJSON(text) {
 }
 
 function parseImportCSV(text) {
-  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  // Strip BOM if TextDecoder left one (some decoders keep it)
+  const clean = text.replace(/^﻿/, '');
+  const lines = clean.trim().split(/\r?\n/).filter(l => l.trim());
   if (!lines.length) return [];
+
+  // Detect separator: tab beats comma when header line has tabs
+  const sep = lines[0].includes('\t') ? '\t' : ',';
 
   // Detect header row
   const first = lines[0].toLowerCase();
-  const hasHeader = /ticker|symbol|shares|quantity/.test(first);
-  const headers = hasHeader
-    ? lines[0].split(',').map(h => h.trim().toLowerCase())
-    : null;
+  const hasHeader = /ticker|symbol|shares|quantity|holdings/.test(first);
+  const rawHeaders = hasHeader ? lines[0].split(sep).map(h => h.trim().toLowerCase().replace(/^'/, '')) : null;
   const dataLines = hasHeader ? lines.slice(1) : lines;
 
-  // Column index resolvers
+  // Column index resolver
   const col = (row, ...names) => {
-    if (headers) {
-      for (const n of names) {
-        const i = headers.findIndex(h => h === n || h.includes(n));
-        if (i >= 0) return row[i]?.trim() || '';
-      }
+    if (!rawHeaders) return '';
+    for (const n of names) {
+      const i = rawHeaders.findIndex(h => h === n || h.includes(n));
+      if (i >= 0) return (row[i] ?? '').trim().replace(/^'/, '');
     }
     return '';
   };
 
   return dataLines.map(line => {
-    const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
-    if (headers) {
+    const parts = line.split(sep).map(s => s.trim().replace(/^"|"$/g, '').replace(/^'/, ''));
+    if (rawHeaders) {
       return {
-        ticker: col(parts, 'ticker', 'symbol') || parts[0] || '',
-        shares: col(parts, 'shares', 'quantity', 'qty') || parts[1] || null,
-        buyin:  col(parts, 'buyin', 'buy_price', 'avg_cost', 'cost', 'price') || parts[2] || null,
+        // Tiger: "symbol", generic: "ticker" / "symbol"
+        ticker: col(parts, 'symbol', 'ticker') || parts[0] || '',
+        // Tiger: "holdings", generic: "shares" / "quantity"
+        shares: col(parts, 'holdings', 'shares', 'quantity', 'qty') || parts[1] || null,
+        // Tiger: "cost (fifo)", generic: "cost" / "avg_cost" / "buy_price" / "price"
+        buyin:  col(parts, 'cost (fifo)', 'cost', 'avg_cost', 'buy_price', 'buyin', 'price') || parts[2] || null,
       };
     }
-    // No header: assume ticker, shares, buyin
     return { ticker: parts[0] || '', shares: parts[1] || null, buyin: parts[2] || null };
   });
 }
