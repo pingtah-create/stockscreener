@@ -118,6 +118,7 @@ window.addEventListener('DOMContentLoaded', () => {
   });
 
   setupChartSearch();
+  setupChartSidebarResize();
 
   // Update color swatch CSS var
   updateDrawColor(drawColor);
@@ -2441,4 +2442,43 @@ function fmtMCap(v) {
   if (v >= 1e9)  return '$'+(v/1e9) .toFixed(1)+'B';
   if (v >= 1e6)  return '$'+(v/1e6) .toFixed(1)+'M';
   return '$'+v;
+}
+
+function setupChartSidebarResize() {
+  const sidebar = document.getElementById('chartSidebar');
+  const resizer = document.getElementById('sidebarResizer');
+  if (!sidebar || !resizer) return;
+
+  const STORE_KEY = 'chart_sidebar_width';
+  const MIN = 140, MAX = 520;
+
+  const saved = parseInt(localStorage.getItem(STORE_KEY), 10);
+  if (saved >= MIN && saved <= MAX) sidebar.style.width = saved + 'px';
+
+  let startX, startW;
+
+  resizer.addEventListener('mousedown', e => {
+    startX = e.clientX;
+    startW = sidebar.getBoundingClientRect().width;
+    resizer.classList.add('dragging');
+    document.body.style.cursor = 'col-resize';
+    document.body.style.userSelect = 'none';
+
+    function onMove(e) {
+      const delta = startX - e.clientX;
+      const w = Math.min(MAX, Math.max(MIN, startW + delta));
+      sidebar.style.width = w + 'px';
+      if (chart) chart.timeScale().fitContent();
+    }
+    function onUp() {
+      resizer.classList.remove('dragging');
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      localStorage.setItem(STORE_KEY, parseInt(sidebar.style.width, 10));
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    }
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }

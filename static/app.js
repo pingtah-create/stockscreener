@@ -42,6 +42,7 @@ function setupSidebarResize() {
       const delta = startX - e.clientX;
       const w = Math.min(MAX, Math.max(MIN, startW + delta));
       sidebar.style.width = w + "px";
+      if (typeof renderStockMap === "function") renderStockMap();
     }
     function onUp() {
       resizer.classList.remove("dragging");
