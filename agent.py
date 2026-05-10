@@ -467,22 +467,20 @@ class FinBotDeps:
     indices_cache: dict
 
 
-SYSTEM_PROMPT = """You are FinBot — a sharp financial research agent embedded in a stock screener.
+SYSTEM_PROMPT = """You are FinBot — a sharp, opinionated financial analyst embedded in a stock screener.
 
-You have tools to look up fundamentals, technical signals, news, peer comparisons, earnings history, insider activity, analyst ratings, dividends, stock screening, options chains, and macro indicators (rates, VIX, gold, oil, GDP, inflation).
+You have tools to look up fundamentals, technicals, news, peer comparisons, earnings, insider activity, analyst ratings, dividends, stock screening, options chains, and macro indicators.
 
 Rules:
-- ALWAYS call tools to get real data before answering. Never invent numbers.
-- For "analyse X": call get_stock_fundamentals + get_technical_signals + get_recent_news + get_peer_comparison + get_analyst_consensus minimum.
-- For "compare X vs Y": call compare_stocks, then get_stock_fundamentals for each if needed.
-- For "find me stocks" / screening: call screen_stocks with appropriate sector/strategy.
-- For "what's happening in the market": call get_market_overview.
-- For competitor questions: call get_peer_comparison.
-- For options / derivatives questions: call get_options_chain.
-- For macro / economy / rates / inflation questions: call get_macro_indicators.
-- Format with markdown: **bold** key numbers, use bullet lists, clear section headers.
-- Give a clear verdict: bullish / bearish / neutral with the key reasons.
-- Be concise but thorough. Aim for 200-400 words for full analysis."""
+- ALWAYS call tools before answering. Never invent numbers.
+- Lead every answer with a verdict: **Bullish / Bearish / Neutral** + one-sentence reason.
+- Use specific numbers ("P/E 24x vs sector 18x"), never vague statements ("reasonably valued").
+- Be decisive. If the data points clearly one way, say so. Don't hedge on every point.
+- For comparisons: show a table, then name a clear winner.
+- For screening: return a results table, highlight top pick.
+- For macro: give current numbers then connect to market impact.
+- Keep answers focused: 150-300 words. No fluff, no "it's worth noting", no "importantly".
+- Format: verdict first → 2-3 bull points → 1-2 bear risks → one-line watch."""
 
 
 finbot: Agent[FinBotDeps, str] = Agent(
@@ -596,8 +594,7 @@ def get_macro_indicators() -> dict:
 
 
 
-def _format_stock_sections(data: dict) -> str:
-    """Render pre-formatted markdown sections from raw data dict."""
+def _format_stock_sections_UNUSED(data: dict) -> str:  # kept for reference only
     f  = data.get("fundamentals", {})
     t  = data.get("technicals", {})
     c  = data.get("consensus", {})
@@ -765,23 +762,15 @@ def _format_stock_sections(data: dict) -> str:
 
 
 def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
-    """Return a ticker if the message is a full stock analysis request."""
+    """Return a ticker if the message is a single-stock analysis request."""
     import re
     text_lower = text.lower().strip()
 
-    # Exclude queries that are clearly not single-stock analysis
+    # Exclude multi-stock / market-wide queries
     if any(w in text_lower for w in [" vs ", " versus ", "compare ", "comparison",
                                       "find me", "screen", "best stocks", "top stocks",
-                                      "market ", "macro ", "sector "]):
+                                      "market overview", "macro ", "which sector"]):
         return None
-
-    analysis_words = [
-        "analyze", "analyse", "analysis", "tell me about", "what do you think",
-        "should i buy", "should i sell", "overview", "research", "deep dive",
-        "breakdown", "report on", "thoughts on", "opinion on", "assess",
-        "evaluate", "review", "look at", "what about", "give me",
-    ]
-    has_intent = any(w in text_lower for w in analysis_words)
 
     ticker_universe = {s.get("symbol", "") for s in stock_cache}
     found = re.findall(r'\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b', text.upper())
@@ -790,51 +779,149 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
     if not valid:
         return None
 
-    # Bare ticker query (1-2 words, e.g. "NVDA" or "NVDA?")
-    if len(text.strip().split()) <= 2:
+    # Short query — bare ticker or very brief ("NVDA?", "tell me TSLA")
+    if len(text.strip().split()) <= 3:
         return valid[0]
 
-    return valid[0] if has_intent else None
+    # Broader intent phrases — natural language people actually use
+    analysis_words = [
+        "analyze", "analyse", "analysis", "tell me about", "what do you think",
+        "should i buy", "should i sell", "overview", "research", "deep dive",
+        "breakdown", "report on", "thoughts on", "opinion on", "assess",
+        "evaluate", "review", "look at", "what about", "give me",
+        "how is", "how's", "how about", "what's happening with",
+        "worth buying", "worth it", "good buy", "bad buy", "invest in",
+        "bullish on", "bearish on", "long on", "short on",
+    ]
+    return valid[0] if any(w in text_lower for w in analysis_words) else None
 
 
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
-    """Collect data for a single ticker and return formatted research sections."""
+    """Gather data for a single ticker then ask Gemini to write an opinionated analysis."""
     ticker = ticker.upper().strip()
 
     from screener import compute_swing_setup as _swing
     raw_stock = next((s for s in stock_cache if s.get("symbol") == ticker), None)
-    data = {
-        "fundamentals": tool_get_stock_fundamentals(ticker, stock_cache),
-        "technicals":   tool_get_technical_signals(ticker, stock_cache),
-        "news":         tool_get_recent_news(ticker, 5),
-        "consensus":    tool_get_analyst_consensus(ticker, stock_cache),
-        "peers":        tool_get_peer_comparison(ticker, stock_cache),
-        "earnings":     tool_get_earnings_info(ticker),
-        "swing":        _swing(raw_stock) if raw_stock else None,
+
+    f  = tool_get_stock_fundamentals(ticker, stock_cache)
+    t  = tool_get_technical_signals(ticker, stock_cache)
+    n  = tool_get_recent_news(ticker, 5)
+    c  = tool_get_analyst_consensus(ticker, stock_cache)
+    pe = tool_get_peer_comparison(ticker, stock_cache)
+    e  = tool_get_earnings_info(ticker)
+    sw = _swing(raw_stock) if raw_stock else None
+
+    def pct(v):  return f"{v*100:.1f}%" if v is not None else "—"
+    def fmt(v, d=1): return f"{v:.{d}f}" if v is not None else "—"
+
+    name   = f.get("name") or ticker
+    price  = f.get("price")
+    chg    = f.get("change_pct")
+    sector = f.get("sector") or ""
+
+    # Compact data brief for Gemini — token-efficient, no raw JSON
+    brief_lines = [
+        f"Stock: {ticker} ({name}) | Sector: {sector} | Industry: {f.get('industry') or ''}",
+        f"Price: ${fmt(price, 2)} ({'+' if chg and chg>0 else ''}{fmt(chg, 2)}%)",
+        "",
+        "VALUATION",
+        f"  P/E (TTM/Fwd): {fmt(f.get('pe_trailing'))} / {fmt(f.get('pe_forward'))}",
+        f"  P/B: {fmt(f.get('pb'))} | PEG: {fmt(f.get('peg'))} | EV/EBITDA: {fmt(f.get('ev_ebitda'))}",
+        f"  Market Cap: ${fmt(f.get('market_cap_b'), 1)}B",
+        "",
+        "GROWTH & PROFITABILITY",
+        f"  Revenue Growth: {pct(f.get('revenue_growth'))} | EPS Growth: {pct(f.get('earnings_growth'))}",
+        f"  Gross/Op/Net Margin: {pct(f.get('gross_margin'))} / {pct(f.get('operating_margin'))} / {pct(f.get('profit_margin'))}",
+        f"  ROE: {pct(f.get('roe'))} | D/E: {fmt(f.get('debt_equity'))}",
+        "",
+        "TECHNICALS",
+        f"  RSI-14: {fmt(t.get('rsi14'))} | 50DMA: ${fmt(t.get('50dma'), 2)} | 200DMA: ${fmt(t.get('200dma'), 2)}",
+        f"  Signals: {'; '.join(t.get('signals') or ['—'])}",
+    ]
+    if sw:
+        brief_lines += ["", f"SWING SETUP: {sw.get('type','')} | Entry ${fmt(sw.get('entry'),2)} | Stop ${fmt(sw.get('stop'),2)} | Target ${fmt(sw.get('target'),2)} | R:R {sw.get('rr')}x"]
+
+    dist = c.get("distribution") or {}
+    total = dist.get("total", 0)
+    buy_str = f"{dist.get('strong_buy',0)+dist.get('buy',0)} Buy / {dist.get('hold',0)} Hold / {dist.get('sell',0)+dist.get('strong_sell',0)} Sell ({total} analysts)" if total else "—"
+    brief_lines += [
+        "",
+        "ANALYST CONSENSUS",
+        f"  Rating: {(c.get('recommendation') or '—').upper()} | Target: ${fmt(c.get('target_mean'), 2)} (upside: {fmt(c.get('upside_pct'), 1)}%)",
+        f"  Distribution: {buy_str}",
+    ]
+    recent_grades = (c.get("recent_changes") or [])[:3]
+    for r in recent_grades:
+        arrow = "↑" if r.get("action") == "up" else "↓" if r.get("action") == "down" else "→"
+        brief_lines.append(f"  {r.get('date','')} {r.get('firm','')} {arrow} {r.get('from_grade','')} → {r.get('to_grade','')}")
+
+    eps_hist = (e.get("eps_history") or [])[-4:]
+    if eps_hist or e.get("next_earnings"):
+        brief_lines += ["", "EARNINGS"]
+        if e.get("next_earnings"):
+            brief_lines.append(f"  Next: {e['next_earnings']}")
+        for q in eps_hist:
+            surp = q.get("surprise_pct")
+            brief_lines.append(f"  {q.get('date','')} est ${fmt(q.get('eps_estimate'),2)} act ${fmt(q.get('eps_actual'),2)} ({'+' if surp and surp>0 else ''}{fmt(surp,1)}%)")
+
+    peers = (pe.get("peers") or [])[:4]
+    if peers:
+        brief_lines += ["", "PEERS (same industry, by market cap)"]
+        for p in peers:
+            brief_lines.append(f"  {p.get('ticker')} P/E {fmt(p.get('pe'))} RevGrowth {pct(p.get('rev_growth'))} Margin {pct(p.get('profit_margin'))}")
+
+    headlines = (n.get("headlines") or [])[:4]
+    if headlines:
+        brief_lines += ["", "RECENT NEWS"]
+        for h in headlines:
+            brief_lines.append(f"  - {h.get('title','')}")
+
+    data_brief = "\n".join(brief_lines)
+
+    prompt = f"""You are a sharp, opinionated stock analyst. Analyse {ticker} based on the data below.
+
+{data_brief}
+
+Write a clear, decisive analysis. Format:
+
+## {ticker} — {name}
+**${fmt(price, 2)}** {"(+" if chg and chg > 0 else "("}{fmt(chg, 2)}%)  ·  {sector}
+
+**Verdict: [BULLISH / BEARISH / NEUTRAL]** — one sentence, state the single most compelling reason.
+
+### Bull Case
+- 2-3 specific reasons with numbers from the data
+
+### Bear Case
+- 1-2 real risks with numbers
+
+### Key Numbers
+A compact table of the 6 most important metrics (pick the ones that matter most for this stock)
+
+### What to Watch
+One sentence: what would change this view.
+
+Rules: be direct and specific. Use the actual numbers. No hedging. No "it's important to note"."""
+
+    import requests as _req
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"gemini-2.5-flash:generateContent?key={api_key}")
+    body = {
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.35, "maxOutputTokens": 1024},
     }
-
-    name     = data["fundamentals"].get("name") or ticker
-    price    = data["fundamentals"].get("price")
-    chg      = data["fundamentals"].get("change_pct")
-    sector   = data["fundamentals"].get("sector", "")
-    industry = data["fundamentals"].get("industry", "")
-
-    chg_str = f" ({'+' if chg > 0 else ''}{chg:.2f}%)" if price and chg is not None else ""
-    header = f"## {ticker} — {name}"
-    if price:
-        header += f"\n**${price:.2f}**{chg_str}"
-    if sector:
-        header += f"  |  {sector}"
-        if industry:
-            header += f" · {industry}"
-
-    reply = f"{header}\n\n{_format_stock_sections(data)}"
+    try:
+        r = _req.post(url, json=body, timeout=30)
+        r.raise_for_status()
+        reply = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+    except Exception as ex:
+        reply = f"*Analysis unavailable: {ex}*"
 
     tools_used = [
         "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
         "get_analyst_consensus", "get_peer_comparison", "get_earnings_info",
     ]
-    return {"reply": reply, "tools_used": tools_used}
+    return {"reply": reply, "tools_used": tools_used, "tickers": [ticker]}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
