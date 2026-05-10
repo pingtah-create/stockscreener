@@ -4,15 +4,16 @@ const STORAGE_KEY = `stockdash_portfolio_v1_${window.CURRENT_USER || 'default'}`
 const COLORS = ['#4f8cff','#00bcd4','#ff9800','#f44336','#ab47bc','#26c6da',
                  '#ffd54f','#4db6ac','#ef5350','#42a5f5','#66bb6a','#ec407a'];
 
-let holdings  = [];
-let period    = '3mo';
-let lineInst  = null;
-let donutInst = null;
-let summaryTimer = null;
+let holdings       = [];
+let period         = '3mo';
+let lineInst       = null;
+let donutInst      = null;
+let tickerUniverse = [];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
+  loadTickerUniverse();   // fire-and-forget, populates dropdown
   try {
     const r = await fetch('/api/portfolio/holdings');
     if (r.ok) {
@@ -26,7 +27,62 @@ async function init() {
     holdings = _localLoad();
   }
   renderPills();
+  setupTickerSearch();
   if (holdings.length) fetchSummary();
+}
+
+async function loadTickerUniverse() {
+  try {
+    const r = await fetch('/api/screen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: {}, sort_by: 'marketCap', sort_dir: 'desc', page: 1, per_page: 300 }),
+    });
+    const data = await r.json();
+    tickerUniverse = data.results || [];
+  } catch {}
+}
+
+function setupTickerSearch() {
+  const input    = document.getElementById('tickerInput');
+  const dropdown = document.getElementById('tickerDropdown');
+  let debounce;
+
+  input.addEventListener('input', () => {
+    clearTimeout(debounce);
+    const q = input.value.trim().toUpperCase();
+    if (q.length < 1) { dropdown.classList.remove('open'); return; }
+    debounce = setTimeout(() => {
+      const found = tickerUniverse.filter(s =>
+        s.symbol?.toUpperCase().startsWith(q) ||
+        s.symbol?.toUpperCase().includes(q) ||
+        (s.shortName || '').toUpperCase().includes(q)
+      ).slice(0, 8);
+      if (!found.length) { dropdown.classList.remove('open'); return; }
+      dropdown.innerHTML = found.map(s => `
+        <div class="search-result-item" onclick="selectTicker('${s.symbol}')">
+          <span class="search-ticker">${s.symbol}</span>
+          <span class="search-name">${s.shortName || s.longName || '—'}</span>
+          <span class="search-sector">${s.sector || ''}</span>
+        </div>`).join('');
+      dropdown.classList.add('open');
+    }, 150);
+  });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { dropdown.classList.remove('open'); return; }
+    if (e.key === 'Enter')  { dropdown.classList.remove('open'); addHolding(); }
+  });
+
+  document.addEventListener('click', e => {
+    if (!input.closest('.port-ticker-wrap').contains(e.target)) dropdown.classList.remove('open');
+  });
+}
+
+function selectTicker(symbol) {
+  document.getElementById('tickerInput').value = symbol;
+  document.getElementById('tickerDropdown').classList.remove('open');
+  document.getElementById('sharesInput').focus();
 }
 
 function _localLoad() {
@@ -43,8 +99,7 @@ document.querySelectorAll('.port-period-btn').forEach(btn => {
   });
 });
 
-// Enter key on inputs
-document.getElementById('tickerInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHolding(); });
+// Enter key on shares/buyin — ticker Enter is handled in setupTickerSearch
 document.getElementById('sharesInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHolding(); });
 document.getElementById('buyinInput').addEventListener('keydown',  e => { if (e.key === 'Enter') addHolding(); });
 

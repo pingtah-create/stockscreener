@@ -34,7 +34,8 @@
 }
 
 /* ── Holdings input ───────────────────────────────────────────────── */
-.port-add-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.port-add-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: flex-start; }
+.port-ticker-wrap { position: relative; }
 
 .port-input {
   background: var(--bg);
