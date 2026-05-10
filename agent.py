@@ -466,7 +466,7 @@ _GROQ_BASE_URL   = "https://api.groq.com/openai/v1"
 
 def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
                max_tokens: int = 3000) -> str:
-    """POST to Groq with up to 3 retries on 429."""
+    """POST to Groq with up to 5 retries on 429."""
     import requests as _req, time as _time
     for attempt in range(5):
         r = _req.post(
@@ -478,12 +478,49 @@ def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
         )
         if r.status_code == 429:
             wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
-            _time.sleep(wait)  # honour Groq's Retry-After fully
+            _time.sleep(wait)
             continue
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
     r.raise_for_status()
     return ""
+
+
+def _groq_stream(api_key: str, messages: list, temperature: float = 0.5,
+                 max_tokens: int = 3000):
+    """Yields text chunks from a streaming Groq completion. Retries on 429."""
+    import requests as _req, time as _time, json as _json
+    for attempt in range(5):
+        r = _req.post(
+            f"{_GROQ_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _GROQ_CHAT_MODEL, "messages": messages,
+                  "temperature": temperature, "max_tokens": max_tokens,
+                  "stream": True},
+            stream=True, timeout=60,
+        )
+        if r.status_code == 429:
+            wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
+            _time.sleep(wait)
+            continue
+        r.raise_for_status()
+        for line in r.iter_lines():
+            if not line:
+                continue
+            line = line.decode() if isinstance(line, bytes) else line
+            if not line.startswith("data: "):
+                continue
+            payload = line[6:]
+            if payload == "[DONE]":
+                return
+            try:
+                text = _json.loads(payload)["choices"][0]["delta"].get("content", "")
+                if text:
+                    yield text
+            except Exception:
+                pass
+        return
+    r.raise_for_status()
 
 
 @dataclass
@@ -865,8 +902,8 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
 
 
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str,
-                        user_question: str = "") -> dict:
-    """Gather data for a single ticker then write an opinionated narrative analysis."""
+                        user_question: str = "", stream: bool = False):
+    """Gather data then write an opinionated narrative. Returns dict or generator when stream=True."""
     ticker = ticker.upper().strip()
 
     from screener import compute_swing_setup as _swing
@@ -1024,17 +1061,27 @@ Write 1–2 sentences framing the risk. Then add 2 bullet points for the most cr
 
 Rules: all numbers must come from DATA. Prose sections should feel like Bloomberg Opinion, not a research checklist. Bold metric names in bullet points."""
 
-    try:
-        reply = _groq_post(api_key, [{"role": "user", "content": prompt}],
-                           temperature=0.55, max_tokens=3000)
-    except Exception as ex:
-        reply = f"*Analysis unavailable: {ex}*"
-
-    tools_used = [
+    _tools_used = [
         "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
         "get_analyst_consensus", "get_peer_comparison", "get_earnings_info",
     ]
-    return {"reply": reply, "tools_used": tools_used, "tickers": [ticker]}
+    msgs = [{"role": "user", "content": prompt}]
+
+    if stream:
+        def _gen():
+            try:
+                for chunk in _groq_stream(api_key, msgs, temperature=0.55, max_tokens=3000):
+                    yield {"type": "chunk", "text": chunk}
+            except Exception as ex:
+                yield {"type": "chunk", "text": f"\n\n*Analysis unavailable: {ex}*"}
+            yield {"type": "done", "tools_used": _tools_used, "tickers": [ticker]}
+        return _gen()
+
+    try:
+        reply = _groq_post(api_key, msgs, temperature=0.55, max_tokens=3000)
+    except Exception as ex:
+        reply = f"*Analysis unavailable: {ex}*"
+    return {"reply": reply, "tools_used": _tools_used, "tickers": [ticker]}
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
@@ -1102,3 +1149,29 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
                 {"role": "user", "content": last_msg}]
         reply = _groq_post(api_key, msgs, temperature=0.5, max_tokens=2048)
         return {"reply": reply, "tools_used": []}
+
+
+def run_agent_stream(messages: list, stock_cache: list, indices_cache: dict, api_key: str):
+    """
+    Streaming version of run_agent. Yields dicts:
+      {"type": "chunk", "text": str}   — one or more times
+      {"type": "done",  "tools_used": list, "tickers": list}  — once, last
+    """
+    if not messages:
+        yield {"type": "chunk", "text": "No message provided."}
+        yield {"type": "done", "tools_used": [], "tickers": []}
+        return
+
+    last_msg = (messages[-1].get("content") or "").strip()
+
+    # Single-stock analysis → true Groq streaming
+    analysis_ticker = _detect_analysis_ticker(last_msg, stock_cache)
+    if analysis_ticker:
+        yield from run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key,
+                                       user_question=last_msg, stream=True)
+        return
+
+    # General agent (PydanticAI tool-calling) — run sync, yield result as one chunk
+    result = run_agent(messages, stock_cache, indices_cache, api_key)
+    yield {"type": "chunk", "text": result["reply"]}
+    yield {"type": "done", "tools_used": result.get("tools_used", []), "tickers": []}

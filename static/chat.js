@@ -91,15 +91,49 @@ async function send(text) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ messages: messages.slice(-MAX_HISTORY) }),
     });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
+    if (!r.ok) {
+      const err = await r.json().catch(() => ({}));
+      throw new Error(err.error || `HTTP ${r.status}`);
+    }
 
-    const reply = data.reply || '(empty response)';
-    const chartData = data.chart_data || null;
-    messages.push({ role: 'assistant', content: reply, tickers: data.tickers || [], tools_used: data.tools_used || [], chart_data: chartData });
-    saveHistory();
-    loadingNode.remove();
-    appendMessage('assistant', reply, data.tickers || [], data.tools_used || [], false, chartData);
+    const reader  = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '', fullText = '', msgNode = null;
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
+      const lines = buf.split('\n');
+      buf = lines.pop();  // keep incomplete line
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (evt.type === 'chunk') {
+          fullText += evt.text;
+          if (!msgNode) {
+            loadingNode.remove();
+            msgNode = appendStreamingMessage();
+          }
+          msgNode.querySelector('.ch-bubble').innerHTML = renderMarkdown(fullText);
+          threadEl.scrollTop = threadEl.scrollHeight;
+
+        } else if (evt.type === 'done') {
+          const tickers = evt.tickers || [], tools = evt.tools_used || [];
+          const chartData = evt.chart_data || null;
+          messages.push({ role: 'assistant', content: fullText, tickers, tools_used: tools, chart_data: chartData });
+          saveHistory();
+          if (msgNode) finaliseStreamingMessage(msgNode, fullText, tickers, tools, chartData);
+          else { loadingNode.remove(); appendMessage('assistant', fullText, tickers, tools, false, chartData); }
+
+        } else if (evt.type === 'error') {
+          throw new Error(evt.error);
+        }
+      }
+    }
   } catch (err) {
     loadingNode.remove();
     appendMessage('assistant', `**Error:** ${err.message || err}`, [], [], true);
@@ -136,6 +170,45 @@ function appendLoading() {
   const origRemove = row.remove.bind(row);
   row.remove = () => { row._clearTimer(); origRemove(); };
   return row;
+}
+
+function appendStreamingMessage() {
+  const row = document.createElement('div');
+  row.className = 'ch-msg ch-msg-assistant';
+  const bubble = document.createElement('div');
+  bubble.className = 'ch-bubble ch-bubble-streaming';
+  row.appendChild(bubble);
+  threadEl.appendChild(row);
+  return row;
+}
+
+function finaliseStreamingMessage(row, text, tickers, toolsUsed, chartData) {
+  const bubble = row.querySelector('.ch-bubble');
+  bubble.classList.remove('ch-bubble-streaming');
+  bubble.innerHTML = renderMarkdown(text);
+  colorTableCells(bubble);
+  if (chartData && chartData.type === 'sector' && chartData.data) {
+    row.appendChild(renderSectorChart(chartData.data));
+  }
+  if (tickers.length) {
+    const pills = document.createElement('div');
+    pills.className = 'ch-tickers';
+    tickers.forEach(t => {
+      const a = document.createElement('a');
+      a.className = 'ch-ticker-pill';
+      a.href = `/stock/${t}`;
+      a.textContent = t;
+      pills.appendChild(a);
+    });
+    row.appendChild(pills);
+  }
+  if (toolsUsed.length) {
+    const tools = document.createElement('div');
+    tools.className = 'ch-tools';
+    tools.textContent = `Tools: ${toolsUsed.join(', ')}`;
+    row.appendChild(tools);
+  }
+  threadEl.scrollTop = threadEl.scrollHeight;
 }
 
 function appendMessage(role, text, tickers = [], toolsUsed = [], isError = false, chartData = null) {

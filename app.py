@@ -1051,8 +1051,9 @@ def _extract_tickers(text: str) -> list[str]:
 @app.route("/api/chat", methods=["POST"])
 @auth.require_login_api
 def api_chat():
-    """Agentic multi-turn chat via Groq + PydanticAI tool-calling.
-    Body: {messages: [{role, content}, ...]}"""
+    """Streaming SSE chat endpoint.
+    Body: {messages: [{role, content}, ...]}
+    Yields: text/event-stream with 'chunk' and 'done' events."""
     _ensure_stocks_loaded()
     body     = request.json or {}
     messages = body.get("messages") or []
@@ -1063,37 +1064,48 @@ def api_chat():
     if not api_key:
         return jsonify({"error": "GROQ_API_KEY not set on server"}), 503
 
-    try:
-        from agent import run_agent
-        result     = run_agent(messages, _stock_cache, _indices_cache, api_key)
-        tickers    = _extract_tickers(result.get("reply", ""))
-        tools_used = result.get("tools_used", [])
+    import json as _json
+    stock_snap   = _stock_cache[:]
+    indices_snap = dict(_indices_cache)
 
-        chart_data = None
-        if "get_market_overview" in tools_used:
-            sectors: dict = {}
-            for s in _stock_cache:
-                sec = s.get("sector")
-                chg = s.get("regularMarketChangePercent")
-                if sec and chg is not None and not s.get("symbol", "").endswith(".TW"):
-                    if sec not in sectors:
-                        sectors[sec] = {"total": 0.0, "count": 0}
-                    sectors[sec]["total"] += chg
-                    sectors[sec]["count"] += 1
-            sector_perf = {
-                sec: round(v["total"] / v["count"], 2)
-                for sec, v in sectors.items() if v["count"] > 0
-            }
-            chart_data = {"type": "sector", "data": sector_perf}
+    def _build_chart(tools_used):
+        if "get_market_overview" not in tools_used:
+            return None
+        sectors: dict = {}
+        for s in stock_snap:
+            sec = s.get("sector")
+            chg = s.get("regularMarketChangePercent")
+            if sec and chg is not None and not s.get("symbol", "").endswith(".TW"):
+                if sec not in sectors:
+                    sectors[sec] = {"total": 0.0, "count": 0}
+                sectors[sec]["total"] += chg
+                sectors[sec]["count"] += 1
+        return {"type": "sector", "data": {
+            sec: round(v["total"] / v["count"], 2)
+            for sec, v in sectors.items() if v["count"] > 0
+        }}
 
-        return jsonify({
-            "reply":      result["reply"],
-            "tools_used": tools_used,
-            "tickers":    tickers,
-            "chart_data": chart_data,
-        })
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+    def generate():
+        from agent import run_agent_stream
+        full_text = ""
+        try:
+            for event in run_agent_stream(messages, stock_snap, indices_snap, api_key):
+                if event["type"] == "chunk":
+                    full_text += event["text"]
+                    yield f"data: {_json.dumps({'type': 'chunk', 'text': event['text']})}\n\n"
+                elif event["type"] == "done":
+                    tickers    = _extract_tickers(full_text)
+                    chart_data = _build_chart(event.get("tools_used", []))
+                    yield f"data: {_json.dumps({'type': 'done', 'tools_used': event.get('tools_used', []), 'tickers': tickers, 'chart_data': chart_data})}\n\n"
+        except Exception as e:
+            yield f"data: {_json.dumps({'type': 'error', 'error': str(e)})}\n\n"
+
+    from flask import stream_with_context
+    return Response(
+        stream_with_context(generate()),
+        content_type="text/event-stream",
+        headers={"X-Accel-Buffering": "no", "Cache-Control": "no-cache"},
+    )
 
 
 @app.route("/portfolio")
