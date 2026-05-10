@@ -108,6 +108,15 @@
 .port-period-btn:hover { color: var(--text2); }
 .port-period-btn.active { background: var(--bg3); color: var(--text); border-color: var(--border2); }
 
+/* ── Analyze row ──────────────────────────────────────────────────── */
+.port-analyze-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 4px 0;
+}
+
 /* ── Stats row ────────────────────────────────────────────────────── */
 .port-stats-row {
   display: grid;

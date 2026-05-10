@@ -1097,6 +1097,84 @@ def api_portfolio_holdings_save():
     return jsonify({"ok": True})
 
 
+@app.route("/api/portfolio/summary")
+@auth.require_login_api
+def api_portfolio_summary():
+    """Live price summary for the portfolio — no historical data, no AI."""
+    holdings = session.get("portfolio", [])
+    if not holdings:
+        return jsonify({"allocation": [], "metrics": {}})
+
+    allocation = []
+    total_value = 0.0
+    total_cost  = 0.0
+    has_cost    = False
+
+    for h in holdings:
+        ticker = h.get("ticker", "").upper()
+        shares = float(h.get("shares") or 0)
+        buyin  = h.get("buyin")
+        if not ticker or shares <= 0:
+            continue
+
+        data  = next((s for s in _stock_cache if s.get("symbol") == ticker), None)
+        price = (data.get("currentPrice") or data.get("previousClose")) if data else None
+        if price is None:
+            try:
+                info  = yf.Ticker(ticker).fast_info
+                price = getattr(info, "last_price", None) or getattr(info, "previous_close", None)
+            except Exception:
+                pass
+        if not price:
+            continue
+
+        value      = shares * price
+        total_value += value
+        cost_basis = shares * buyin if buyin else None
+        if cost_basis:
+            total_cost += cost_basis
+            has_cost = True
+
+        unreal     = round(value - cost_basis, 2)    if cost_basis is not None else None
+        unreal_pct = round(unreal / cost_basis * 100, 2) if cost_basis and cost_basis > 0 else None
+        sector     = (data.get("sector") or "Unknown") if data else "Unknown"
+        chg        = (data.get("regularMarketChangePercent") or 0) if data else 0
+
+        allocation.append({
+            "ticker":              ticker,
+            "shares":              shares,
+            "buyin":               buyin,
+            "price":               round(price, 2),
+            "change_pct":          round(chg, 2),
+            "value":               round(value, 2),
+            "cost_basis":          round(cost_basis, 2) if cost_basis else None,
+            "unrealized_pnl":      unreal,
+            "unrealized_pnl_pct":  unreal_pct,
+            "sector":              sector,
+        })
+
+    for a in allocation:
+        a["pct"] = round(a["value"] / total_value * 100, 1) if total_value > 0 else 0
+
+    allocation.sort(key=lambda a: -a["pct"])
+    top       = allocation[0] if allocation else {}
+    total_pnl = round(total_value - total_cost, 2) if has_cost else None
+    total_pnl_pct = round(total_pnl / total_cost * 100, 2) if has_cost and total_cost else None
+
+    return jsonify({
+        "allocation": allocation,
+        "metrics": {
+            "total_value":          round(total_value, 2),
+            "total_cost":           round(total_cost, 2) if has_cost else None,
+            "total_pnl":            total_pnl,
+            "total_pnl_pct":        total_pnl_pct,
+            "num_stocks":           len(allocation),
+            "top_stock":            top.get("ticker"),
+            "top_concentration_pct": top.get("pct"),
+        },
+    })
+
+
 @app.route("/api/portfolio-analysis", methods=["POST"])
 @auth.require_login_api
 def api_portfolio_analysis():

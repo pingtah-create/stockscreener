@@ -38,7 +38,25 @@
       <button class="btn btn-secondary" onclick="addHolding()">+ Add</button>
     </div>
     <div class="port-pills" id="holdingsList"></div>
-    <div class="port-actions-row">
+  </div>
+
+  <!-- Live summary — auto-loaded whenever holdings exist -->
+  <div id="portSummary" style="display:none">
+
+    <!-- Stats -->
+    <div class="port-stats-row" id="portStats"></div>
+
+    <!-- Holdings table -->
+    <div class="port-card">
+      <div class="port-card-label" style="display:flex;align-items:center;justify-content:space-between">
+        <span>Positions</span>
+        <span id="priceStamp" style="font-weight:400;color:var(--text3);text-transform:none;letter-spacing:0"></span>
+      </div>
+      <div id="holdingsTable"></div>
+    </div>
+
+    <!-- Analyse deeper -->
+    <div class="port-analyze-row">
       <div class="port-period-btns">
         <button class="port-period-btn" data-period="1mo">1M</button>
         <button class="port-period-btn active" data-period="3mo">3M</button>
@@ -46,18 +64,15 @@
         <button class="port-period-btn" data-period="1y">1Y</button>
       </div>
       <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio()" style="padding:8px 22px;font-size:13px">
-        Analyze Portfolio →
+        Run Full Analysis →
       </button>
     </div>
+
   </div>
 
-  <!-- Results (hidden until first analysis) -->
-  <div id="portResults" style="display:none">
+  <!-- Deep analysis — only shown after Run Full Analysis -->
+  <div id="portAnalysis" style="display:none">
 
-    <!-- Stats row -->
-    <div class="port-stats-row" id="portStats"></div>
-
-    <!-- Charts -->
     <div class="port-charts-row">
       <div class="port-card">
         <div class="port-card-label">Performance vs S&amp;P 500</div>
@@ -72,25 +87,19 @@
       </div>
     </div>
 
-    <!-- Holdings table -->
-    <div class="port-card">
-      <div class="port-card-label">Positions</div>
-      <div id="holdingsTable"></div>
-    </div>
-
-    <!-- AI analysis -->
     <div class="port-card">
       <div class="port-card-label">AI Analysis</div>
       <div class="port-analysis-body" id="analysisBody"></div>
     </div>
 
   </div>
+
 </div>
 
-<!-- Loading overlay -->
+<!-- Loading overlay (for full analysis only) -->
 <div class="port-loading" id="portLoading" style="display:none">
   <div class="port-spinner"></div>
-  <span>Fetching prices &amp; analysing…</span>
+  <span>Fetching historical data &amp; running AI analysis…</span>
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
