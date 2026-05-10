@@ -6,6 +6,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setupSearch();
   setupKeyboardShortcuts();
   setupWatchlist();
+  setupSidebarResize();
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
   await loadIndices();
@@ -16,6 +17,44 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof loadStockMap === "function") setInterval(loadStockMap, 60000);
   setInterval(loadWatchlist, 30000);
 });
+
+function setupSidebarResize() {
+  const sidebar  = document.getElementById("dbSidebar");
+  const resizer  = document.getElementById("sidebarResizer");
+  if (!sidebar || !resizer) return;
+
+  const STORE_KEY = "db_sidebar_width";
+  const MIN = 140, MAX = 520;
+
+  const saved = parseInt(localStorage.getItem(STORE_KEY), 10);
+  if (saved >= MIN && saved <= MAX) sidebar.style.width = saved + "px";
+
+  let startX, startW;
+
+  resizer.addEventListener("mousedown", e => {
+    startX = e.clientX;
+    startW = sidebar.getBoundingClientRect().width;
+    resizer.classList.add("dragging");
+    document.body.style.cursor = "col-resize";
+    document.body.style.userSelect = "none";
+
+    function onMove(e) {
+      const delta = startX - e.clientX;
+      const w = Math.min(MAX, Math.max(MIN, startW + delta));
+      sidebar.style.width = w + "px";
+    }
+    function onUp() {
+      resizer.classList.remove("dragging");
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+      localStorage.setItem(STORE_KEY, parseInt(sidebar.style.width, 10));
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    }
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+  });
+}
 
 async function preloadStocksForSearch() {
   try {

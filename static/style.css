@@ -787,11 +787,29 @@ body {
 
 .db-sidebar {
   width: 240px;
+  min-width: 140px;
+  max-width: 520px;
   flex-shrink: 0;
   border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
+}
+
+.db-sidebar-resizer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 5px;
+  cursor: col-resize;
+  z-index: 10;
+}
+.db-sidebar-resizer:hover,
+.db-sidebar-resizer.dragging {
+  background: var(--accent);
+  opacity: 0.35;
 }
 
 .db-sidebar-header {
