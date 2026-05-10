@@ -21,7 +21,7 @@ const CHART_OPT = {
 };
 
 // ── State ──────────────────────────────────────────────────────────
-let priceChart, volChart, oscChart;
+let priceChart, oscChart;
 let candleSeries, linePriceSeries;
 let volSeries;
 let oscSeriesList = [];
@@ -126,19 +126,11 @@ window.addEventListener('DOMContentLoaded', () => {
 
 // ── Create charts ──────────────────────────────────────────────────
 function initCharts() {
-  const volPanel = document.getElementById('volPanel');
   const oscPanel = document.getElementById('oscPanel');
 
   priceChart = LC.createChart(pricePanel, {
     ...CHART_OPT,
-    rightPriceScale: { ...CHART_OPT.rightPriceScale },
-  });
-
-  volChart = LC.createChart(volPanel, {
-    ...CHART_OPT,
-    crosshair: { ...CHART_OPT.crosshair },
-    rightPriceScale: { ...CHART_OPT.rightPriceScale, scaleMargins: { top: 0.1, bottom: 0 } },
-    timeScale: { ...CHART_OPT.timeScale, visible: false },
+    rightPriceScale: { ...CHART_OPT.rightPriceScale, scaleMargins: { top: 0.06, bottom: 0.22 } },
   });
 
   oscChart = LC.createChart(oscPanel, {
@@ -182,18 +174,15 @@ function initCharts() {
       }
     };
   }
-  priceChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(priceChart, [volChart, oscChart]));
-  volChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(volChart, [priceChart, oscChart]));
-  oscChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(oscChart, [priceChart, volChart]));
+  priceChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(priceChart, [oscChart]));
+  oscChart.timeScale().subscribeVisibleLogicalRangeChange(makeSyncListener(oscChart, [priceChart]));
 
-  // Crosshair sync: overlay lines on vol + osc panels
-  const volLine = createSyncLine(volPanel);
+  // Crosshair sync: overlay line on osc panel
   const oscLine = createSyncLine(oscPanel);
   const priLine = createSyncLine(pricePanel);
 
   priceChart.subscribeCrosshairMove(p => {
     updateOHLCV(p);
-    syncLine(volChart,  volLine,  p.time);
     syncLine(oscChart,  oscLine,  p.time);
     markRender();
     if (p.time && newsData[String(p.time)]) showNewsTooltip(String(p.time));
@@ -218,13 +207,8 @@ function initCharts() {
       hideNewsTooltip();
     });
   }
-  volChart.subscribeCrosshairMove(p => {
-    syncLine(priceChart, priLine, p.time);
-    syncLine(oscChart,   oscLine, p.time);
-  });
   oscChart.subscribeCrosshairMove(p => {
     syncLine(priceChart, priLine, p.time);
-    syncLine(volChart,   volLine, p.time);
   });
 }
 
@@ -275,14 +259,16 @@ function buildPriceSeries() {
   addLine('#ffd54f', 3 /*large-dashed*/, IND_ON.vwap, 'vwap');
 }
 
-// ── Volume series ──────────────────────────────────────────────────
+// ── Volume series (overlay at bottom of price chart) ───────────────
 function buildVolSeries() {
-  volSeries = volChart.addHistogramSeries({
+  volSeries = priceChart.addHistogramSeries({
     color: '#26a69a',
     priceFormat: { type: 'volume' },
-    priceScaleId: '',
+    priceScaleId: 'vol',
+    lastValueVisible: false,
+    priceLineVisible: false,
   });
-  volChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+  priceChart.priceScale('vol').applyOptions({ scaleMargins: { top: 0.8, bottom: 0 } });
 }
 
 // ── Oscillator series ──────────────────────────────────────────────
@@ -640,7 +626,7 @@ function scrollChartToDate(dateStr) {
   const idx = chartData.ohlcv.findIndex(b => b.date === dateStr);
   if (idx < 0) return;
   const barsFromEnd = chartData.ohlcv.length - 1 - idx;
-  chart.timeScale().scrollToPosition(-barsFromEnd + 10, true);
+  priceChart.timeScale().scrollToPosition(-barsFromEnd + 10, true);
 }
 
 function findNearestDate(target, chartDates) {
@@ -2471,7 +2457,7 @@ function setupChartSidebarResize() {
       const delta = startX - e.clientX;
       const w = Math.min(MAX, Math.max(MIN, startW + delta));
       sidebar.style.width = w + 'px';
-      if (chart) chart.timeScale().fitContent();
+      if (priceChart) priceChart.timeScale().fitContent();
     }
     function onUp() {
       resizer.classList.remove('dragging');
