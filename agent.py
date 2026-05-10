@@ -594,48 +594,6 @@ def get_macro_indicators() -> dict:
 
 # ── DEBATE AGENTS (Bull / Bear / Verdict) ────────────────────────────────────
 
-_bull_agent: Agent[None, str] = Agent(
-    system_prompt="""You are a bullish equity analyst at a top hedge fund.
-Given detailed stock data, make the strongest possible case FOR buying this stock.
-Be specific — cite actual numbers from the data.
-Write 6-8 detailed bullet points (using "- " prefix) covering:
-- Valuation thesis: is it cheap or fair relative to growth?
-- Revenue and earnings growth trajectory
-- Technical momentum signals
-- Competitive position and business moat
-- Analyst sentiment and price target upside
-- Earnings beat/miss pattern and guidance outlook
-- Any favorable insider or institutional signals
-- Risk/reward asymmetry arguments
-Be detailed and analytical, not vague. No preamble, no headers.""",
-)
-
-_bear_agent: Agent[None, str] = Agent(
-    system_prompt="""You are a bearish equity analyst (short-seller perspective) at a top hedge fund.
-Given detailed stock data, make the strongest possible case AGAINST buying this stock.
-Be specific — cite actual numbers from the data.
-Write 6-8 detailed bullet points (using "- " prefix) covering:
-- Valuation concerns: overvalued vs peers or growth rate?
-- Revenue slowdown or margin compression risks
-- Technical weakness or breakdown signals
-- Competitive threats and market share erosion risk
-- Debt load, cash burn, or financial health concerns
-- Earnings miss history or guidance risk
-- Any concerning insider selling or short interest
-- Macro headwinds specific to this sector/company
-Be detailed and analytical, not vague. No preamble, no headers.""",
-)
-
-_verdict_agent: Agent[None, str] = Agent(
-    system_prompt="""You are the head of a trading desk making the final trade decision.
-You receive a bull case and bear case for a stock. Respond with exactly:
-
-**Verdict: BUY / HOLD / SELL** · Confidence: XX%
-**Entry:** $XXX–$XXX | **Stop:** $XXX | **Target:** $XXX
-[3-4 sentence rationale: which side wins, the key deciding factor, and the main risk to monitor]
-
-Omit Entry/Stop/Target line for HOLD or SELL.""",
-)
 
 
 def _format_stock_sections(data: dict) -> str:
@@ -840,18 +798,9 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
 
 
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
-    """
-    3-stage bull/bear/verdict debate for a single ticker.
-    Stage 1: collect data directly from tool functions (no LLM).
-    Stage 2: bull + bear agents run in parallel.
-    Stage 3: verdict agent synthesises both.
-    """
-    from pydantic_ai.settings import ModelSettings
-
+    """Collect data for a single ticker and return formatted research sections."""
     ticker = ticker.upper().strip()
-    model  = GeminiModel("gemini-2.5-flash", provider=GoogleGLAProvider(api_key=api_key))
 
-    # ── Stage 1: collect data ─────────────────────────────────
     from screener import compute_swing_setup as _swing
     raw_stock = next((s for s in stock_cache if s.get("symbol") == ticker), None)
     data = {
@@ -863,42 +812,14 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
         "earnings":     tool_get_earnings_info(ticker),
         "swing":        _swing(raw_stock) if raw_stock else None,
     }
-    data_text = json.dumps(data, default=str)
-    analyst_prompt = f"Ticker: {ticker}\n\nData:\n{data_text}"
 
-    # ── Stage 2: bull + bear sequentially ────────────────────
-    settings_creative = ModelSettings(temperature=0.4, max_tokens=512)
-
-    bull_case = _bull_agent.run_sync(analyst_prompt, model=model,
-                                     model_settings=settings_creative).output
-    bear_case = _bear_agent.run_sync(analyst_prompt, model=model,
-                                     model_settings=settings_creative).output
-
-    # ── Stage 3: verdict ──────────────────────────────────────
-    verdict_prompt = f"""Ticker: {ticker}
-
-BULL CASE:
-{bull_case}
-
-BEAR CASE:
-{bear_case}"""
-
-    verdict = _verdict_agent.run_sync(
-        verdict_prompt, model=model,
-        model_settings=ModelSettings(temperature=0.2, max_tokens=256),
-    ).output
-
-    # ── Format final reply ────────────────────────────────────
-    name  = data["fundamentals"].get("name") or ticker
-    price = data["fundamentals"].get("price")
-    chg   = data["fundamentals"].get("change_pct")
+    name     = data["fundamentals"].get("name") or ticker
+    price    = data["fundamentals"].get("price")
+    chg      = data["fundamentals"].get("change_pct")
     sector   = data["fundamentals"].get("sector", "")
     industry = data["fundamentals"].get("industry", "")
 
-    chg_str = ""
-    if price and chg is not None:
-        chg_str = f" ({'+' if chg > 0 else ''}{chg:.2f}%)"
-
+    chg_str = f" ({'+' if chg > 0 else ''}{chg:.2f}%)" if price and chg is not None else ""
     header = f"## {ticker} — {name}"
     if price:
         header += f"\n**${price:.2f}**{chg_str}"
@@ -907,21 +828,7 @@ BEAR CASE:
         if industry:
             header += f" · {industry}"
 
-    sections = _format_stock_sections(data)
-
-    reply = f"""{header}
-
-{sections}
----
-
-### 🐂 Bull Case
-{bull_case}
-
-### 🐻 Bear Case
-{bear_case}
-
-### ⚖️ Verdict
-{verdict}"""
+    reply = f"{header}\n\n{_format_stock_sections(data)}"
 
     tools_used = [
         "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
