@@ -639,7 +639,10 @@ body {
   letter-spacing: 0.1em;
   color: var(--text3);
   flex-shrink: 0;
+  text-decoration: none;
+  transition: color var(--transition);
 }
+.db-brand:hover { color: var(--text2); }
 
 .db-indices {
   display: flex;
