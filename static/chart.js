@@ -563,40 +563,84 @@ function showAlertToast(msg) {
   setTimeout(() => t.remove(), 6000);
 }
 
-// ── News markers ────────────────────────────────────────────────────
+// ── News events (AI-analyzed key price movers) ──────────────────────
 async function loadNewsMarkers() {
   if (!chartData?.ohlcv?.length) return;
-  try {
-    const items = await fetch(`/api/news/${TICKER}`).then(r => r.json());
 
-    // Clear previous
+  // Show loading state in sidebar
+  const feed = document.getElementById('sidebarNewsFeed');
+  if (feed) feed.innerHTML = '<div class="fund-loading">Analysing key events…</div>';
+
+  try {
+    const events = await fetch(`/api/news-events/${TICKER}`).then(r => r.json());
+
     for (const k in newsData) delete newsData[k];
 
-    const chartDates = chartData.ohlcv.map(x => x.date);
-    const lastDate   = chartDates[chartDates.length - 1];
-
-    for (const item of items) {
-      if (!item.date) continue;
-      const nearest = findNearestDate(item.date, chartDates);
-      if (!nearest) continue;
-      if (!newsData[nearest]) newsData[nearest] = [];
-      newsData[nearest].push(item);
+    if (events.error || !Array.isArray(events) || !events.length) {
+      renderNewsEvents([]);
+      return;
     }
 
-    // One marker per date that has news — show all within the chart range
-    const allDates = Object.keys(newsData).sort();
-    _newsMarkers = allDates.map(date => ({
-      time:     date,
-      position: 'belowBar',
-      color:    '#ff6b00',
-      shape:    'circle',
-      text:     newsData[date].length > 1 ? `${newsData[date].length}` : '',
-      size:     0.8,
-    }));
-    flushMarkers();
+    const chartDates = chartData.ohlcv.map(x => x.date);
+    _newsMarkers = [];
 
-    renderSidebarNews(items);
-  } catch (e) {}
+    for (const ev of events) {
+      if (!ev.date) continue;
+      const nearest = findNearestDate(ev.date, chartDates);
+      if (!nearest) continue;
+
+      newsData[nearest] = [{ title: ev.headline, publisher: '', link: ev.url || '', summary: ev.summary, pct: ev.pct }];
+
+      const isUp = ev.direction === 'up';
+      _newsMarkers.push({
+        time:     nearest,
+        position: isUp ? 'belowBar' : 'aboveBar',
+        color:    isUp ? '#3d9e6e' : '#b84444',
+        shape:    isUp ? 'arrowUp' : 'arrowDown',
+        text:     (ev.pct > 0 ? '+' : '') + (ev.pct || 0).toFixed(1) + '%',
+        size:     1,
+      });
+    }
+
+    flushMarkers();
+    renderNewsEvents(events);
+  } catch (e) {
+    renderNewsEvents([]);
+  }
+}
+
+function renderNewsEvents(events) {
+  const feed = document.getElementById('sidebarNewsFeed');
+  if (!feed) return;
+
+  if (!events || !events.length) {
+    feed.innerHTML = '<div class="fund-loading">No key events found</div>';
+    return;
+  }
+
+  feed.innerHTML = events.map(ev => {
+    const pct    = ev.pct || 0;
+    const pctStr = (pct > 0 ? '+' : '') + pct.toFixed(1) + '%';
+    const isUp   = ev.direction === 'up';
+    return `<div class="nevent-item ${isUp ? 'nevent-up' : 'nevent-down'}"
+         onclick="scrollChartToDate('${ev.date}')">
+      <div class="nevent-top">
+        <span class="nevent-date">${ev.date || ''}</span>
+        <span class="nevent-pct ${isUp ? 'nevent-pct-up' : 'nevent-pct-dn'}">${pctStr}</span>
+      </div>
+      <div class="nevent-headline">${ev.headline || ''}</div>
+      <div class="nevent-summary">${ev.summary || ''}</div>
+      ${ev.url ? `<a class="nevent-link" href="${ev.url}" target="_blank" rel="noopener noreferrer" onclick="event.stopPropagation()">Read more →</a>` : ''}
+    </div>`;
+  }).join('');
+}
+
+function scrollChartToDate(dateStr) {
+  if (!chart || !chartData?.ohlcv?.length) return;
+  const idx = chartData.ohlcv.findIndex(b => b.date === dateStr);
+  if (idx < 0) return;
+  const barsFromEnd = chartData.ohlcv.length - 1 - idx;
+  chart.timeScale().scrollToPosition(-barsFromEnd + 10, true);
 }
 
 function findNearestDate(target, chartDates) {
@@ -612,36 +656,6 @@ function findNearestDate(target, chartDates) {
   return bestDiff < 86400000 * 7 ? best : null;  // up to 7 days gap (handles long holidays)
 }
 
-const SENT_POS = /\b(beat|beats|surge|surged|soar|soared|record|raised|raise|upgrade|upgraded|outperform|strong|profit|wins|win|bullish|growth|breakthrough|rises|rise|rally|rallied|high|higher|boost|boosts|tops|top|exceed|exceeds)\b/i;
-const SENT_NEG = /\b(miss|misses|missed|cut|cuts|downgrade|downgraded|warning|loss|losses|weak|decline|declines|falls|fall|below|disappoint|disappoints|bearish|risk|risks|caution|slump|slumps|crash|crashes|lower|plunge|plunges|warns|warned)\b/i;
-
-function newsSentiment(title) {
-  const pos = SENT_POS.test(title);
-  const neg = SENT_NEG.test(title);
-  if (pos && !neg) return '<span class="snews-sent sent-pos">●</span>';
-  if (neg && !pos) return '<span class="snews-sent sent-neg">●</span>';
-  return '<span class="snews-sent" style="color:var(--text3)">●</span>';
-}
-
-function renderSidebarNews(items) {
-  const feed = document.getElementById('sidebarNewsFeed');
-  if (!feed) return;
-  if (!items.length) { feed.innerHTML = '<div class="fund-loading">No news found</div>'; return; }
-  feed.innerHTML = items.slice(0, 15).map(n => {
-    const age = n.age_min == null ? '' :
-      n.age_min < 60   ? `${n.age_min}m ago` :
-      n.age_min < 1440 ? `${Math.floor(n.age_min / 60)}h ago` :
-      `${Math.floor(n.age_min / 1440)}d ago`;
-    return `<a class="snews-item" href="${n.link}" target="_blank" rel="noopener noreferrer">
-      <div class="snews-title">${n.title}</div>
-      <div class="snews-meta">
-        ${newsSentiment(n.title)}
-        <span class="snews-pub">${n.publisher || ''}</span>
-        ${age ? `<span>·</span><span>${age}</span>` : ''}
-      </div>
-    </a>`;
-  }).join('');
-}
 
 let _lastNewsDate = null;
 let _newsTipHovered = false;
@@ -658,21 +672,14 @@ function showNewsTooltip(date) {
   if (_lastNewsDate === date && tooltip.style.display === 'block') return;
   _lastNewsDate = date;
 
+  const ev = items[0];
+  const pct = ev.pct != null ? ((ev.pct > 0 ? '+' : '') + ev.pct.toFixed(1) + '%') : '';
   tooltip.innerHTML = `
-    <div class="nmt-header">📰 News · ${date}</div>
-    ${items.map(n => {
-      const age = n.age_min == null ? '' :
-        n.age_min < 60   ? `${n.age_min}m ago` :
-        n.age_min < 1440 ? `${Math.floor(n.age_min / 60)}h ago` :
-        `${Math.floor(n.age_min / 1440)}d ago`;
-      return `<div class="nmt-item" onclick="window.open('${n.link}','_blank')">
-        <div class="nmt-title">${n.title}</div>
-        <div class="nmt-meta">
-          <span class="nmt-pub">${n.publisher || ''}</span>
-          ${age ? `<span class="nmt-age">· ${age}</span>` : ''}
-        </div>
-      </div>`;
-    }).join('')}`;
+    <div class="nmt-header">${pct ? `<span style="color:${ev.pct>0?'var(--green)':'var(--red)'}; margin-right:5px">${pct}</span>` : ''}${date}</div>
+    <div class="nmt-item" ${ev.link ? `onclick="window.open('${ev.link}','_blank')"` : ''} style="${ev.link ? 'cursor:pointer' : ''}">
+      <div class="nmt-title">${ev.title || ''}</div>
+      ${ev.summary ? `<div class="nmt-meta" style="margin-top:3px;color:var(--text2);font-size:10px;line-height:1.4">${ev.summary}</div>` : ''}
+    </div>`;
 
   // Fixed position — top-left of the price panel, never moves
   tooltip.style.left = '60px';

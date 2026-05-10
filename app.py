@@ -521,6 +521,107 @@ def api_news_ticker(ticker: str):
         return jsonify([])
 
 
+@app.route("/api/news-events/<ticker>")
+@auth.require_login_api
+def api_news_events(ticker: str):
+    """AI-identified key price-moving events. Cached 6h."""
+    ticker = ticker.upper()
+    p = _INTEL_DIR / f"{ticker}_newsevents.json"
+    if p.exists():
+        age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
+        if age < 6 * 3600:
+            try:
+                return jsonify(json.loads(p.read_text()))
+            except Exception:
+                p.unlink(missing_ok=True)
+
+    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GEMINI_API_KEY not set"}), 503
+
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="3mo", interval="1d", auto_adjust=True)
+        if hist.empty:
+            return jsonify([])
+
+        closes = hist["Close"].dropna()
+        pcts = closes.pct_change() * 100
+
+        # Top significant moves by absolute size
+        sig = pcts[pcts.abs() > 2.5].copy()
+        if len(sig) < 3:
+            sig = pcts.dropna().copy()
+        sig = sig.reindex(sig.abs().sort_values(ascending=False).index).head(8)
+
+        news_items = _parse_news(t.news, 60)
+
+        moves = []
+        for ts, pct_val in sig.items():
+            date_str = str(ts.date()) if hasattr(ts, "date") else str(ts)[:10]
+            pct_val = round(float(pct_val), 2)
+            try:
+                move_dt = datetime.strptime(date_str, "%Y-%m-%d")
+            except Exception:
+                continue
+            nearby = []
+            for n in news_items:
+                if not n.get("date"):
+                    continue
+                try:
+                    nd = datetime.strptime(n["date"], "%Y-%m-%d")
+                    if abs((nd - move_dt).days) <= 4:
+                        nearby.append({"title": n["title"], "publisher": n.get("publisher", ""), "link": n.get("link", "")})
+                except Exception:
+                    continue
+            moves.append({"date": date_str, "pct": pct_val, "nearby_news": nearby[:5]})
+
+        if not moves:
+            return jsonify([])
+
+        moves.sort(key=lambda x: x["date"])
+
+        import google.generativeai as genai
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel("gemini-2.0-flash")
+
+        prompt = f"""You are a financial analyst. For the stock {ticker}, each entry below is a significant daily price move with nearby news headlines.
+
+For each move, identify the most likely catalyst and explain in one concise sentence what drove it.
+
+Data:
+{json.dumps(moves, indent=2)}
+
+Return ONLY a JSON array, no markdown or extra text:
+[
+  {{
+    "date": "YYYY-MM-DD",
+    "pct": <number>,
+    "direction": "up" or "down",
+    "headline": "<short event name or headline, max 80 chars>",
+    "summary": "<one sentence: what happened and why the stock moved that day>",
+    "url": "<url from nearby_news if relevant, else empty string>"
+  }}
+]
+
+Order by date descending. Include all {len(moves)} moves."""
+
+        resp = model.generate_content(prompt)
+        raw = resp.text.strip()
+        if "```" in raw:
+            parts = raw.split("```")
+            raw = parts[1] if len(parts) > 1 else raw
+            if raw.startswith("json"):
+                raw = raw[4:]
+
+        events = json.loads(raw.strip())
+        p.write_text(json.dumps(events))
+        return jsonify(events)
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 _movers_cache: dict = {"gainers": [], "losers": [], "at": None}
 _MOVERS_TTL = 120  # seconds
 
