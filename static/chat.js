@@ -2,7 +2,7 @@
 // Multi-turn conversation with localStorage persistence, tool-call display,
 // rotating loading messages, and link-out to /stock/<TICKER> pages.
 
-const STORAGE_KEY = 'stockdash_chat_v1';
+const STORAGE_KEY = `stockdash_chat_v1_${window.CURRENT_USER || 'default'}`;
 const MAX_HISTORY = 20;
 
 const heroEl    = document.getElementById('chHero');

@@ -3,20 +3,22 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Portfolio Analysis</title>
+  <title>Portfolio · Stockdash</title>
+  <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/portfolio.css" />
 </head>
 <body>
 
-<nav class="port-nav">
-  <a class="port-brand" href="/dashboard">◈ STOCKDASH</a>
-  <span class="port-nav-title">Portfolio</span>
-  <div class="port-nav-right">
-    <a href="/" class="port-nav-link">Chat</a>
-    <a href="/dashboard" class="port-nav-link">Dashboard</a>
+<nav class="db-nav">
+  <a class="db-brand" href="/dashboard">◈ STOCKDASH</a>
+  <span class="db-nav-sep">·</span>
+  <span class="db-nav-page">Portfolio</span>
+  <div class="db-nav-right">
+    <a href="/" class="btn btn-secondary sm">Chat</a>
+    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
     {% if current_user %}
-      <span class="port-nav-user">{{ current_user }}</span>
-      <a href="/logout" class="port-nav-link">Logout</a>
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm">Logout</a>
     {% endif %}
   </div>
 </nav>
@@ -33,7 +35,7 @@
              type="number" placeholder="Shares" min="0.001" step="any" />
       <input class="port-input port-buyin-input" id="buyinInput"
              type="number" placeholder="Buy price" min="0" step="any" />
-      <button class="port-add-btn" onclick="addHolding()">+ Add</button>
+      <button class="btn btn-secondary" onclick="addHolding()">+ Add</button>
     </div>
     <div class="port-pills" id="holdingsList"></div>
     <div class="port-actions-row">
@@ -43,7 +45,7 @@
         <button class="port-period-btn" data-period="6mo">6M</button>
         <button class="port-period-btn" data-period="1y">1Y</button>
       </div>
-      <button class="port-analyze-btn" id="analyzeBtn" onclick="analyzePortfolio()">
+      <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio()" style="padding:8px 22px;font-size:13px">
         Analyze Portfolio →
       </button>
     </div>
@@ -91,6 +93,7 @@
   <span>Fetching prices &amp; analysing…</span>
 </div>
 
+<script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="/static/portfolio.js"></script>
 </body>

@@ -1,15 +1,38 @@
 // portfolio.js
 
-const STORAGE_KEY = 'stockdash_portfolio_v1';
+const STORAGE_KEY = `stockdash_portfolio_v1_${window.CURRENT_USER || 'default'}`;
 const COLORS = ['#4f8cff','#00bcd4','#ff9800','#f44336','#ab47bc','#26c6da',
                  '#ffd54f','#4db6ac','#ef5350','#42a5f5','#66bb6a','#ec407a'];
 
-let holdings = loadHoldings();
+let holdings = [];
 let period   = '3mo';
 let lineInst = null;
 let donutInst = null;
 
-renderPills();
+// ── Init: load from server, fall back to localStorage ─────────────────────────
+
+async function init() {
+  try {
+    const r = await fetch('/api/portfolio/holdings');
+    if (r.ok) {
+      const data = await r.json();
+      holdings = Array.isArray(data) ? data : [];
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
+    } else {
+      holdings = _localLoad();
+    }
+  } catch {
+    holdings = _localLoad();
+  }
+  renderPills();
+}
+
+function _localLoad() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
 
 // Period buttons
 document.querySelectorAll('.port-period-btn').forEach(btn => {
@@ -27,15 +50,13 @@ document.getElementById('buyinInput').addEventListener('keydown',  e => { if (e.
 
 // ── Holdings management ───────────────────────────────────────────────────────
 
-function loadHoldings() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
-  } catch { return []; }
-}
-
 function saveHoldings() {
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
+  fetch('/api/portfolio/holdings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(holdings),
+  }).catch(() => {});
 }
 
 function addHolding() {
@@ -68,7 +89,7 @@ function removeHolding(ticker) {
 function renderPills() {
   const el = document.getElementById('holdingsList');
   if (!holdings.length) {
-    el.innerHTML = '<span style="color:#3a3a3a;font-size:12px">No holdings yet — add a ticker above</span>';
+    el.innerHTML = '<span style="color:var(--text3);font-size:12px">No holdings yet — add a ticker above</span>';
     return;
   }
   el.innerHTML = holdings.map(h => `
@@ -182,7 +203,7 @@ function renderLineChart(historical) {
         {
           label: 'S&P 500',
           data: benchPts,
-          borderColor: '#2e2e2e',
+          borderColor: '#444',
           borderWidth: 1.5,
           borderDash: [5, 4],
           pointRadius: 0,
@@ -195,9 +216,9 @@ function renderLineChart(historical) {
       responsive: true,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: '#555', font: { size: 11 }, boxWidth: 12, padding: 16 } },
+        legend: { labels: { color: '#888', font: { size: 11 }, boxWidth: 12, padding: 16 } },
         tooltip: {
-          backgroundColor: '#111',
+          backgroundColor: '#161616',
           borderColor: '#222',
           borderWidth: 1,
           titleColor: '#888',
@@ -209,16 +230,16 @@ function renderLineChart(historical) {
       },
       scales: {
         x: {
-          ticks: { color: '#3a3a3a', maxTicksLimit: 7, maxRotation: 0, font: { size: 11 } },
-          grid: { color: '#111' },
+          ticks: { color: '#444', maxTicksLimit: 7, maxRotation: 0, font: { size: 11 } },
+          grid: { color: '#1a1a1a' },
         },
         y: {
           ticks: {
-            color: '#3a3a3a',
+            color: '#444',
             font: { size: 11 },
             callback: v => `${v >= 0 ? '+' : ''}${v}%`,
           },
-          grid: { color: '#111' },
+          grid: { color: '#1a1a1a' },
         },
       },
     },
@@ -240,7 +261,7 @@ function renderDonut(allocation) {
       datasets: [{
         data: allocation.map(a => a.pct),
         backgroundColor: colors,
-        borderColor: '#0a0a0a',
+        borderColor: '#111',
         borderWidth: 2,
         hoverBorderWidth: 3,
       }],
@@ -251,7 +272,7 @@ function renderDonut(allocation) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#111',
+          backgroundColor: '#161616',
           borderColor: '#222',
           borderWidth: 1,
           bodyColor: '#ccc',
@@ -309,7 +330,7 @@ function renderTable(allocation, ticker_returns) {
             ${hasCost ? `<td>${a.cost_basis != null ? fmtV(a.cost_basis) : '—'}</td><td>${fmtPnl(a.unrealized_pnl, a.unrealized_pnl_pct)}</td>` : ''}
             <td>${a.pct.toFixed(1)}%</td>
             <td>${fmtR(retMap[a.ticker])}</td>
-            <td style="color:#444">${a.sector !== 'Unknown' ? a.sector : '—'}</td>
+            <td style="color:var(--text3)">${a.sector !== 'Unknown' ? a.sector : '—'}</td>
           </tr>`).join('')}
       </tbody>
     </table>`;
@@ -361,3 +382,6 @@ function renderMarkdown(s) {
   o = o.replace(/\n/g, '<br>');
   return `<p>${o}</p>`;
 }
+
+// ── Start ─────────────────────────────────────────────────────────────────────
+init();

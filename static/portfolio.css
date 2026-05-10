@@ -1,65 +1,13 @@
-/* portfolio.css */
+/* portfolio.css — portfolio-specific styles only; nav/buttons/base from style.css */
 
-:root {
-  --bg:     #0a0a0a;
-  --bg2:    #111;
-  --bg3:    #161616;
-  --text:   #e2e2e2;
-  --dim:    #888;
-  --faint:  #444;
-  --border: #1e1e1e;
-  --accent: #4f8cff;
-  --green:  #3d9e6e;
-  --red:    #b84444;
+/* ── Nav extras ───────────────────────────────────────────────────── */
+.db-nav-sep  { color: var(--text3); font-size: 12px; }
+.db-nav-page {
+  font-size: 11px; font-weight: 600; color: var(--text3);
+  letter-spacing: 0.06em; text-transform: uppercase;
 }
 
-* { box-sizing: border-box; margin: 0; padding: 0; }
-
-body {
-  background: var(--bg);
-  color: var(--text);
-  font-family: -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-  font-size: 14px;
-  line-height: 1.6;
-  -webkit-font-smoothing: antialiased;
-}
-
-/* ── Nav ──────────────────────────────────────────────────────── */
-.port-nav {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  padding: 0 24px;
-  height: 48px;
-  border-bottom: 1px solid var(--border);
-}
-.port-brand {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: var(--faint);
-  text-decoration: none;
-}
-.port-brand:hover { color: var(--dim); }
-.port-nav-title {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--dim);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-.port-nav-right { display: flex; align-items: center; gap: 4px; margin-left: auto; }
-.port-nav-link {
-  color: var(--faint);
-  font-size: 12px;
-  text-decoration: none;
-  padding: 4px 10px;
-  border-radius: 5px;
-}
-.port-nav-link:hover { color: var(--dim); }
-.port-nav-user { color: var(--faint); font-size: 12px; padding: 4px 8px; }
-
-/* ── Layout ───────────────────────────────────────────────────── */
+/* ── Layout ───────────────────────────────────────────────────────── */
 .port-layout {
   max-width: 1080px;
   margin: 0 auto;
@@ -69,7 +17,7 @@ body {
   gap: 16px;
 }
 
-/* ── Cards ────────────────────────────────────────────────────── */
+/* ── Cards ────────────────────────────────────────────────────────── */
 .port-card, .port-input-card {
   background: var(--bg2);
   border: 1px solid var(--border);
@@ -81,12 +29,12 @@ body {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--faint);
+  color: var(--text3);
   margin-bottom: 14px;
 }
 
-/* ── Holdings input ───────────────────────────────────────────── */
-.port-add-row { display: flex; gap: 8px; margin-bottom: 12px; }
+/* ── Holdings input ───────────────────────────────────────────────── */
+.port-add-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
 
 .port-input {
   background: var(--bg);
@@ -98,24 +46,12 @@ body {
   font-family: inherit;
   outline: none;
 }
-.port-input:focus { border-color: #2a2a2a; }
+.port-input:focus { border-color: var(--border2); }
 .port-ticker-input { width: 120px; text-transform: uppercase; }
 .port-shares-input { width: 100px; }
 .port-buyin-input  { width: 110px; }
 
-.port-add-btn {
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 8px 16px;
-  color: var(--dim);
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
-}
-.port-add-btn:hover { background: #1c1c1c; color: var(--text); }
-
-/* ── Holding pills ────────────────────────────────────────────── */
+/* ── Holding pills ────────────────────────────────────────────────── */
 .port-pills {
   display: flex;
   flex-wrap: wrap;
@@ -136,13 +72,13 @@ body {
 .port-pill-ticker {
   font-weight: 600;
   color: var(--text);
-  font-family: "SF Mono", Consolas, monospace;
+  font-family: var(--mono);
 }
-.port-pill-shares { color: var(--dim); }
+.port-pill-shares { color: var(--text2); }
 .port-pill-rm {
   background: none;
   border: none;
-  color: var(--faint);
+  color: var(--text3);
   cursor: pointer;
   font-size: 14px;
   padding: 0;
@@ -150,7 +86,7 @@ body {
 }
 .port-pill-rm:hover { color: var(--red); }
 
-/* ── Actions row ──────────────────────────────────────────────── */
+/* ── Actions row ──────────────────────────────────────────────────── */
 .port-actions-row {
   display: flex;
   align-items: center;
@@ -164,30 +100,15 @@ body {
   border-radius: 5px;
   padding: 5px 12px;
   font-size: 12px;
-  color: var(--faint);
+  color: var(--text3);
   cursor: pointer;
   font-family: inherit;
   transition: color 0.15s, background 0.15s;
 }
-.port-period-btn:hover { color: var(--dim); }
-.port-period-btn.active { background: var(--bg3); color: var(--text); border-color: #2a2a2a; }
+.port-period-btn:hover { color: var(--text2); }
+.port-period-btn.active { background: var(--bg3); color: var(--text); border-color: var(--border2); }
 
-.port-analyze-btn {
-  background: var(--accent);
-  border: none;
-  border-radius: 6px;
-  padding: 8px 22px;
-  color: #fff;
-  font-size: 13px;
-  font-weight: 500;
-  cursor: pointer;
-  font-family: inherit;
-  transition: opacity 0.15s;
-}
-.port-analyze-btn:hover { opacity: 0.85; }
-.port-analyze-btn:disabled { opacity: 0.4; cursor: default; }
-
-/* ── Stats row ────────────────────────────────────────────────── */
+/* ── Stats row ────────────────────────────────────────────────────── */
 .port-stats-row {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -204,7 +125,7 @@ body {
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: var(--faint);
+  color: var(--text3);
   margin-bottom: 4px;
 }
 .port-stat-value {
@@ -213,11 +134,11 @@ body {
   color: var(--text);
   line-height: 1.2;
 }
-.port-stat-sub { font-size: 11px; color: var(--dim); margin-top: 3px; }
+.port-stat-sub { font-size: 11px; color: var(--text2); margin-top: 3px; }
 .pos { color: var(--green); }
 .neg { color: var(--red); }
 
-/* ── Charts row ───────────────────────────────────────────────── */
+/* ── Charts row ───────────────────────────────────────────────────── */
 .port-charts-row {
   display: grid;
   grid-template-columns: 1.7fr 1fr;
@@ -241,54 +162,54 @@ body {
 .port-legend-ticker {
   font-weight: 600;
   color: var(--text);
-  font-family: "SF Mono", Consolas, monospace;
+  font-family: var(--mono);
   font-size: 11px;
 }
-.port-legend-pct { margin-left: auto; color: var(--dim); font-size: 11px; }
+.port-legend-pct { margin-left: auto; color: var(--text2); font-size: 11px; }
 
-/* ── Holdings table ───────────────────────────────────────────── */
+/* ── Holdings table ───────────────────────────────────────────────── */
 .port-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .port-table th {
   text-align: left;
   padding: 6px 10px;
-  color: var(--faint);
+  color: var(--text3);
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   border-bottom: 1px solid var(--border);
 }
-.port-table td { padding: 9px 10px; border-bottom: 1px solid #0f0f0f; color: var(--dim); }
+.port-table td { padding: 9px 10px; border-bottom: 1px solid var(--bg); color: var(--text2); }
 .port-table tr:last-child td { border-bottom: none; }
-.port-table tr:hover td { background: #111; }
+.port-table tr:hover td { background: var(--bg3); }
 .port-table .col-ticker {
   font-weight: 600;
   color: var(--text);
-  font-family: "SF Mono", Consolas, monospace;
+  font-family: var(--mono);
 }
 .port-table .col-ticker a { color: inherit; text-decoration: none; }
 .port-table .col-ticker a:hover { color: var(--accent); }
 
-/* ── AI analysis body ─────────────────────────────────────────── */
+/* ── AI analysis body ─────────────────────────────────────────────── */
 .port-analysis-body { font-size: 14px; line-height: 1.7; color: var(--text); }
 .port-analysis-body p { margin: 0 0 8px; }
 .port-analysis-body p:last-child { margin: 0; }
 .port-analysis-body strong { color: #fff; font-weight: 600; }
-.port-analysis-body em { color: var(--dim); font-style: italic; }
+.port-analysis-body em { color: var(--text2); font-style: italic; }
 .port-analysis-body h2 { font-size: 15px; font-weight: 600; color: #e0e0e0; margin: 16px 0 2px; }
-.port-analysis-body h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #555; margin: 14px 0 6px; }
-.port-analysis-body hr { border: none; border-top: 1px solid #1e1e1e; margin: 12px 0; }
+.port-analysis-body h3 { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text3); margin: 14px 0 6px; }
+.port-analysis-body hr { border: none; border-top: 1px solid var(--border); margin: 12px 0; }
 .port-analysis-body ul { margin: 6px 0; padding-left: 20px; }
 .port-analysis-body li { margin: 4px 0; }
 .port-analysis-body table { width: 100%; border-collapse: collapse; font-size: 12.5px; margin: 8px 0; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
-.port-analysis-body table th { background: #111; color: var(--faint); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 11px; }
-.port-analysis-body table td { padding: 7px 12px; border-bottom: 1px solid #181818; color: var(--dim); }
+.port-analysis-body table th { background: var(--bg3); color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 12px; text-align: left; border-bottom: 1px solid var(--border); font-size: 11px; }
+.port-analysis-body table td { padding: 7px 12px; border-bottom: 1px solid var(--bg3); color: var(--text2); }
 .port-analysis-body table tr:last-child td { border-bottom: none; }
 .port-verdict-strong  { color: var(--green) !important; }
 .port-verdict-balanced{ color: var(--accent) !important; }
 .port-verdict-weak    { color: var(--red)   !important; }
 
-/* ── Loading ──────────────────────────────────────────────────── */
+/* ── Loading overlay ──────────────────────────────────────────────── */
 .port-loading {
   position: fixed;
   inset: 0;
@@ -299,7 +220,7 @@ body {
   justify-content: center;
   gap: 14px;
   font-size: 13px;
-  color: var(--dim);
+  color: var(--text2);
   z-index: 100;
 }
 .port-spinner {
@@ -311,9 +232,9 @@ body {
 }
 @keyframes port-spin { to { transform: rotate(360deg); } }
 
-/* ── Responsive ───────────────────────────────────────────────── */
+/* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 720px) {
   .port-charts-row  { grid-template-columns: 1fr; }
   .port-stats-row   { grid-template-columns: 1fr 1fr; }
-  .port-nav-title   { display: none; }
+  .db-nav-page      { display: none; }
 }

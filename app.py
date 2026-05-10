@@ -50,6 +50,8 @@ if _env_file.exists():
 
 _IS_SERVERLESS = bool(_os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"))
 _CACHE_BASE = Path("/tmp/cache") if _IS_SERVERLESS else Path("cache")
+_PORTFOLIO_DIR = Path("/tmp/portfolios") if _IS_SERVERLESS else Path(__file__).parent / "auth" / "portfolios"
+_PORTFOLIO_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Finnhub live-quote cache (30-second TTL per ticker) ───────────
 _quote_cache: dict = {}
@@ -1057,6 +1059,31 @@ def api_chat():
 @auth.require_login
 def portfolio_page():
     return render_template("portfolio.html")
+
+
+@app.route("/api/portfolio/holdings", methods=["GET"])
+@auth.require_login_api
+def api_portfolio_holdings_get():
+    user = auth.current_user()
+    p = _PORTFOLIO_DIR / f"{user}.json"
+    if p.exists():
+        try:
+            return jsonify(json.loads(p.read_text()))
+        except Exception:
+            p.unlink(missing_ok=True)
+    return jsonify([])
+
+
+@app.route("/api/portfolio/holdings", methods=["POST"])
+@auth.require_login_api
+def api_portfolio_holdings_save():
+    user = auth.current_user()
+    holdings = request.json
+    if not isinstance(holdings, list):
+        return jsonify({"error": "expected list"}), 400
+    p = _PORTFOLIO_DIR / f"{user}.json"
+    p.write_text(json.dumps(holdings))
+    return jsonify({"ok": True})
 
 
 @app.route("/api/portfolio-analysis", methods=["POST"])
