@@ -420,6 +420,12 @@ async function analyzePortfolio() {
       body: JSON.stringify({ holdings, period }),
     });
     const data = await r.json();
+    if (r.status === 429) {
+      document.getElementById('portAnalysis').style.display = 'block';
+      document.getElementById('analysisBody').innerHTML =
+        `<p style="color:var(--yellow,#ffd54f);font-size:13px">⏳ ${data.message || 'AI rate limit reached — wait a minute and try again.'}</p>`;
+      return;
+    }
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     renderAnalysis(data);
   } catch (err) {

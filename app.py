@@ -88,7 +88,7 @@ def _groq_complete(prompt: str, *, system: str = "",
     if system:
         msgs.append({"role": "system", "content": system})
     msgs.append({"role": "user", "content": prompt})
-    for attempt in range(3):
+    for attempt in range(5):
         r = _req.post(
             _GROQ_URL,
             headers={"Authorization": f"Bearer {api_key}"},
@@ -98,7 +98,7 @@ def _groq_complete(prompt: str, *, system: str = "",
         )
         if r.status_code == 429:
             wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
-            _time.sleep(min(wait, 30))
+            _time.sleep(wait)  # honour Groq's Retry-After fully
             continue
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
@@ -1464,6 +1464,10 @@ Rules: use only numbers from the data above. Bold metric names in bullets. No he
             try:
                 analysis = _groq_complete(prompt, temperature=0.3, max_tokens=1024)
             except Exception as ex:
+                msg = str(ex)
+                if "429" in msg:
+                    return jsonify({"error": "rate_limited",
+                                    "message": "Groq rate limit hit — wait a minute and try again."}), 429
                 analysis = f"*Analysis unavailable: {ex}*"
 
         return jsonify({

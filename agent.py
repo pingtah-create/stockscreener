@@ -468,7 +468,7 @@ def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
                max_tokens: int = 3000) -> str:
     """POST to Groq with up to 3 retries on 429."""
     import requests as _req, time as _time
-    for attempt in range(3):
+    for attempt in range(5):
         r = _req.post(
             f"{_GROQ_BASE_URL}/chat/completions",
             headers={"Authorization": f"Bearer {api_key}"},
@@ -478,7 +478,7 @@ def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
         )
         if r.status_code == 429:
             wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
-            _time.sleep(min(wait, 30))
+            _time.sleep(wait)  # honour Groq's Retry-After fully
             continue
         r.raise_for_status()
         return r.json()["choices"][0]["message"]["content"].strip()
