@@ -202,14 +202,36 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-bubble strong { color: #fff; font-weight: 600; }
 .ch-bubble ul, .ch-bubble ol { margin: 6px 0; padding-left: 20px; }
 .ch-bubble li { margin: 3px 0; }
-.ch-bubble h1, .ch-bubble h2, .ch-bubble h3 {
-  margin: 14px 0 4px;
-  color: #ccc;
-  font-size: 12px;
+.ch-bubble h1 {
+  margin: 16px 0 4px;
+  color: #ddd;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.ch-bubble h2 {
+  margin: 16px 0 2px;
+  color: #e0e0e0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.ch-bubble h3 {
+  margin: 14px 0 6px;
+  color: #666;
+  font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
 }
+.ch-bubble hr.ch-hr {
+  border: none;
+  border-top: 1px solid #1e1e1e;
+  margin: 12px 0;
+}
+.ch-bull    { color: #3d9e6e !important; }
+.ch-bear    { color: #b84444 !important; }
+.ch-neutral { color: #888    !important; }
 .ch-bubble code {
   background: #181818;
   padding: 1px 5px;

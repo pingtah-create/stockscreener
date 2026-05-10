@@ -287,6 +287,9 @@ function renderMarkdown(s) {
   if (!s) return '';
   let out = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
+  // Horizontal rules (must come before header processing)
+  out = out.replace(/^---$/gm, '<hr class="ch-hr">');
+
   // Headers
   out = out.replace(/^### (.+)$/gm, '<h3>$1</h3>');
   out = out.replace(/^## (.+)$/gm,  '<h2>$1</h2>');
@@ -302,6 +305,12 @@ function renderMarkdown(s) {
   // Bold & italic
   out = out.replace(/\*\*([^*\n]+)\*\*/g, '<strong>$1</strong>');
   out = out.replace(/(^|[^\*])\*([^*\n]+)\*/g, '$1<em>$2</em>');
+
+  // Colour verdict keywords
+  out = out.replace(/<strong>(BULLISH|BEARISH|NEUTRAL)<\/strong>/g, (_, v) => {
+    const cls = v === 'BULLISH' ? 'ch-bull' : v === 'BEARISH' ? 'ch-bear' : 'ch-neutral';
+    return `<strong class="${cls}">${v}</strong>`;
+  });
 
   // Links
   out = out.replace(/\[([^\]]+)\]\(([^)]+)\)/g,

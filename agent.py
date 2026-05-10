@@ -887,39 +887,65 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
 DATA:
 {data_brief}
 
-Output EXACTLY this format — no intro, no preamble, start with the header:
+Output EXACTLY this format. No intro. No preamble. Start immediately with the ## header.
+Replace every [placeholder] with real values from the data.
 
 ## {ticker} — {name}
 **${fmt(price, 2)}** ({chg_sign}{fmt(chg, 2)}%) · {sector}
 
-**[BULLISH / BEARISH / NEUTRAL]** — *one sentence: the single strongest reason for this verdict.*
+---
+
+**[BULLISH / BEARISH / NEUTRAL]** — *One decisive sentence: the single strongest reason.*
+
+---
 
 ### Bull Case
-- **[key metric]**: specific number + why it matters
-- **[key metric]**: specific number + why it matters
-- **[key metric]**: specific number + why it matters
+- **[metric name]**: [specific number] — [one-line impact]
+- **[metric name]**: [specific number] — [one-line impact]
+- **[metric name]**: [specific number] — [one-line impact]
 
 ### Bear Case
-- **[risk]**: specific number + why it's a real threat
-- **[risk]**: specific number + why it's a real threat
+- **[risk name]**: [specific number] — [why it's a real threat]
+- **[risk name]**: [specific number] — [why it's a real threat]
+
+---
 
 ### Key Numbers
 | Metric | Value |
 |---|---|
-| [metric] | [value] |
-| [metric] | [value] |
-| [metric] | [value] |
-| [metric] | [value] |
-| [metric] | [value] |
-| [metric] | [value] |
+| P/E (TTM / Fwd) | [value] / [value] |
+| Revenue Growth | [value]% |
+| Gross Margin | [value]% |
+| EPS Growth | [value]% |
+| Analyst Target | $[value] ([upside]% upside) |
+| 52W Position | [value]% of range |
+
+---
+
+### Earnings
+| Quarter | Est | Actual | Surprise |
+|---|---|---|---|
+| [date] | $[est] | $[actual] | [+/-pct]% |
+| [date] | $[est] | $[actual] | [+/-pct]% |
+| [date] | $[est] | $[actual] | [+/-pct]% |
+| Next | — | [next earnings date or TBD] | — |
+
+---
+
+### Peers
+| Ticker | P/E | Rev Growth | Net Margin |
+|---|---|---|---|
+| **{ticker}** | [value] | [value]% | [value]% |
+| [peer1] | [value] | [value]% | [value]% |
+| [peer2] | [value] | [value]% | [value]% |
+| [peer3] | [value] | [value]% | [value]% |
+
+---
 
 ### Watch
-*One sentence: the single event or data point that would change this view.*
+*[One sentence: the specific catalyst or data point that would flip this view.]*
 
-Rules:
-- Use ONLY numbers from the data provided. No invented figures.
-- Bold the metric name in each bullet. Be direct — no hedging phrases.
-- Fill in every [ ] placeholder with actual values."""
+Rules: use ONLY numbers from the DATA section. Bold every metric name in bullets. No hedging."""
 
     import requests as _req
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
