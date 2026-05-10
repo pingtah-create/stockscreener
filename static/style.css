@@ -152,6 +152,7 @@ body {
 }
 .btn-primary:hover:not(:disabled) { opacity: 0.85; }
 .btn-secondary { background: transparent; }
+.db-nav-current { color: var(--text) !important; border-color: var(--border2) !important; cursor: default; }
 .btn-ghost { background: transparent; color: var(--text3); }
 .btn-ghost:hover { color: var(--text2); }
 .btn-danger { color: var(--red); border-color: rgba(184,68,68,0.3); }

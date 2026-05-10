@@ -44,6 +44,25 @@ html, body {
   overflow: visible;
 }
 
+.topbar-nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+.topbar-nav a {
+  color: var(--text3);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+  padding: 4px 9px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  transition: color .15s, border-color .15s;
+  white-space: nowrap;
+}
+.topbar-nav a:hover { color: var(--text2); border-color: var(--border2); }
+
 .back-link {
   color: var(--text3);
   text-decoration: none;

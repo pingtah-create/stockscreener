@@ -14,7 +14,9 @@
     <span class="ch-name">STOCKDASH</span>
   </div>
   <nav class="ch-nav-links">
-    <a href="/dashboard" title="Open the full dashboard (movers, heatmap, swing setups)">Dashboard →</a>
+    <a href="/" class="ch-nav-active">Chat</a>
+    <a href="/dashboard">Dashboard</a>
+    <a href="/portfolio">Portfolio</a>
     <button id="newChatBtn" class="ch-link-btn" title="Start a new conversation">New chat</button>
     {% if current_user %}
       <span class="ch-user" title="Signed in as {{ current_user }}">{{ current_user }}</span>
