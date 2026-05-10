@@ -39,7 +39,10 @@
       <input class="port-input port-buyin-input" id="buyinInput"
              type="number" placeholder="Buy price" min="0" step="any" />
       <button class="btn btn-secondary" onclick="addHolding()">+ Add</button>
+      <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">↑ Import</button>
+      <input type="file" id="importFile" accept=".csv,.json" style="display:none" />
     </div>
+    <div id="importMsg" style="font-size:12px;margin-bottom:6px;display:none"></div>
     <div class="port-pills" id="holdingsList"></div>
   </div>
 

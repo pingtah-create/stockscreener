@@ -115,6 +115,105 @@ document.querySelectorAll('.port-period-btn').forEach(btn => {
 document.getElementById('sharesInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHolding(); });
 document.getElementById('buyinInput').addEventListener('keydown',  e => { if (e.key === 'Enter') addHolding(); });
 
+// ── Import CSV / JSON ─────────────────────────────────────────────────────────
+
+document.getElementById('importFile').addEventListener('change', function () {
+  const file = this.files[0];
+  if (!file) return;
+  this.value = '';  // reset so same file can be re-imported
+  const reader = new FileReader();
+  reader.onload = e => handleImport(file.name, e.target.result);
+  reader.readAsText(file);
+});
+
+function handleImport(filename, text) {
+  let rows = [];
+  try {
+    rows = filename.toLowerCase().endsWith('.json') ? parseImportJSON(text) : parseImportCSV(text);
+  } catch (err) {
+    showImportMsg(`Import failed: ${err.message}`, true);
+    return;
+  }
+  if (!rows.length) { showImportMsg('No valid holdings found in file.', true); return; }
+
+  let added = 0, updated = 0, skipped = 0;
+  for (const row of rows) {
+    const ticker = (row.ticker || '').toUpperCase();
+    if (!ticker) { skipped++; continue; }
+    const shares = parseFloat(row.shares);
+    if (!shares || shares <= 0) { skipped++; continue; }
+    const buyin = row.buyin != null ? parseFloat(row.buyin) || null : null;
+    const existing = holdings.find(h => h.ticker === ticker);
+    if (existing) { existing.shares = shares; if (buyin) existing.buyin = buyin; updated++; }
+    else { holdings.push({ ticker, shares, buyin }); added++; }
+  }
+
+  saveHoldings();
+  renderPills();
+  if (holdings.length) fetchSummary();
+  const parts = [];
+  if (added)   parts.push(`${added} added`);
+  if (updated) parts.push(`${updated} updated`);
+  if (skipped) parts.push(`${skipped} skipped`);
+  showImportMsg(`Imported: ${parts.join(', ')}.`);
+}
+
+function showImportMsg(msg, isError = false) {
+  const el = document.getElementById('importMsg');
+  el.textContent = msg;
+  el.style.color = isError ? 'var(--red)' : 'var(--green)';
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 5000);
+}
+
+function parseImportJSON(text) {
+  const data = JSON.parse(text);
+  const arr = Array.isArray(data) ? data : data.holdings || data.portfolio || [];
+  if (!Array.isArray(arr)) throw new Error('Expected a JSON array');
+  return arr.map(item => ({
+    ticker: item.ticker || item.symbol || item.Symbol || item.Ticker || '',
+    shares: item.shares ?? item.quantity ?? item.qty ?? item.Shares ?? item.Quantity ?? null,
+    buyin:  item.buyin  ?? item.buy_price ?? item.avg_cost ?? item.cost ?? item.price ?? item.Price ?? null,
+  }));
+}
+
+function parseImportCSV(text) {
+  const lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+  if (!lines.length) return [];
+
+  // Detect header row
+  const first = lines[0].toLowerCase();
+  const hasHeader = /ticker|symbol|shares|quantity/.test(first);
+  const headers = hasHeader
+    ? lines[0].split(',').map(h => h.trim().toLowerCase())
+    : null;
+  const dataLines = hasHeader ? lines.slice(1) : lines;
+
+  // Column index resolvers
+  const col = (row, ...names) => {
+    if (headers) {
+      for (const n of names) {
+        const i = headers.findIndex(h => h === n || h.includes(n));
+        if (i >= 0) return row[i]?.trim() || '';
+      }
+    }
+    return '';
+  };
+
+  return dataLines.map(line => {
+    const parts = line.split(',').map(s => s.trim().replace(/^"|"$/g, ''));
+    if (headers) {
+      return {
+        ticker: col(parts, 'ticker', 'symbol') || parts[0] || '',
+        shares: col(parts, 'shares', 'quantity', 'qty') || parts[1] || null,
+        buyin:  col(parts, 'buyin', 'buy_price', 'avg_cost', 'cost', 'price') || parts[2] || null,
+      };
+    }
+    // No header: assume ticker, shares, buyin
+    return { ticker: parts[0] || '', shares: parts[1] || null, buyin: parts[2] || null };
+  });
+}
+
 // ── Holdings management ───────────────────────────────────────────────────────
 
 function saveHoldings() {
