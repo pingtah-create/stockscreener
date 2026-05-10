@@ -73,7 +73,7 @@ SPARKLINE_CACHE.mkdir(parents=True, exist_ok=True)
 
 _SEED_FILE = Path(__file__).parent / "data" / "stocks.json"
 
-_GROQ_MODEL = "llama-3.3-70b-versatile"
+_GROQ_MODEL = "llama-3.1-8b-instant"
 _GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
 
 
