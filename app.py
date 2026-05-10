@@ -5,7 +5,7 @@ Run: python app.py
 import json
 from datetime import datetime, timedelta
 from pathlib import Path
-from flask import Flask, render_template, jsonify, request, redirect, url_for
+from flask import Flask, render_template, jsonify, request, redirect, url_for, session
 
 import yfinance as yf
 
@@ -1064,25 +1064,36 @@ def portfolio_page():
 @app.route("/api/portfolio/holdings", methods=["GET"])
 @auth.require_login_api
 def api_portfolio_holdings_get():
-    user = auth.current_user()
-    p = _PORTFOLIO_DIR / f"{user}.json"
-    if p.exists():
-        try:
-            return jsonify(json.loads(p.read_text()))
-        except Exception:
-            p.unlink(missing_ok=True)
-    return jsonify([])
+    # Session is per-user (signed cookie) — works on Vercel without a database
+    holdings = session.get("portfolio", [])
+    # Fallback: try disk cache for local dev if session is empty
+    if not holdings and not _IS_SERVERLESS:
+        p = _PORTFOLIO_DIR / f"{auth.current_user()}.json"
+        if p.exists():
+            try:
+                holdings = json.loads(p.read_text())
+                session["portfolio"] = holdings  # migrate to session
+                session.modified = True
+            except Exception:
+                pass
+    return jsonify(holdings)
 
 
 @app.route("/api/portfolio/holdings", methods=["POST"])
 @auth.require_login_api
 def api_portfolio_holdings_save():
-    user = auth.current_user()
     holdings = request.json
     if not isinstance(holdings, list):
         return jsonify({"error": "expected list"}), 400
-    p = _PORTFOLIO_DIR / f"{user}.json"
-    p.write_text(json.dumps(holdings))
+    session["portfolio"] = holdings
+    session.modified = True
+    # Also write to disk on local dev for durability
+    if not _IS_SERVERLESS:
+        try:
+            p = _PORTFOLIO_DIR / f"{auth.current_user()}.json"
+            p.write_text(json.dumps(holdings))
+        except Exception:
+            pass
     return jsonify({"ok": True})
 
 
