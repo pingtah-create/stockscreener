@@ -287,6 +287,81 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   30% { transform: scale(1); opacity: 0.8; }
 }
 
+/* Ticker sparkline cards */
+.ch-ticker-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 8px;
+  background: #0f0f0f;
+  border: 1px solid #1e1e1e;
+  border-radius: 7px;
+  text-decoration: none;
+  transition: border-color 0.15s;
+}
+.ch-ticker-card:hover { border-color: #333; }
+.ch-tc-name {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #777;
+  font-family: "SF Mono", Consolas, monospace;
+}
+.ch-tc-spark { display: flex; align-items: center; }
+.ch-tc-chg { font-size: 11px; font-weight: 500; }
+.ch-tc-chg.pos { color: #3d9e6e; }
+.ch-tc-chg.neg { color: #b84444; }
+
+/* Sector bar chart */
+.ch-sector-chart {
+  margin: 10px 0;
+  padding: 12px 14px;
+  background: #0f0f0f;
+  border: 1px solid #1a1a1a;
+  border-radius: 8px;
+}
+.ch-sc-title {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #3a3a3a;
+  margin-bottom: 10px;
+}
+.ch-sc-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 5px;
+}
+.ch-sc-label {
+  width: 118px;
+  font-size: 11px;
+  color: #555;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex-shrink: 0;
+}
+.ch-sc-track {
+  flex: 1;
+  height: 3px;
+  background: #1a1a1a;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.ch-sc-bar { height: 100%; border-radius: 2px; transition: width 0.4s ease; }
+.ch-sc-bar.pos { background: #3d9e6e; }
+.ch-sc-bar.neg { background: #b84444; }
+.ch-sc-val {
+  width: 46px;
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.ch-sc-val.pos { color: #3d9e6e; }
+.ch-sc-val.neg { color: #b84444; }
+
 /* Comparison tables */
 .ch-table-wrap {
   overflow-x: auto;
@@ -309,6 +384,8 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-table td { padding: 6px 12px; border-bottom: 1px solid #181818; color: var(--text-dim); }
 .ch-table tr:last-child td { border-bottom: none; }
 .ch-table tr:hover td { background: #111; }
+.ch-table td.ch-cell-pos { color: #3d9e6e; }
+.ch-table td.ch-cell-neg { color: #b84444; }
 
 /* Bottom input */
 .ch-input-wrap-bottom {

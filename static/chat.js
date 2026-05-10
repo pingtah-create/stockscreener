@@ -97,10 +97,11 @@ async function send(text) {
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
 
     const reply = data.reply || '(empty response)';
-    messages.push({ role: 'assistant', content: reply, tickers: data.tickers || [], tools_used: data.tools_used || [] });
+    const chartData = data.chart_data || null;
+    messages.push({ role: 'assistant', content: reply, tickers: data.tickers || [], tools_used: data.tools_used || [], chart_data: chartData });
     saveHistory();
     loadingNode.remove();
-    appendMessage('assistant', reply, data.tickers || [], data.tools_used || []);
+    appendMessage('assistant', reply, data.tickers || [], data.tools_used || [], false, chartData);
   } catch (err) {
     loadingNode.remove();
     appendMessage('assistant', `**Error:** ${err.message || err}`, [], [], true);
@@ -139,7 +140,7 @@ function appendLoading() {
   return row;
 }
 
-function appendMessage(role, text, tickers = [], toolsUsed = [], isError = false) {
+function appendMessage(role, text, tickers = [], toolsUsed = [], isError = false, chartData = null) {
   const row    = document.createElement('div');
   row.className = `ch-msg ch-msg-${role}` + (isError ? ' ch-msg-error' : '');
 
@@ -148,14 +149,24 @@ function appendMessage(role, text, tickers = [], toolsUsed = [], isError = false
   bubble.innerHTML = renderMarkdown(text);
   row.appendChild(bubble);
 
-  // Ticker pills — link out to chart page
+  // Color-code % cells in tables
+  colorTableCells(bubble);
+
+  // Sector bar chart
+  if (chartData && chartData.type === 'sector' && chartData.data) {
+    row.appendChild(renderSectorChart(chartData.data));
+  }
+
+  // Ticker sparkline cards
   if (role === 'assistant' && tickers.length) {
-    const links = document.createElement('div');
-    links.className = 'ch-ticker-links';
-    links.innerHTML = tickers.map(t =>
+    const linksEl = document.createElement('div');
+    linksEl.className = 'ch-ticker-links';
+    linksEl.innerHTML = tickers.map(t =>
       `<a href="/stock/${encodeURIComponent(t)}" class="ch-ticker-pill">${t} →</a>`
     ).join('');
-    row.appendChild(links);
+    row.appendChild(linksEl);
+    // Async upgrade: replace pills with sparkline cards
+    upgradeToSparklineCards(tickers, linksEl);
   }
 
   // Tools-used footer
@@ -179,7 +190,7 @@ function renderThread() {
   chatEl.hidden = false;
   threadEl.innerHTML = '';
   for (const m of messages) {
-    appendMessage(m.role, m.content, m.tickers || [], m.tools_used || []);
+    appendMessage(m.role, m.content, m.tickers || [], m.tools_used || [], false, m.chart_data || null);
   }
 }
 
@@ -197,7 +208,81 @@ function saveHistory() {
   catch {}
 }
 
-// Minimal markdown renderer
+// ── Visual helpers ────────────────────────────────────────────────────────────
+
+function colorTableCells(el) {
+  el.querySelectorAll('.ch-table td').forEach(td => {
+    const text = td.textContent.trim();
+    const m = text.match(/^([+-]?\d+\.?\d*)%$/);
+    if (!m) return;
+    const v = parseFloat(m[1]);
+    if (v > 0.1)  td.classList.add('ch-cell-pos');
+    else if (v < -0.1) td.classList.add('ch-cell-neg');
+  });
+}
+
+function sparklineSVG(prices, w = 88, h = 30) {
+  if (!prices || prices.length < 2) return '';
+  const min = Math.min(...prices), max = Math.max(...prices);
+  const range = max - min || 1;
+  const pts = prices.map((p, i) => {
+    const x = (i / (prices.length - 1)) * w;
+    const y = h - 2 - ((p - min) / range) * (h - 4);
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+  const color = prices[prices.length - 1] >= prices[0] ? '#3d9e6e' : '#b84444';
+  return `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" fill="none" xmlns="http://www.w3.org/2000/svg"><polyline points="${pts}" stroke="${color}" stroke-width="1.5" fill="none" stroke-linejoin="round" stroke-linecap="round"/></svg>`;
+}
+
+async function upgradeToSparklineCards(tickers, linksEl) {
+  for (const ticker of tickers) {
+    try {
+      const r = await fetch(`/api/sparkline/${encodeURIComponent(ticker)}`);
+      if (!r.ok) continue;
+      const data = await r.json();
+      const prices = data.prices || [];
+      if (prices.length < 2) continue;
+
+      const chg = (prices[prices.length - 1] - prices[0]) / prices[0] * 100;
+      const chgStr = `${chg >= 0 ? '+' : ''}${chg.toFixed(1)}%`;
+      const isUp = chg >= 0;
+
+      const pill = [...linksEl.querySelectorAll('.ch-ticker-pill')]
+        .find(p => p.textContent.startsWith(ticker));
+      if (!pill) continue;
+
+      const card = document.createElement('a');
+      card.href = `/stock/${encodeURIComponent(ticker)}`;
+      card.className = 'ch-ticker-card';
+      card.innerHTML =
+        `<span class="ch-tc-name">${ticker}</span>` +
+        `<span class="ch-tc-spark">${sparklineSVG(prices)}</span>` +
+        `<span class="ch-tc-chg ${isUp ? 'pos' : 'neg'}">${chgStr}</span>`;
+      pill.replaceWith(card);
+    } catch {}
+  }
+}
+
+function renderSectorChart(data) {
+  const entries = Object.entries(data).sort((a, b) => b[1] - a[1]);
+  const maxAbs  = Math.max(...entries.map(([, v]) => Math.abs(v)), 0.1);
+  const wrap = document.createElement('div');
+  wrap.className = 'ch-sector-chart';
+  wrap.innerHTML = '<div class="ch-sc-title">Sector Performance</div>' +
+    entries.map(([sec, val]) => {
+      const isPos = val >= 0;
+      const barPct = Math.abs(val) / maxAbs * 100;
+      const valStr = `${isPos ? '+' : ''}${val.toFixed(2)}%`;
+      return `<div class="ch-sc-row">
+        <span class="ch-sc-label">${sec}</span>
+        <div class="ch-sc-track"><div class="ch-sc-bar ${isPos ? 'pos' : 'neg'}" style="width:${barPct.toFixed(1)}%"></div></div>
+        <span class="ch-sc-val ${isPos ? 'pos' : 'neg'}">${valStr}</span>
+      </div>`;
+    }).join('');
+  return wrap;
+}
+
+// ── Minimal markdown renderer ─────────────────────────────────────────────────
 function renderMarkdown(s) {
   if (!s) return '';
   let out = s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

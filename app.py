@@ -877,12 +877,32 @@ def api_chat():
 
     try:
         from agent import run_agent
-        result  = run_agent(messages, _stock_cache, _indices_cache, api_key)
-        tickers = _extract_tickers(result.get("reply", ""))
+        result     = run_agent(messages, _stock_cache, _indices_cache, api_key)
+        tickers    = _extract_tickers(result.get("reply", ""))
+        tools_used = result.get("tools_used", [])
+
+        chart_data = None
+        if "get_market_overview" in tools_used:
+            sectors: dict = {}
+            for s in _stock_cache:
+                sec = s.get("sector")
+                chg = s.get("regularMarketChangePercent")
+                if sec and chg is not None and not s.get("symbol", "").endswith(".TW"):
+                    if sec not in sectors:
+                        sectors[sec] = {"total": 0.0, "count": 0}
+                    sectors[sec]["total"] += chg
+                    sectors[sec]["count"] += 1
+            sector_perf = {
+                sec: round(v["total"] / v["count"], 2)
+                for sec, v in sectors.items() if v["count"] > 0
+            }
+            chart_data = {"type": "sector", "data": sector_perf}
+
         return jsonify({
             "reply":      result["reply"],
-            "tools_used": result.get("tools_used", []),
+            "tools_used": tools_used,
             "tickers":    tickers,
+            "chart_data": chart_data,
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500
