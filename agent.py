@@ -472,15 +472,16 @@ SYSTEM_PROMPT = """You are FinBot — a sharp, opinionated financial analyst emb
 You have tools to look up fundamentals, technicals, news, peer comparisons, earnings, insider activity, analyst ratings, dividends, stock screening, options chains, and macro indicators.
 
 Rules:
-- ALWAYS call tools before answering. Never invent numbers.
-- Lead every answer with a verdict: **Bullish / Bearish / Neutral** + one-sentence reason.
-- Use specific numbers ("P/E 24x vs sector 18x"), never vague statements ("reasonably valued").
-- Be decisive. If the data points clearly one way, say so. Don't hedge on every point.
-- For comparisons: show a table, then name a clear winner.
+- ALWAYS call the right tool(s) before answering. Never invent numbers.
+- Use specific numbers ("P/E 24x vs sector 18x"), never vague statements like "reasonably valued".
+- Be decisive. If data clearly points one way, say so.
+- For stock analysis: lead with **Bullish / Bearish / Neutral** verdict + one-sentence reason, then 2-3 specific data points.
+- For comparisons: show a table, then name the clear winner.
 - For screening: return a results table, highlight top pick.
-- For macro: give current numbers then connect to market impact.
-- Keep answers focused: 150-300 words. No fluff, no "it's worth noting", no "importantly".
-- Format: verdict first → 2-3 bull points → 1-2 bear risks → one-line watch."""
+- For specific questions (earnings, dividends, news, technicals): answer the question directly with numbers.
+- For macro / market overview: give current numbers then connect to market impact.
+- Keep answers concise and focused. No fluff, no "it's worth noting", no "importantly".
+- Remember the conversation context — if the user asks a follow-up, use prior context to infer the stock."""
 
 
 finbot: Agent[FinBotDeps, str] = Agent(
@@ -762,14 +763,16 @@ def _format_stock_sections_UNUSED(data: dict) -> str:  # kept for reference only
 
 
 def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
-    """Return a ticker if the message is a single-stock analysis request."""
+    """Return a ticker only for clear broad-overview / buy-or-sell requests."""
     import re
     text_lower = text.lower().strip()
 
-    # Exclude multi-stock / market-wide queries
+    # Exclude multi-stock / market-wide / specific data queries
     if any(w in text_lower for w in [" vs ", " versus ", "compare ", "comparison",
                                       "find me", "screen", "best stocks", "top stocks",
-                                      "market overview", "macro ", "which sector"]):
+                                      "market overview", "macro ", "which sector",
+                                      "dividend", "earning", "news", "insider",
+                                      "option", "pe ratio", "price target", "analyst"]):
         return None
 
     ticker_universe = {s.get("symbol", "") for s in stock_cache}
@@ -779,24 +782,22 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
     if not valid:
         return None
 
-    # Short query — bare ticker or very brief ("NVDA?", "tell me TSLA")
-    if len(text.strip().split()) <= 3:
-        return valid[0]
-
-    # Broader intent phrases — natural language people actually use
+    # Only trigger for explicit overview / investment-decision intent
     analysis_words = [
-        "analyze", "analyse", "analysis", "tell me about", "what do you think",
-        "should i buy", "should i sell", "overview", "research", "deep dive",
-        "breakdown", "report on", "thoughts on", "opinion on", "assess",
-        "evaluate", "review", "look at", "what about", "give me",
-        "how is", "how's", "how about", "what's happening with",
-        "worth buying", "worth it", "good buy", "bad buy", "invest in",
-        "bullish on", "bearish on", "long on", "short on",
+        "analyze", "analyse", "analysis", "full analysis",
+        "tell me about", "give me a report", "deep dive",
+        "breakdown", "report on", "thoughts on", "opinion on",
+        "assess", "evaluate", "research",
+        "should i buy", "should i sell", "worth buying", "worth it",
+        "good buy", "bad buy", "invest in",
+        "bullish on", "bearish on", "investment thesis",
+        "overview of", "overview on",
     ]
     return valid[0] if any(w in text_lower for w in analysis_words) else None
 
 
-def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
+def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str,
+                        user_question: str = "") -> dict:
     """Gather data for a single ticker then ask Gemini to write an opinionated analysis."""
     ticker = ticker.upper().strip()
 
@@ -878,7 +879,8 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
 
     data_brief = "\n".join(brief_lines)
 
-    prompt = f"""You are a sharp, opinionated stock analyst. Analyse {ticker} based on the data below.
+    question_line = f"\nUser's question: {user_question}" if user_question else ""
+    prompt = f"""You are a sharp, opinionated stock analyst. Analyse {ticker} based on the data below.{question_line}
 
 {data_brief}
 
@@ -908,7 +910,7 @@ Rules: be direct and specific. Use the actual numbers. No hedging. No "it's impo
            f"gemini-2.5-flash:generateContent?key={api_key}")
     body = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.35, "maxOutputTokens": 1024},
+        "generationConfig": {"temperature": 0.35, "maxOutputTokens": 2048},
     }
     try:
         r = _req.post(url, json=body, timeout=30)
@@ -948,7 +950,8 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
     # Route single-stock analysis to the debate pipeline
     analysis_ticker = _detect_analysis_ticker(last_msg, stock_cache)
     if analysis_ticker:
-        return run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key)
+        return run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key,
+                                   user_question=last_msg)
 
     # Standard finbot agent for everything else
     history = []
@@ -970,7 +973,7 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
         model=model,
         deps=deps,
         message_history=history,
-        model_settings=ModelSettings(temperature=0.3, max_tokens=2048),
+        model_settings=ModelSettings(temperature=0.3, max_tokens=4096),
     )
 
     tools_used = [
