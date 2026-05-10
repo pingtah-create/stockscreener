@@ -2148,7 +2148,6 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   const barBearPct = 100 - barBullPct;
 
   // Render
-  panel.style.borderLeftColor = biasColor;
   panel.innerHTML =
     `<div class="autota-score-row">
        <span class="autota-score-lbl" style="color:${biasColor}">${bias.toUpperCase()}</span>
@@ -2157,7 +2156,8 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
          <div class="autota-score-bear" style="width:${barBearPct}%"></div>
        </div>
        <span class="autota-score-pts">${scoreLabel}</span>
-     </div>` +
+     </div>
+     <div class="autota-findings-grid">` +
     findings.map(f =>
       `<div class="autota-finding">
         <span class="autota-icon">${f.icon}</span>
@@ -2165,8 +2165,9 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
         <span class="autota-val" style="color:${f.color}">${f.val}</span>
       </div>`
     ).join('') +
-    `<div class="autota-outlook">
-       <div class="autota-outlook-title" style="color:${biasColor}">▶ Outlook</div>
+    `</div>
+     <div class="autota-outlook">
+       <div class="autota-outlook-title" style="color:${biasColor}">OUTLOOK</div>
        ${watchLines.map(l => `<div class="autota-outlook-line">${l}</div>`).join('')}
      </div>`;
   panel.style.display = 'block';

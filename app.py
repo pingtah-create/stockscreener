@@ -581,10 +581,6 @@ def api_news_events(ticker: str):
 
         moves.sort(key=lambda x: x["date"])
 
-        import google.generativeai as genai
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel("gemini-2.0-flash")
-
         prompt = f"""You are a financial analyst. For the stock {ticker}, each entry below is a significant daily price move with nearby news headlines.
 
 For each move, identify the most likely catalyst and explain in one concise sentence what drove it.
@@ -606,15 +602,22 @@ Return ONLY a JSON array, no markdown or extra text:
 
 Order by date descending. Include all {len(moves)} moves."""
 
-        resp = model.generate_content(prompt)
-        raw = resp.text.strip()
-        if "```" in raw:
-            parts = raw.split("```")
-            raw = parts[1] if len(parts) > 1 else raw
-            if raw.startswith("json"):
-                raw = raw[4:]
+        import requests as _req
+        import re as _re
+        url  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"gemini-2.5-flash:generateContent?key={api_key}")
+        body = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048,
+                                 "responseMimeType": "application/json"},
+        }
+        r = _req.post(url, json=body, timeout=30)
+        r.raise_for_status()
+        raw = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        raw = _re.sub(r':\s*NaN\b', ': null', raw)
+        raw = _re.sub(r',\s*([}\]])', r'\1', raw)
 
-        events = json.loads(raw.strip())
+        events = json.loads(raw)
         p.write_text(json.dumps(events))
         return jsonify(events)
 
