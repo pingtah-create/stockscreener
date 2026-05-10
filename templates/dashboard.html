@@ -3,196 +3,117 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>US Stock Dashboard</title>
+  <title>Market Map</title>
   <link rel="stylesheet" href="/static/style.css" />
 </head>
 <body>
 
-<!-- TICKER TAPE -->
-<div class="ticker-tape">
-  <div class="tape-track" id="tapeTrack">
-    <span class="tape-item"><span class="tape-name">S&amp;P 500</span><span class="tape-price" id="tape-SP500">—</span><span class="tape-chg" id="tapechg-SP500">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">NASDAQ</span><span class="tape-price" id="tape-NASDAQ">—</span><span class="tape-chg" id="tapechg-NASDAQ">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">DOW</span><span class="tape-price" id="tape-DOW">—</span><span class="tape-chg" id="tapechg-DOW">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">VIX</span><span class="tape-price" id="tape-VIX">—</span><span class="tape-chg" id="tapechg-VIX">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">RUSSELL</span><span class="tape-price" id="tape-Russell">—</span><span class="tape-chg" id="tapechg-Russell">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">10Y YIELD</span><span class="tape-price" id="tape-10Y">—</span><span class="tape-chg" id="tapechg-10Y">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">S&amp;P 500</span><span class="tape-price" id="tape-SP500b">—</span><span class="tape-chg" id="tapechg-SP500b">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">NASDAQ</span><span class="tape-price" id="tape-NASDAQb">—</span><span class="tape-chg" id="tapechg-NASDAQb">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">DOW</span><span class="tape-price" id="tape-DOWb">—</span><span class="tape-chg" id="tapechg-DOWb">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">VIX</span><span class="tape-price" id="tape-VIXb">—</span><span class="tape-chg" id="tapechg-VIXb">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">RUSSELL</span><span class="tape-price" id="tape-Russellb">—</span><span class="tape-chg" id="tapechg-Russellb">—</span></span>
-    <span class="tape-sep">·</span>
-    <span class="tape-item"><span class="tape-name">10Y YIELD</span><span class="tape-price" id="tape-10Yb">—</span><span class="tape-chg" id="tapechg-10Yb">—</span></span>
-  </div>
-</div>
+<!-- TOPBAR -->
+<nav class="db-nav">
+  <div class="db-brand">◈ STOCKDASH</div>
 
-<!-- NAVBAR -->
-<nav class="navbar">
-  <div class="nav-brand">
-    <div class="nav-logo-mark">◈</div>
-    <div class="nav-logo-text">
-      <span class="nav-logo-name">STOCKDASH</span>
-    </div>
+  <div class="db-indices">
+    <span class="db-idx" id="mktcard-SP500">
+      <span class="db-idx-name">S&amp;P</span>
+      <span id="mktprice-SP500">—</span>
+      <span class="mkt-card-chg" id="mktchg-SP500">—</span>
+    </span>
+    <span class="db-idx-sep">·</span>
+    <span class="db-idx" id="mktcard-NASDAQ">
+      <span class="db-idx-name">NDX</span>
+      <span id="mktprice-NASDAQ">—</span>
+      <span class="mkt-card-chg" id="mktchg-NASDAQ">—</span>
+    </span>
+    <span class="db-idx-sep">·</span>
+    <span class="db-idx" id="mktcard-DOW">
+      <span class="db-idx-name">DOW</span>
+      <span id="mktprice-DOW">—</span>
+      <span class="mkt-card-chg" id="mktchg-DOW">—</span>
+    </span>
+    <span class="db-idx-sep">·</span>
+    <span class="db-idx" id="mktcard-Russell">
+      <span class="db-idx-name">RUT</span>
+      <span id="mktprice-Russell">—</span>
+      <span class="mkt-card-chg" id="mktchg-Russell">—</span>
+    </span>
+    <span class="db-idx-sep">·</span>
+    <span class="db-idx" id="mktcard-VIX">
+      <span class="db-idx-name">VIX</span>
+      <span id="mktprice-VIX">—</span>
+      <span class="mkt-card-chg" id="mktchg-VIX">—</span>
+    </span>
+    <span class="db-idx-sep">·</span>
+    <span class="db-idx" id="mktcard-10Y">
+      <span class="db-idx-name">10Y</span>
+      <span id="mktprice-10Y">—</span>
+      <span class="mkt-card-chg" id="mktchg-10Y">—</span>
+    </span>
   </div>
 
-  <div class="nav-search-wrap" id="searchWrap">
-    <span class="nav-search-icon">⌕</span>
-    <input class="nav-search-input" id="searchInput" type="text"
-           placeholder="Search ticker or company…  Ctrl+K"
-           autocomplete="off" />
+  <div class="db-search-wrap" id="searchWrap">
+    <span class="db-search-icon">⌕</span>
+    <input class="db-search-input" id="searchInput" type="text"
+           placeholder="Search…  Ctrl+K" autocomplete="off" />
     <div class="search-dropdown" id="searchDropdown"></div>
   </div>
 
-  <div class="nav-right">
-    <a href="/" class="btn btn-secondary sm" title="Open AI research chat">← Chat</a>
-    <div class="market-status" id="marketStatus">
+  <div class="db-nav-right">
+    <span class="market-status" id="marketStatus">
       <span class="market-dot" id="marketDot"></span>
       <span class="market-label" id="marketLabel">—</span>
-    </div>
-    <div class="status-pill" id="statusPill">
-      <span class="status-dot" id="statusDot"></span>
-      <span id="cacheCount">Loading…</span>
-      <div class="refresh-mini" id="refreshMini" style="display:none">
-        <div class="refresh-mini-fill" id="refreshMiniFill"></div>
-      </div>
-    </div>
-    <button class="btn btn-secondary sm" id="btnRefresh" onclick="startRefresh()">⟳ Refresh</button>
+    </span>
+    <a href="/" class="btn btn-secondary sm">← Chat</a>
     {% if current_user %}
-      <span class="nav-user" title="Signed in as {{ current_user }}">{{ current_user }}</span>
-      <a href="/logout" class="btn btn-secondary sm" title="Sign out">Logout</a>
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm">Logout</a>
     {% endif %}
   </div>
 </nav>
 
-<!-- MARKET INDEX CARDS -->
-<div class="mkt-cards-row">
-  <div class="mkt-card" id="mktcard-SP500">
-    <div class="mkt-card-name">S&amp;P 500</div>
-    <div class="mkt-card-price" id="mktprice-SP500">—</div>
-    <div class="mkt-card-chg" id="mktchg-SP500">—</div>
+<!-- BODY -->
+<div class="db-body">
+
+  <!-- STOCK MAP -->
+  <div class="db-map-wrap">
+    <div class="db-map-bar">
+      <span class="db-section-title">MARKET MAP</span>
+      <div class="db-map-controls">
+        <div class="stockmap-legend">
+          <span class="sm-legend-label">−5%</span>
+          <span class="sm-legend-bar"></span>
+          <span class="sm-legend-label">0</span>
+          <span class="sm-legend-bar sm-legend-bar-pos"></span>
+          <span class="sm-legend-label">+5%</span>
+        </div>
+        <select class="stockmap-filter" id="stockmapSector" title="Filter by sector">
+          <option value="">All sectors</option>
+        </select>
+        <button class="db-icon-btn" onclick="loadStockMap()" title="Refresh map">⟳</button>
+      </div>
+    </div>
+    <div class="stockmap-wrap" id="stockMap">
+      <div class="news-loading"><span class="spinner"></span> Loading map…</div>
+    </div>
   </div>
-  <div class="mkt-card" id="mktcard-NASDAQ">
-    <div class="mkt-card-name">NASDAQ</div>
-    <div class="mkt-card-price" id="mktprice-NASDAQ">—</div>
-    <div class="mkt-card-chg" id="mktchg-NASDAQ">—</div>
-  </div>
-  <div class="mkt-card" id="mktcard-DOW">
-    <div class="mkt-card-name">DOW JONES</div>
-    <div class="mkt-card-price" id="mktprice-DOW">—</div>
-    <div class="mkt-card-chg" id="mktchg-DOW">—</div>
-  </div>
-  <div class="mkt-card" id="mktcard-Russell">
-    <div class="mkt-card-name">RUSSELL 2000</div>
-    <div class="mkt-card-price" id="mktprice-Russell">—</div>
-    <div class="mkt-card-chg" id="mktchg-Russell">—</div>
-  </div>
-  <div class="mkt-card" id="mktcard-VIX">
-    <div class="mkt-card-name">VIX</div>
-    <div class="mkt-card-price" id="mktprice-VIX">—</div>
-    <div class="mkt-card-chg" id="mktchg-VIX">—</div>
-  </div>
-  <div class="mkt-card" id="mktcard-10Y">
-    <div class="mkt-card-name">10Y TREASURY</div>
-    <div class="mkt-card-price" id="mktprice-10Y">—</div>
-    <div class="mkt-card-chg" id="mktchg-10Y">—</div>
-  </div>
+
+  <!-- WATCHLIST SIDEBAR -->
+  <aside class="db-sidebar">
+    <div class="db-sidebar-header">
+      <span class="db-section-title">WATCHLIST</span>
+      <button class="watchlist-add-btn" id="watchlistAddBtn" title="Add ticker">+</button>
+    </div>
+    <div class="watchlist-input-wrap" id="watchlistInputWrap" style="display:none">
+      <input class="watchlist-input" id="watchlistInput" type="text"
+             placeholder="AAPL, 2330.TW…" autocomplete="off" />
+    </div>
+    <div class="watchlist-list" id="watchlistList">
+      <div class="watchlist-empty">No stocks. Click + to add.</div>
+    </div>
+  </aside>
+
 </div>
 
-<!-- DASHBOARD BODY: 2 columns -->
-<div class="dashboard-body">
-
-  <!-- COL 1: Watchlist + Top Movers + Heatmap -->
-  <div class="dash-col">
-
-    <!-- WATCHLIST -->
-    <div class="dash-panel">
-      <div class="dash-panel-header">
-        <span class="dash-panel-title">WATCHLIST</span>
-        <button class="watchlist-add-btn" id="watchlistAddBtn" title="Add ticker">+</button>
-      </div>
-      <div class="watchlist-input-wrap" id="watchlistInputWrap" style="display:none">
-        <input class="watchlist-input" id="watchlistInput" type="text"
-               placeholder="Add ticker (AAPL, NVDA, 2330.TW)…" autocomplete="off" />
-      </div>
-      <div class="watchlist-list" id="watchlistList">
-        <div class="watchlist-empty">No stocks. Click + to add.</div>
-      </div>
-    </div>
-
-    <div class="dash-panel">
-      <div class="dash-panel-header">
-        <span class="dash-panel-title">TOP MOVERS</span>
-        <span class="dash-panel-sub" id="moversTime"></span>
-      </div>
-      <div class="movers-section">
-        <div class="movers-section-label gainers-label">▲ GAINERS</div>
-        <div class="movers-full-list" id="moverGainers"></div>
-      </div>
-      <div class="movers-section">
-        <div class="movers-section-label losers-label">▼ LOSERS</div>
-        <div class="movers-full-list" id="moverLosers"></div>
-      </div>
-    </div>
-
-    <!-- SECTOR HEAT MAP -->
-    <div class="dash-panel">
-      <div class="dash-panel-header">
-        <span class="dash-panel-title">SECTOR PERFORMANCE</span>
-      </div>
-      <div class="heatmap-grid" id="heatmapGrid">
-        <div class="heatmap-loading">Loading…</div>
-      </div>
-    </div>
-
-    <!-- SWING SETUPS -->
-    <div class="dash-panel">
-      <div class="dash-panel-header">
-        <span class="dash-panel-title">🎯 SWING SETUPS</span>
-        <button class="news-refresh-btn" onclick="loadSwingScan()" title="Refresh">⟳</button>
-      </div>
-      <div id="swingScanList"><div class="heatmap-loading">Loading…</div></div>
-    </div>
-  </div>
-
-  <!-- COL 2: Stock Map -->
-  <div class="dash-col dash-col-news">
-    <div class="dash-panel stockmap-panel">
-      <div class="dash-panel-header">
-        <span class="dash-panel-title">STOCK MAP</span>
-        <div class="stockmap-controls">
-          <select class="stockmap-filter" id="stockmapSector" title="Filter by sector">
-            <option value="">All sectors</option>
-          </select>
-          <button class="news-refresh-btn" onclick="loadStockMap()" title="Refresh map">⟳</button>
-        </div>
-      </div>
-      <div class="stockmap-legend">
-        <span class="sm-legend-label">−5%</span>
-        <span class="sm-legend-bar"></span>
-        <span class="sm-legend-label">0</span>
-        <span class="sm-legend-bar sm-legend-bar-pos"></span>
-        <span class="sm-legend-label">+5%</span>
-      </div>
-      <div class="stockmap-wrap" id="stockMap">
-        <div class="news-loading"><span class="spinner"></span> Loading map…</div>
-      </div>
-    </div>
-  </div>
-
-</div><!-- /dashboard-body -->
 <script src="/static/stock-map.js"></script>
-
 <script src="/static/app.js"></script>
 </body>
 </html>
