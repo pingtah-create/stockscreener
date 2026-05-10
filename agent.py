@@ -490,6 +490,7 @@ How to write:
 finbot: Agent[FinBotDeps, str] = Agent(
     system_prompt=SYSTEM_PROMPT,
     deps_type=FinBotDeps,
+    retries=3,
 )
 
 
@@ -503,19 +504,28 @@ def _add_date() -> str:
 @finbot.tool
 def get_stock_fundamentals(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
     """Get fundamental financial data for a stock: valuation ratios (P/E, P/B, EV/EBITDA), growth metrics, margins, moving averages, beta, analyst target."""
-    return tool_get_stock_fundamentals(ticker, ctx.deps.stock_cache)
+    try:
+        return tool_get_stock_fundamentals(ticker, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e), "ticker": ticker}
 
 
 @finbot.tool
 def get_technical_signals(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
     """Get technical analysis for a stock: RSI, 50/200-day moving average position, golden/death cross, trend signals."""
-    return tool_get_technical_signals(ticker, ctx.deps.stock_cache)
+    try:
+        return tool_get_technical_signals(ticker, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e), "ticker": ticker}
 
 
 @finbot.tool
 def get_peer_comparison(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
     """Find industry peers for a stock and compare P/E, growth, margins, and returns side by side."""
-    return tool_get_peer_comparison(ticker, ctx.deps.stock_cache)
+    try:
+        return tool_get_peer_comparison(ticker, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e), "ticker": ticker}
 
 
 @finbot.tool
@@ -524,36 +534,51 @@ def screen_stocks(ctx: RunContext[FinBotDeps],
                   strategy: str = "",
                   limit: int = 10) -> dict:
     """Screen stocks by sector and/or investment strategy to find top candidates. Strategies: value, growth, momentum, dividend, quality, deepvalue."""
-    return tool_screen_stocks(
-        ctx.deps.stock_cache,
-        sector=sector or None,
-        strategy=strategy or None,
-        limit=limit,
-    )
+    try:
+        return tool_screen_stocks(
+            ctx.deps.stock_cache,
+            sector=sector or None,
+            strategy=strategy or None,
+            limit=limit,
+        )
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @finbot.tool
 def get_market_overview(ctx: RunContext[FinBotDeps]) -> dict:
     """Get current market indices (S&P 500, NASDAQ, DOW, VIX) and sector performance. Use for macro or market-wide questions."""
-    return tool_get_market_overview(ctx.deps.indices_cache, ctx.deps.stock_cache)
+    try:
+        return tool_get_market_overview(ctx.deps.indices_cache, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e), "indices": {}, "sector_performance": {}}
 
 
 @finbot.tool
 def compare_stocks(ctx: RunContext[FinBotDeps], tickers: list[str]) -> dict:
     """Side-by-side comparison of multiple stocks on valuation, growth, margins, and analyst ratings (max 6 tickers)."""
-    return tool_compare_stocks(tickers, ctx.deps.stock_cache)
+    try:
+        return tool_compare_stocks(tickers, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e), "comparison": []}
 
 
 @finbot.tool
 def get_analyst_consensus(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
     """Get analyst price target, upside/downside potential, consensus rating, and recent rating changes from brokerages."""
-    return tool_get_analyst_consensus(ticker, ctx.deps.stock_cache)
+    try:
+        return tool_get_analyst_consensus(ticker, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e), "ticker": ticker}
 
 
 @finbot.tool
 def get_watchlist_analysis(ctx: RunContext[FinBotDeps], tickers: list[str]) -> dict:
     """Analyse a list of tickers — scores, ratings, best strategy fit, and which look strongest."""
-    return tool_get_watchlist_analysis(tickers, ctx.deps.stock_cache)
+    try:
+        return tool_get_watchlist_analysis(tickers, ctx.deps.stock_cache)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ── Tools that don't need deps (tool_plain) ───────────────────────────────────
@@ -561,37 +586,55 @@ def get_watchlist_analysis(ctx: RunContext[FinBotDeps], tickers: list[str]) -> d
 @finbot.tool_plain
 def get_recent_news(ticker: str, count: int = 5) -> dict:
     """Get recent news headlines for a stock or the market. Use SPY for general market news."""
-    return tool_get_recent_news(ticker, count)
+    try:
+        return tool_get_recent_news(ticker, count)
+    except Exception as e:
+        return {"error": str(e), "headlines": []}
 
 
 @finbot.tool_plain
 def get_earnings_info(ticker: str) -> dict:
     """Get next earnings date and last 4 quarters of EPS estimates vs actuals (beat/miss history)."""
-    return tool_get_earnings_info(ticker)
+    try:
+        return tool_get_earnings_info(ticker)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @finbot.tool_plain
 def get_insider_activity(ticker: str) -> dict:
     """Get recent insider buying and selling transactions (names, titles, share counts, values)."""
-    return tool_get_insider_activity(ticker)
+    try:
+        return tool_get_insider_activity(ticker)
+    except Exception as e:
+        return {"error": str(e), "transactions": []}
 
 
 @finbot.tool_plain
 def get_dividend_info(ticker: str) -> dict:
     """Get dividend yield, annual dividend rate, payout ratio, and recent payment history."""
-    return tool_get_dividend_info(ticker)
+    try:
+        return tool_get_dividend_info(ticker)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @finbot.tool_plain
 def get_options_chain(ticker: str) -> dict:
     """Get the nearest-expiry options chain (calls + puts) with strikes, bid/ask, volume, open interest, implied volatility, and put/call ratio."""
-    return tool_get_options_chain(ticker)
+    try:
+        return tool_get_options_chain(ticker)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @finbot.tool_plain
 def get_macro_indicators() -> dict:
     """Get key macro indicators: 10Y/2Y treasury yields, VIX, USD index, gold, oil, bitcoin, plus US GDP growth, inflation, and unemployment."""
-    return tool_get_macro_indicators()
+    try:
+        return tool_get_macro_indicators()
+    except Exception as e:
+        return {"error": str(e)}
 
 
 # ── DEBATE AGENTS (Bull / Bear / Verdict) ────────────────────────────────────
@@ -1018,19 +1061,34 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
                         provider=OpenAIProvider(base_url=_GROQ_BASE_URL, api_key=api_key))
     deps  = FinBotDeps(stock_cache=stock_cache, indices_cache=indices_cache)
 
-    result = finbot.run_sync(
-        last_msg,
-        model=model,
-        deps=deps,
-        message_history=history,
-        model_settings=ModelSettings(temperature=0.5, max_tokens=4096),
-    )
+    try:
+        result = finbot.run_sync(
+            last_msg,
+            model=model,
+            deps=deps,
+            message_history=history,
+            model_settings=ModelSettings(temperature=0.5, max_tokens=4096),
+        )
+        tools_used = [
+            part.tool_name
+            for msg in result.all_messages()
+            for part in getattr(msg, "parts", [])
+            if isinstance(part, ToolCallPart)
+        ]
+        return {"reply": result.output, "tools_used": tools_used}
 
-    tools_used = [
-        part.tool_name
-        for msg in result.all_messages()
-        for part in getattr(msg, "parts", [])
-        if isinstance(part, ToolCallPart)
-    ]
-
-    return {"reply": result.output, "tools_used": tools_used}
+    except Exception:
+        # Tool-calling loop failed — fall back to a plain Groq call
+        import requests as _req
+        msgs = [{"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "user", "content": last_msg}]
+        r = _req.post(
+            f"{_GROQ_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _GROQ_CHAT_MODEL, "messages": msgs,
+                  "temperature": 0.5, "max_tokens": 2048},
+            timeout=30,
+        )
+        r.raise_for_status()
+        return {"reply": r.json()["choices"][0]["message"]["content"].strip(),
+                "tools_used": []}
