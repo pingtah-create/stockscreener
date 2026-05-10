@@ -457,8 +457,11 @@ def tool_get_macro_indicators() -> dict:
 # ── PYDANTIC-AI AGENT ─────────────────────────────────────────────────────────
 
 from pydantic_ai import Agent, RunContext
-from pydantic_ai.models.gemini import GeminiModel
-from pydantic_ai.providers.google_gla import GoogleGLAProvider
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
+
+_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
+_GROQ_BASE_URL   = "https://api.groq.com/openai/v1"
 
 
 @dataclass
@@ -467,21 +470,21 @@ class FinBotDeps:
     indices_cache: dict
 
 
-SYSTEM_PROMPT = """You are FinBot — a sharp, opinionated financial analyst embedded in a stock screener.
+SYSTEM_PROMPT = """You are FinBot — a financial analyst who writes like a great storyteller. You have access to real market data and you turn it into compelling, opinionated narratives that help investors understand what's really going on with a stock or market.
 
 You have tools to look up fundamentals, technicals, news, peer comparisons, earnings, insider activity, analyst ratings, dividends, stock screening, options chains, and macro indicators.
 
-Rules:
-- ALWAYS call the right tool(s) before answering. Never invent numbers.
-- Use specific numbers ("P/E 24x vs sector 18x"), never vague statements like "reasonably valued".
-- Be decisive. If data clearly points one way, say so.
-- For stock analysis: lead with **Bullish / Bearish / Neutral** verdict + one-sentence reason, then 2-3 specific data points.
-- For comparisons: show a table, then name the clear winner.
-- For screening: return a results table, highlight top pick.
-- For specific questions (earnings, dividends, news, technicals): answer the question directly with numbers.
-- For macro / market overview: give current numbers then connect to market impact.
-- Keep answers concise and focused. No fluff, no "it's worth noting", no "importantly".
-- Remember the conversation context — if the user asks a follow-up, use prior context to infer the stock."""
+How to write:
+- Tell the story BEHIND the numbers. Don't just list metrics — explain what they mean together, what narrative they're building, what the market believes vs. what the data actually shows.
+- Lead with the most interesting tension or insight, not the most obvious fact.
+- Use specific numbers as evidence for a point, not as the point itself. "Revenue growing 40% while margins are expanding — that's the rarest combination in tech" beats listing both numbers separately.
+- Be decisive and opinionated. If data clearly favors one side, argue that side with conviction.
+- Write in flowing prose for the narrative sections. Reserve bullet points and tables only for dense comparison data.
+- For stock analysis: open with the central tension or story arc, then build the bull case, then the bear case, then what to watch.
+- For comparisons: tell the story of how these companies diverged, then show the table.
+- For screening: explain the theme, then show results.
+- For specific questions: answer directly with context and color, not just numbers.
+- Remember conversation context — follow-up questions continue the same story."""
 
 
 finbot: Agent[FinBotDeps, str] = Agent(
@@ -881,32 +884,35 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     data_brief = "\n".join(brief_lines)
 
     chg_sign = "+" if chg and chg > 0 else ""
-    question_line = f"\nUser's question: {user_question}" if user_question else ""
-    prompt = f"""You are a sharp stock analyst. Write a structured investment brief for {ticker}.{question_line}
+    question_line = f"\nThe user specifically asked: {user_question}" if user_question else ""
+    prompt = f"""You are a financial analyst and storyteller. Write a rich, narrative investment brief for {ticker} ({name}).{question_line}
+
+Use ONLY the numbers in the DATA section below — never invent figures.
 
 DATA:
 {data_brief}
 
-Output EXACTLY this format. No intro. No preamble. Start immediately with the ## header.
-Replace every [placeholder] with real values from the data.
+---
+
+Write the brief in EXACTLY this structure. No preamble — start with the ## header immediately.
 
 ## {ticker} — {name}
 **${fmt(price, 2)}** ({chg_sign}{fmt(chg, 2)}%) · {sector}
 
 ---
 
-**[BULLISH / BEARISH / NEUTRAL]** — *One decisive sentence: the single strongest reason.*
+**[BULLISH / BEARISH / NEUTRAL]** — *One punchy sentence: the single most important thing about this stock right now.*
 
 ---
 
+### The Story
+Write 2–3 paragraphs of flowing prose. This is the narrative heart of the brief. Tell the story of what's happening with this company: what has driven it to where it is today, what the market currently believes, and what the data reveals that investors might be underestimating or overestimating. Weave in specific numbers as evidence — don't just list them. Make it read like an opinion piece, not a data dump. Be opinionated.
+
 ### Bull Case
-- **[metric name]**: [specific number] — [one-line impact]
-- **[metric name]**: [specific number] — [one-line impact]
-- **[metric name]**: [specific number] — [one-line impact]
+Write 2–3 sentences of connected prose building the optimistic scenario. Then add 2–3 bullet points for the sharpest supporting data points, each starting with a bold metric name.
 
 ### Bear Case
-- **[risk name]**: [specific number] — [why it's a real threat]
-- **[risk name]**: [specific number] — [why it's a real threat]
+Write 1–2 sentences framing the risk. Then add 2 bullet points for the most credible threats, each with a bold risk name and a specific number.
 
 ---
 
@@ -928,7 +934,7 @@ Replace every [placeholder] with real values from the data.
 | [date] | $[est] | $[actual] | [+/-pct]% |
 | [date] | $[est] | $[actual] | [+/-pct]% |
 | [date] | $[est] | $[actual] | [+/-pct]% |
-| Next | — | [next earnings date or TBD] | — |
+| Next | — | [next date or TBD] | — |
 
 ---
 
@@ -936,28 +942,29 @@ Replace every [placeholder] with real values from the data.
 | Ticker | P/E | Rev Growth | Net Margin |
 |---|---|---|---|
 | **{ticker}** | [value] | [value]% | [value]% |
-| [peer1] | [value] | [value]% | [value]% |
-| [peer2] | [value] | [value]% | [value]% |
-| [peer3] | [value] | [value]% | [value]% |
+| [peer] | [value] | [value]% | [value]% |
+| [peer] | [value] | [value]% | [value]% |
+| [peer] | [value] | [value]% | [value]% |
 
 ---
 
-### Watch
-*[One sentence: the specific catalyst or data point that would flip this view.]*
+### The Moment of Truth
+*One or two sentences: what specific catalyst, data release, or price level would change this view entirely — and why.*
 
-Rules: use ONLY numbers from the DATA section. Bold every metric name in bullets. No hedging."""
+Rules: all numbers must come from DATA. Prose sections should feel like Bloomberg Opinion, not a research checklist. Bold metric names in bullet points."""
 
     import requests as _req
-    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-           f"gemini-2.5-flash:generateContent?key={api_key}")
-    body = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.35, "maxOutputTokens": 2048},
-    }
     try:
-        r = _req.post(url, json=body, timeout=30)
+        msgs = [{"role": "user", "content": prompt}]
+        r = _req.post(
+            f"{_GROQ_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _GROQ_CHAT_MODEL, "messages": msgs,
+                  "temperature": 0.55, "max_tokens": 3000},
+            timeout=30,
+        )
         r.raise_for_status()
-        reply = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        reply = r.json()["choices"][0]["message"]["content"].strip()
     except Exception as ex:
         reply = f"*Analysis unavailable: {ex}*"
 
@@ -1007,7 +1014,8 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
         elif role == "assistant":
             history.append(ModelResponse(parts=[TextPart(content=content)]))
 
-    model = GeminiModel("gemini-2.5-flash", provider=GoogleGLAProvider(api_key=api_key))
+    model = OpenAIModel(_GROQ_CHAT_MODEL,
+                        provider=OpenAIProvider(base_url=_GROQ_BASE_URL, api_key=api_key))
     deps  = FinBotDeps(stock_cache=stock_cache, indices_cache=indices_cache)
 
     result = finbot.run_sync(
@@ -1015,7 +1023,7 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
         model=model,
         deps=deps,
         message_history=history,
-        model_settings=ModelSettings(temperature=0.3, max_tokens=4096),
+        model_settings=ModelSettings(temperature=0.5, max_tokens=4096),
     )
 
     tools_used = [

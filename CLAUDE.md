@@ -23,7 +23,7 @@ There are no tests and no lint configuration.
 
 Local dev uses `.env` for secrets (auto-loaded by `app.py`):
 ```
-GEMINI_API_KEY=...
+GROQ_API_KEY=...      # free key from console.groq.com — powers all AI features
 FINNHUB_API_KEY=...   # optional — enables real-time quotes on stock page
 ```
 
@@ -48,7 +48,7 @@ Two modes depending on environment:
 - **Local dev**: flat-file `auth/users.json` with werkzeug scrypt hashes. Signup enabled.
 - **Vercel**: reads `AUTH_USERS=user1:pass1,user2:pass2` env var (hashed in memory at import time). Signup disabled. Secret key must be set via `FLASK_SECRET_KEY` env var — without it, every cold start generates a new key and sessions break immediately.
 
-Required Vercel env vars: `FLASK_SECRET_KEY`, `AUTH_USERS`, `GEMINI_API_KEY`.
+Required Vercel env vars: `FLASK_SECRET_KEY`, `AUTH_USERS`, `GROQ_API_KEY`.
 
 ### Backend (`app.py`, `screener.py`, `stock_list.py`)
 
@@ -66,7 +66,7 @@ Required Vercel env vars: `FLASK_SECRET_KEY`, `AUTH_USERS`, `GEMINI_API_KEY`.
 - `_twd_to_usd_rate()`: fetches `TWDUSD=X` from yfinance, 1-hour cache, fallback 0.031. Used in `/api/stockmap` to normalize Taiwan market caps to USD.
 
 Key API endpoints:
-- `POST /api/chat`: multi-turn Gemini 2.5 Flash chat. Extracts tickers from the latest user message using `_extract_tickers()` (regex filtered against the ticker universe), injects compact fundamentals + 3 headlines per ticker as system context.
+- `POST /api/chat`: multi-turn Groq (llama-3.3-70b-versatile) chat via PydanticAI agent. Extracts tickers from the latest user message using `_extract_tickers()` (regex filtered against the ticker universe), injects compact fundamentals + 3 headlines per ticker as system context.
 - `GET /api/stockmap`: treemap data. Taiwan `.TW` stocks get `sector="Taiwan"` and mcap × TWD/USD rate. US stocks excluded from movers but included in the map.
 - `GET /api/movers`: top 5 gainers/losers. Explicitly excludes `.TW` stocks (different market session, stale change%).
 - `POST /api/quotes`: batch live quotes for watchlist using `_live_quote()` in a ThreadPoolExecutor.

@@ -65,6 +65,31 @@ SPARKLINE_CACHE.mkdir(parents=True, exist_ok=True)
 
 _SEED_FILE = Path(__file__).parent / "data" / "stocks.json"
 
+_GROQ_MODEL = "llama-3.3-70b-versatile"
+_GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
+
+
+def _groq_complete(prompt: str, *, system: str = "",
+                   temperature: float = 0.35, max_tokens: int = 1024) -> str:
+    """Call Groq (OpenAI-compatible) and return the response text."""
+    import requests as _req
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        raise ValueError("GROQ_API_KEY not set")
+    msgs = []
+    if system:
+        msgs.append({"role": "system", "content": system})
+    msgs.append({"role": "user", "content": prompt})
+    r = _req.post(
+        _GROQ_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": _GROQ_MODEL, "messages": msgs,
+              "temperature": temperature, "max_tokens": max_tokens},
+        timeout=30,
+    )
+    r.raise_for_status()
+    return r.json()["choices"][0]["message"]["content"].strip()
+
 
 def _live_quote(ticker: str):
     """Return (current_price, previous_close) using the same data path the
@@ -535,9 +560,9 @@ def api_news_events(ticker: str):
             except Exception:
                 p.unlink(missing_ok=True)
 
-    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not set"}), 503
+        return jsonify({"error": "GROQ_API_KEY not set"}), 503
 
     try:
         t = yf.Ticker(ticker)
@@ -602,18 +627,9 @@ Return ONLY a JSON array, no markdown or extra text:
 
 Order by date descending. Include all {len(moves)} moves."""
 
-        import requests as _req
         import re as _re
-        url  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"gemini-2.5-flash:generateContent?key={api_key}")
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048,
-                                 "responseMimeType": "application/json"},
-        }
-        r = _req.post(url, json=body, timeout=30)
-        r.raise_for_status()
-        raw = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+        raw = _groq_complete(prompt, system="Respond with valid JSON only.",
+                             temperature=0.2, max_tokens=2048)
         raw = _re.sub(r':\s*NaN\b', ': null', raw)
         raw = _re.sub(r',\s*([}\]])', r'\1', raw)
 
@@ -832,7 +848,7 @@ def api_swingscan():
 @app.route("/api/swing/<ticker>")
 @auth.require_login_api
 def api_swing(ticker: str):
-    """AI swing trade setup via Gemini. Cached 24h."""
+    """AI swing trade setup via Groq. Cached 24h."""
     ticker = ticker.upper()
     p = _INTEL_DIR / f"{ticker}_swing.json"
     if p.exists():
@@ -843,9 +859,9 @@ def api_swing(ticker: str):
             except Exception:
                 p.unlink(missing_ok=True)  # delete corrupt cache, regenerate below
 
-    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not set"}), 503
+        return jsonify({"error": "GROQ_API_KEY not set"}), 503
 
     data   = next((s for s in _stock_cache if s.get("symbol") == ticker), None) or _load_cache(ticker) or {}
     name   = data.get("shortName") or ticker
@@ -887,24 +903,14 @@ Return ONLY valid JSON:
 }}"""
 
     try:
-        import requests as _req
-        url  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"gemini-2.5-flash:generateContent?key={api_key}")
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {"temperature": 0.2, "maxOutputTokens": 2048,
-                                 "responseMimeType": "application/json"},
-        }
-        r = _req.post(url, json=body, timeout=25)
-        r.raise_for_status()
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         import re as _re
+        text = _groq_complete(prompt, system="Respond with valid JSON only.",
+                              temperature=0.2, max_tokens=1024)
         m = _re.search(r'\{[\s\S]*\}', text)
         raw = m.group() if m else text
-        # Fix common Gemini JSON issues
         raw = _re.sub(r':\s*NaN\b',       ': null', raw)
         raw = _re.sub(r':\s*undefined\b', ': null', raw)
-        raw = _re.sub(r',\s*([}\]])',     r'\1',    raw)  # trailing commas
+        raw = _re.sub(r',\s*([}\]])',     r'\1',    raw)
         result = json.loads(raw)
         p.write_text(json.dumps(result))
         return jsonify(result)
@@ -915,7 +921,7 @@ Return ONLY valid JSON:
 @app.route("/api/intel/<ticker>")
 @auth.require_login_api
 def api_intel(ticker: str):
-    """AI-generated company intel via Gemini. Cached 7 days on disk."""
+    """AI-generated company intel via Groq. Cached 7 days on disk."""
     ticker = ticker.upper()
     p = _INTEL_DIR / f"{ticker}.json"
 
@@ -928,9 +934,9 @@ def api_intel(ticker: str):
             except Exception:
                 p.unlink(missing_ok=True)
 
-    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not set"}), 503
+        return jsonify({"error": "GROQ_API_KEY not set"}), 503
 
     # Pull fundamentals for richer prompt
     data = next((s for s in _stock_cache if s.get("symbol") == ticker), None) or _load_cache(ticker) or {}
@@ -962,21 +968,9 @@ Return ONLY a valid JSON object (no markdown, no code fences) with exactly these
 Include 4-5 competitors. Be specific and factual."""
 
     try:
-        import requests as _req
-        url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-               f"gemini-2.5-flash:generateContent?key={api_key}")
-        body = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "temperature": 0.25,
-                "maxOutputTokens": 2048,
-                "responseMimeType": "application/json",
-            },
-        }
-        r = _req.post(url, json=body, timeout=30)
-        r.raise_for_status()
-        text = r.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
         import re as _re
+        text = _groq_complete(prompt, system="Respond with valid JSON only.",
+                              temperature=0.25, max_tokens=2048)
         m = _re.search(r'\{[\s\S]*\}', text)
         raw = m.group() if m else text
         raw = _re.sub(r':\s*NaN\b',       ': null', raw)
@@ -1022,9 +1016,9 @@ def api_chat():
     if not messages:
         return jsonify({"error": "no messages"}), 400
 
-    api_key = _os.environ.get("GEMINI_API_KEY", "")
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "GEMINI_API_KEY not set on server"}), 503
+        return jsonify({"error": "GROQ_API_KEY not set on server"}), 503
 
     try:
         from agent import run_agent
@@ -1197,10 +1191,9 @@ def api_portfolio_analysis():
             "sectors":               sectors,
         }
 
-        # ── Gemini analysis ───────────────────────────────────────────────────
+        # ── Groq analysis ─────────────────────────────────────────────────────
         analysis = ""
-        api_key  = _os.environ.get("GEMINI_API_KEY", "")
-        if api_key and allocation:
+        if (_os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY")) and allocation:
             ret_map = {r["ticker"]: r["return_pct"] for r in ticker_returns}
             def _holding_line(a):
                 line = (f"  {a['ticker']} ({a['name']}) — {a['pct']}% weight, ${a['value']:,.0f}, "
@@ -1256,17 +1249,8 @@ Output EXACTLY this format — no preamble, start with the verdict line:
 
 Rules: use only numbers from the data above. Bold metric names in bullets. No hedging."""
 
-            import requests as _req
-            gurl  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
-                     f"gemini-2.5-flash:generateContent?key={api_key}")
-            gbody = {
-                "contents": [{"parts": [{"text": prompt}]}],
-                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1024},
-            }
             try:
-                gr = _req.post(gurl, json=gbody, timeout=30)
-                gr.raise_for_status()
-                analysis = gr.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+                analysis = _groq_complete(prompt, temperature=0.3, max_tokens=1024)
             except Exception as ex:
                 analysis = f"*Analysis unavailable: {ex}*"
 
