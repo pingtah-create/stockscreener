@@ -464,6 +464,28 @@ _GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 _GROQ_BASE_URL   = "https://api.groq.com/openai/v1"
 
 
+def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
+               max_tokens: int = 3000) -> str:
+    """POST to Groq with up to 3 retries on 429."""
+    import requests as _req, time as _time
+    for attempt in range(3):
+        r = _req.post(
+            f"{_GROQ_BASE_URL}/chat/completions",
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _GROQ_CHAT_MODEL, "messages": messages,
+                  "temperature": temperature, "max_tokens": max_tokens},
+            timeout=30,
+        )
+        if r.status_code == 429:
+            wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
+            _time.sleep(min(wait, 30))
+            continue
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+    r.raise_for_status()
+    return ""
+
+
 @dataclass
 class FinBotDeps:
     stock_cache: list
@@ -1002,18 +1024,9 @@ Write 1–2 sentences framing the risk. Then add 2 bullet points for the most cr
 
 Rules: all numbers must come from DATA. Prose sections should feel like Bloomberg Opinion, not a research checklist. Bold metric names in bullet points."""
 
-    import requests as _req
     try:
-        msgs = [{"role": "user", "content": prompt}]
-        r = _req.post(
-            f"{_GROQ_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": _GROQ_CHAT_MODEL, "messages": msgs,
-                  "temperature": 0.55, "max_tokens": 3000},
-            timeout=30,
-        )
-        r.raise_for_status()
-        reply = r.json()["choices"][0]["message"]["content"].strip()
+        reply = _groq_post(api_key, [{"role": "user", "content": prompt}],
+                           temperature=0.55, max_tokens=3000)
     except Exception as ex:
         reply = f"*Analysis unavailable: {ex}*"
 
@@ -1085,16 +1098,7 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
 
     except Exception:
         # Tool-calling loop failed — fall back to a plain Groq call
-        import requests as _req
         msgs = [{"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": last_msg}]
-        r = _req.post(
-            f"{_GROQ_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": _GROQ_CHAT_MODEL, "messages": msgs,
-                  "temperature": 0.5, "max_tokens": 2048},
-            timeout=30,
-        )
-        r.raise_for_status()
-        return {"reply": r.json()["choices"][0]["message"]["content"].strip(),
-                "tools_used": []}
+        reply = _groq_post(api_key, msgs, temperature=0.5, max_tokens=2048)
+        return {"reply": reply, "tools_used": []}

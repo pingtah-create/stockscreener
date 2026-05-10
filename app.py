@@ -79,8 +79,8 @@ _GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
 
 def _groq_complete(prompt: str, *, system: str = "",
                    temperature: float = 0.35, max_tokens: int = 1024) -> str:
-    """Call Groq (OpenAI-compatible) and return the response text."""
-    import requests as _req
+    """Call Groq (OpenAI-compatible) with up to 3 retries on 429."""
+    import requests as _req, time as _time
     api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
     if not api_key:
         raise ValueError("GROQ_API_KEY not set")
@@ -88,15 +88,22 @@ def _groq_complete(prompt: str, *, system: str = "",
     if system:
         msgs.append({"role": "system", "content": system})
     msgs.append({"role": "user", "content": prompt})
-    r = _req.post(
-        _GROQ_URL,
-        headers={"Authorization": f"Bearer {api_key}"},
-        json={"model": _GROQ_MODEL, "messages": msgs,
-              "temperature": temperature, "max_tokens": max_tokens},
-        timeout=30,
-    )
+    for attempt in range(3):
+        r = _req.post(
+            _GROQ_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _GROQ_MODEL, "messages": msgs,
+                  "temperature": temperature, "max_tokens": max_tokens},
+            timeout=30,
+        )
+        if r.status_code == 429:
+            wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
+            _time.sleep(min(wait, 30))
+            continue
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
     r.raise_for_status()
-    return r.json()["choices"][0]["message"]["content"].strip()
+    return ""
 
 
 _TICKER_PATTERN = __import__("re").compile(r"^[A-Z0-9]{1,5}(?:\.[A-Z]{1,2})?$")
