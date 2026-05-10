@@ -31,6 +31,8 @@
              placeholder="Ticker (e.g. AAPL)" autocomplete="off" />
       <input class="port-input port-shares-input" id="sharesInput"
              type="number" placeholder="Shares" min="0.001" step="any" />
+      <input class="port-input port-buyin-input" id="buyinInput"
+             type="number" placeholder="Buy price" min="0" step="any" />
       <button class="port-add-btn" onclick="addHolding()">+ Add</button>
     </div>
     <div class="port-pills" id="holdingsList"></div>

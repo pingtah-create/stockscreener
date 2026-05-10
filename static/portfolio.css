@@ -99,8 +99,9 @@ body {
   outline: none;
 }
 .port-input:focus { border-color: #2a2a2a; }
-.port-ticker-input { width: 130px; text-transform: uppercase; }
-.port-shares-input { width: 110px; }
+.port-ticker-input { width: 120px; text-transform: uppercase; }
+.port-shares-input { width: 100px; }
+.port-buyin-input  { width: 110px; }
 
 .port-add-btn {
   background: var(--bg3);

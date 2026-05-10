@@ -1079,6 +1079,7 @@ def api_portfolio_analysis():
 
     tickers      = [h["ticker"].upper() for h in holdings_in]
     shares_map   = {h["ticker"].upper(): float(h.get("shares", 1)) for h in holdings_in}
+    buyin_map    = {h["ticker"].upper(): float(h["buyin"]) for h in holdings_in if h.get("buyin")}
     need_spy     = "SPY" not in tickers
     dl_list      = tickers + (["SPY"] if need_spy else [])
 
@@ -1099,21 +1100,32 @@ def api_portfolio_analysis():
         current_prices = close.iloc[-1].to_dict()
 
         # ── Allocation ────────────────────────────────────────────────────────
-        allocation  = []
-        total_value = 0.0
+        allocation   = []
+        total_value  = 0.0
+        total_cost   = 0.0
         for t in tickers:
             price  = float(current_prices.get(t) or 0)
             shares = shares_map[t]
+            buyin  = buyin_map.get(t)
             value  = price * shares
             total_value += value
+            cost_basis       = round(buyin * shares, 2) if buyin else None
+            unrealized_pnl   = round(value - cost_basis, 2) if cost_basis else None
+            unrealized_pnl_pct = round((price - buyin) / buyin * 100, 2) if buyin and buyin > 0 else None
+            if cost_basis:
+                total_cost += cost_basis
             sd = next((s for s in _stock_cache if s.get("symbol") == t), {})
             allocation.append({
-                "ticker": t,
-                "name":   sd.get("shortName") or sd.get("longName") or t,
-                "shares": shares,
-                "price":  round(price, 2),
-                "value":  round(value, 2),
-                "sector": sd.get("sector") or "Unknown",
+                "ticker":            t,
+                "name":              sd.get("shortName") or sd.get("longName") or t,
+                "shares":            shares,
+                "buyin":             buyin,
+                "price":             round(price, 2),
+                "value":             round(value, 2),
+                "cost_basis":        cost_basis,
+                "unrealized_pnl":    unrealized_pnl,
+                "unrealized_pnl_pct": unrealized_pnl_pct,
+                "sector":            sd.get("sector") or "Unknown",
             })
         for a in allocation:
             a["pct"] = round(a["value"] / total_value * 100, 1) if total_value else 0
@@ -1165,9 +1177,15 @@ def api_portfolio_analysis():
             sectors[a["sector"]] = round(sectors.get(a["sector"], 0) + a["pct"], 1)
         sectors = dict(sorted(sectors.items(), key=lambda x: -x[1]))
 
-        top = max(allocation, key=lambda a: a["pct"]) if allocation else {}
+        top        = max(allocation, key=lambda a: a["pct"]) if allocation else {}
+        has_cost   = total_cost > 0
+        total_pnl  = round(total_value - total_cost, 2) if has_cost else None
+        total_pnl_pct = round((total_value - total_cost) / total_cost * 100, 2) if has_cost and total_cost > 0 else None
         metrics = {
             "total_value":           round(total_value, 2),
+            "total_cost":            round(total_cost, 2) if has_cost else None,
+            "total_pnl":             total_pnl,
+            "total_pnl_pct":         total_pnl_pct,
             "portfolio_return_pct":  port_ret,
             "benchmark_return_pct":  bench_ret,
             "alpha":                 round(port_ret - bench_ret, 2),
@@ -1184,17 +1202,22 @@ def api_portfolio_analysis():
         api_key  = _os.environ.get("GEMINI_API_KEY", "")
         if api_key and allocation:
             ret_map = {r["ticker"]: r["return_pct"] for r in ticker_returns}
+            def _holding_line(a):
+                line = (f"  {a['ticker']} ({a['name']}) — {a['pct']}% weight, ${a['value']:,.0f}, "
+                        f"sector: {a['sector']}, period return: {ret_map.get(a['ticker'], '?')}%")
+                if a.get("buyin") and a.get("unrealized_pnl") is not None:
+                    line += (f", avg cost ${a['buyin']:.2f}, "
+                             f"unrealized P&L ${a['unrealized_pnl']:+,.0f} ({a['unrealized_pnl_pct']:+.1f}%)")
+                return line
             holdings_brief = "\n".join(
-                f"  {a['ticker']} ({a['name']}) — {a['pct']}% weight, ${a['value']:,.0f}, "
-                f"sector: {a['sector']}, return: {ret_map.get(a['ticker'], '?')}%"
-                for a in sorted(allocation, key=lambda x: -x["pct"])
+                _holding_line(a) for a in sorted(allocation, key=lambda x: -x["pct"])
             )
             sector_brief = ", ".join(f"{k}: {v}%" for k, v in sectors.items())
             num_sectors  = len(sectors)
             prompt = f"""Analyse this investment portfolio and write a structured report.
 
 PORTFOLIO:
-- Total Value: ${total_value:,.2f} across {len(tickers)} stocks
+- Total Value: ${total_value:,.2f} across {len(tickers)} stocks{f" | Cost Basis ${total_cost:,.2f} | Unrealized P&L ${total_pnl:+,.2f} ({total_pnl_pct:+.1f}%)" if has_cost else ""}
 - Period Return: {port_ret:+.1f}% vs SPY {bench_ret:+.1f}% (alpha: {port_ret - bench_ret:+.1f}%)
 - Sector Mix: {sector_brief}
 - Largest position: {top.get('ticker','')} at {top.get('pct',0):.1f}%

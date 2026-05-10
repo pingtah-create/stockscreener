@@ -23,6 +23,7 @@ document.querySelectorAll('.port-period-btn').forEach(btn => {
 // Enter key on inputs
 document.getElementById('tickerInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHolding(); });
 document.getElementById('sharesInput').addEventListener('keydown', e => { if (e.key === 'Enter') addHolding(); });
+document.getElementById('buyinInput').addEventListener('keydown',  e => { if (e.key === 'Enter') addHolding(); });
 
 // ── Holdings management ───────────────────────────────────────────────────────
 
@@ -40,18 +41,21 @@ function saveHoldings() {
 function addHolding() {
   const tickerEl = document.getElementById('tickerInput');
   const sharesEl = document.getElementById('sharesInput');
+  const buyinEl  = document.getElementById('buyinInput');
   const ticker   = tickerEl.value.trim().toUpperCase();
   const shares   = parseFloat(sharesEl.value);
+  const buyin    = parseFloat(buyinEl.value) || null;
   if (!ticker || !shares || shares <= 0) return;
 
   const existing = holdings.find(h => h.ticker === ticker);
-  if (existing) existing.shares = shares;
-  else holdings.push({ ticker, shares });
+  if (existing) { existing.shares = shares; existing.buyin = buyin; }
+  else holdings.push({ ticker, shares, buyin });
 
   saveHoldings();
   renderPills();
   tickerEl.value = '';
   sharesEl.value = '';
+  buyinEl.value  = '';
   tickerEl.focus();
 }
 
@@ -70,7 +74,7 @@ function renderPills() {
   el.innerHTML = holdings.map(h => `
     <div class="port-pill">
       <span class="port-pill-ticker">${h.ticker}</span>
-      <span class="port-pill-shares">× ${h.shares}</span>
+      <span class="port-pill-shares">× ${h.shares}${h.buyin ? ` @ $${h.buyin}` : ''}</span>
       <button class="port-pill-rm" onclick="removeHolding('${h.ticker}')" title="Remove">×</button>
     </div>`).join('');
 }
@@ -117,17 +121,27 @@ function renderStats(m) {
   const fv  = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) + '%' : '—';
   const fmv = v => v != null ? '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
 
+  const hasCost = m.total_cost != null;
+  const pnlVal  = hasCost ? m.total_pnl : null;
+  const pnlPct  = hasCost ? m.total_pnl_pct : null;
+
   document.getElementById('portStats').innerHTML = `
     <div class="port-stat">
       <div class="port-stat-label">Total Value</div>
       <div class="port-stat-value">${fmv(m.total_value)}</div>
-      <div class="port-stat-sub">${m.num_stocks} position${m.num_stocks !== 1 ? 's' : ''}</div>
+      <div class="port-stat-sub">${hasCost ? 'Cost ' + fmv(m.total_cost) : m.num_stocks + ' position' + (m.num_stocks !== 1 ? 's' : '')}</div>
     </div>
+    ${hasCost ? `
+    <div class="port-stat">
+      <div class="port-stat-label">Unrealized P&L</div>
+      <div class="port-stat-value ${pnlVal >= 0 ? 'pos' : 'neg'}">${fmv(pnlVal)}</div>
+      <div class="port-stat-sub ${pnlPct >= 0 ? 'pos' : 'neg'}">${fv(pnlPct)} all time</div>
+    </div>` : `
     <div class="port-stat">
       <div class="port-stat-label">Portfolio Return</div>
       <div class="port-stat-value ${m.portfolio_return_pct >= 0 ? 'pos' : 'neg'}">${fv(m.portfolio_return_pct)}</div>
       <div class="port-stat-sub">Selected period</div>
-    </div>
+    </div>`}
     <div class="port-stat">
       <div class="port-stat-label">vs S&P 500 (Alpha)</div>
       <div class="port-stat-value ${m.alpha >= 0 ? 'pos' : 'neg'}">${fv(m.alpha)}</div>
@@ -258,21 +272,30 @@ function renderDonut(allocation) {
 // ── Holdings table ────────────────────────────────────────────────────────────
 
 function renderTable(allocation, ticker_returns) {
-  const retMap = {};
+  const retMap    = {};
   (ticker_returns || []).forEach(r => { retMap[r.ticker] = r.return_pct; });
 
-  const rows = [...allocation].sort((a, b) => b.pct - a.pct);
+  const rows      = [...allocation].sort((a, b) => b.pct - a.pct);
+  const hasCost   = rows.some(a => a.cost_basis != null);
   const fmtR = r => r != null
     ? `<span class="${r >= 0 ? 'pos' : 'neg'}">${r >= 0 ? '+' : ''}${r.toFixed(1)}%</span>`
     : '—';
+  const fmtPnl = (v, pct) => {
+    if (v == null) return '—';
+    const sign = v >= 0 ? '+' : '';
+    return `<span class="${v >= 0 ? 'pos' : 'neg'}">${sign}$${Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} (${sign}${pct.toFixed(1)}%)</span>`;
+  };
   const fmtV = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   document.getElementById('holdingsTable').innerHTML = `
     <table class="port-table">
       <thead>
         <tr>
-          <th>Ticker</th><th>Shares</th><th>Price</th>
-          <th>Value</th><th>Weight</th><th>Return</th><th>Sector</th>
+          <th>Ticker</th><th>Shares</th>
+          ${hasCost ? '<th>Avg Cost</th>' : ''}
+          <th>Price</th><th>Value</th>
+          ${hasCost ? '<th>Cost Basis</th><th>Unrealized P&L</th>' : ''}
+          <th>Weight</th><th>Return</th><th>Sector</th>
         </tr>
       </thead>
       <tbody>
@@ -280,8 +303,10 @@ function renderTable(allocation, ticker_returns) {
           <tr>
             <td class="col-ticker"><a href="/stock/${a.ticker}">${a.ticker}</a></td>
             <td>${a.shares}</td>
+            ${hasCost ? `<td>${a.buyin != null ? '$' + a.buyin.toFixed(2) : '—'}</td>` : ''}
             <td>$${a.price.toFixed(2)}</td>
             <td>${fmtV(a.value)}</td>
+            ${hasCost ? `<td>${a.cost_basis != null ? fmtV(a.cost_basis) : '—'}</td><td>${fmtPnl(a.unrealized_pnl, a.unrealized_pnl_pct)}</td>` : ''}
             <td>${a.pct.toFixed(1)}%</td>
             <td>${fmtR(retMap[a.ticker])}</td>
             <td style="color:#444">${a.sector !== 'Unknown' ? a.sector : '—'}</td>
