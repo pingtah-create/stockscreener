@@ -1059,6 +1059,206 @@ def api_chat():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/portfolio")
+@auth.require_login
+def portfolio_page():
+    return render_template("portfolio.html")
+
+
+@app.route("/api/portfolio-analysis", methods=["POST"])
+@auth.require_login_api
+def api_portfolio_analysis():
+    import pandas as pd
+    _ensure_stocks_loaded()
+    body        = request.json or {}
+    holdings_in = body.get("holdings") or []
+    period      = body.get("period", "3mo")
+
+    if not holdings_in:
+        return jsonify({"error": "No holdings provided"}), 400
+
+    tickers      = [h["ticker"].upper() for h in holdings_in]
+    shares_map   = {h["ticker"].upper(): float(h.get("shares", 1)) for h in holdings_in}
+    need_spy     = "SPY" not in tickers
+    dl_list      = tickers + (["SPY"] if need_spy else [])
+
+    try:
+        raw = yf.download(dl_list, period=period, interval="1d",
+                          auto_adjust=True, progress=False)
+        if raw.empty:
+            return jsonify({"error": "No price data found — check ticker symbols"}), 400
+
+        # Normalise to flat DataFrame of close prices
+        if len(dl_list) == 1:
+            close = pd.DataFrame({dl_list[0]: raw["Close"]})
+        else:
+            close = raw["Close"].copy()
+
+        close = close.dropna(how="all").ffill()
+
+        current_prices = close.iloc[-1].to_dict()
+
+        # ── Allocation ────────────────────────────────────────────────────────
+        allocation  = []
+        total_value = 0.0
+        for t in tickers:
+            price  = float(current_prices.get(t) or 0)
+            shares = shares_map[t]
+            value  = price * shares
+            total_value += value
+            sd = next((s for s in _stock_cache if s.get("symbol") == t), {})
+            allocation.append({
+                "ticker": t,
+                "name":   sd.get("shortName") or sd.get("longName") or t,
+                "shares": shares,
+                "price":  round(price, 2),
+                "value":  round(value, 2),
+                "sector": sd.get("sector") or "Unknown",
+            })
+        for a in allocation:
+            a["pct"] = round(a["value"] / total_value * 100, 1) if total_value else 0
+
+        # ── Historical normalised to 100 ──────────────────────────────────────
+        historical   = []
+        port_vals    = []
+        bench_vals   = []
+        date_strs    = []
+
+        for dt in close.index:
+            pv = 0.0
+            ok = True
+            for t in tickers:
+                if t not in close.columns or pd.isna(close.loc[dt, t]):
+                    ok = False; break
+                pv += float(close.loc[dt, t]) * shares_map[t]
+            if not ok:
+                continue
+            port_vals.append(pv)
+            date_strs.append(str(dt.date()))
+            bv = close.loc[dt, "SPY"] if "SPY" in close.columns else None
+            bench_vals.append(float(bv) if bv is not None and not pd.isna(bv) else None)
+
+        if port_vals:
+            p0 = port_vals[0]
+            b0 = next((v for v in bench_vals if v is not None), None)
+            for i, d in enumerate(date_strs):
+                entry = {"date": d, "portfolio": round(port_vals[i] / p0 * 100, 2)}
+                if b0 and bench_vals[i] is not None:
+                    entry["benchmark"] = round(bench_vals[i] / b0 * 100, 2)
+                historical.append(entry)
+
+        # ── Per-ticker returns ────────────────────────────────────────────────
+        ticker_returns = []
+        for t in tickers:
+            if t in close.columns:
+                tc = close[t].dropna()
+                if len(tc) >= 2:
+                    ret = round((float(tc.iloc[-1]) / float(tc.iloc[0]) - 1) * 100, 2)
+                    ticker_returns.append({"ticker": t, "return_pct": ret})
+        ticker_returns.sort(key=lambda x: x["return_pct"])
+
+        port_ret  = round(historical[-1]["portfolio"] - 100, 2) if historical else 0
+        bench_ret = round(historical[-1].get("benchmark", 100) - 100, 2) if historical else 0
+
+        sectors   = {}
+        for a in allocation:
+            sectors[a["sector"]] = round(sectors.get(a["sector"], 0) + a["pct"], 1)
+        sectors = dict(sorted(sectors.items(), key=lambda x: -x[1]))
+
+        top = max(allocation, key=lambda a: a["pct"]) if allocation else {}
+        metrics = {
+            "total_value":           round(total_value, 2),
+            "portfolio_return_pct":  port_ret,
+            "benchmark_return_pct":  bench_ret,
+            "alpha":                 round(port_ret - bench_ret, 2),
+            "num_stocks":            len(tickers),
+            "top_stock":             top.get("ticker", ""),
+            "top_concentration_pct": top.get("pct", 0),
+            "best_performer":        ticker_returns[-1] if ticker_returns else None,
+            "worst_performer":       ticker_returns[0]  if ticker_returns else None,
+            "sectors":               sectors,
+        }
+
+        # ── Gemini analysis ───────────────────────────────────────────────────
+        analysis = ""
+        api_key  = _os.environ.get("GEMINI_API_KEY", "")
+        if api_key and allocation:
+            ret_map = {r["ticker"]: r["return_pct"] for r in ticker_returns}
+            holdings_brief = "\n".join(
+                f"  {a['ticker']} ({a['name']}) — {a['pct']}% weight, ${a['value']:,.0f}, "
+                f"sector: {a['sector']}, return: {ret_map.get(a['ticker'], '?')}%"
+                for a in sorted(allocation, key=lambda x: -x["pct"])
+            )
+            sector_brief = ", ".join(f"{k}: {v}%" for k, v in sectors.items())
+            num_sectors  = len(sectors)
+            prompt = f"""Analyse this investment portfolio and write a structured report.
+
+PORTFOLIO:
+- Total Value: ${total_value:,.2f} across {len(tickers)} stocks
+- Period Return: {port_ret:+.1f}% vs SPY {bench_ret:+.1f}% (alpha: {port_ret - bench_ret:+.1f}%)
+- Sector Mix: {sector_brief}
+- Largest position: {top.get('ticker','')} at {top.get('pct',0):.1f}%
+
+HOLDINGS (by weight):
+{holdings_brief}
+
+Output EXACTLY this format — no preamble, start with the verdict line:
+
+**[STRONG / BALANCED / WEAK]** — *one sentence verdict.*
+
+---
+
+### Strengths
+- **[metric]**: specific number + why it matters
+- **[metric]**: specific number + why it matters
+
+### Risks
+- **[risk]**: specific number + why it matters
+- **[risk]**: specific number + why it matters
+
+---
+
+### Diversification
+| Metric | Assessment |
+|---|---|
+| Sectors | [{num_sectors} sector{'s' if num_sectors != 1 else ''} — comment on concentration] |
+| Largest Position | [{top.get('ticker','')} at {top.get('pct',0):.1f}% — concentrated/balanced] |
+| vs Benchmark | [{port_ret - bench_ret:+.1f}% alpha — outperforming/underperforming] |
+| Stock Count | [{len(tickers)} stocks — too few/adequate/well spread] |
+
+---
+
+### Recommendation
+*One specific, actionable change to improve this portfolio.*
+
+Rules: use only numbers from the data above. Bold metric names in bullets. No hedging."""
+
+            import requests as _req
+            gurl  = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+                     f"gemini-2.5-flash:generateContent?key={api_key}")
+            gbody = {
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {"temperature": 0.3, "maxOutputTokens": 1024},
+            }
+            try:
+                gr = _req.post(gurl, json=gbody, timeout=30)
+                gr.raise_for_status()
+                analysis = gr.json()["candidates"][0]["content"]["parts"][0]["text"].strip()
+            except Exception as ex:
+                analysis = f"*Analysis unavailable: {ex}*"
+
+        return jsonify({
+            "historical":     historical,
+            "allocation":     allocation,
+            "metrics":        metrics,
+            "ticker_returns": ticker_returns,
+            "analysis":       analysis,
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/quote/<ticker>")
 @auth.require_login_api
 def api_quote(ticker: str):
