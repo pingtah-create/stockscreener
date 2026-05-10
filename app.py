@@ -1061,22 +1061,20 @@ def portfolio_page():
     return render_template("portfolio.html")
 
 
+def _portfolio_path(user: str):
+    return _PORTFOLIO_DIR / f"{user}.json"
+
+
 @app.route("/api/portfolio/holdings", methods=["GET"])
 @auth.require_login_api
 def api_portfolio_holdings_get():
-    # Session is per-user (signed cookie) — works on Vercel without a database
-    holdings = session.get("portfolio", [])
-    # Fallback: try disk cache for local dev if session is empty
-    if not holdings and not _IS_SERVERLESS:
-        p = _PORTFOLIO_DIR / f"{auth.current_user()}.json"
-        if p.exists():
-            try:
-                holdings = json.loads(p.read_text())
-                session["portfolio"] = holdings  # migrate to session
-                session.modified = True
-            except Exception:
-                pass
-    return jsonify(holdings)
+    p = _portfolio_path(auth.current_user())
+    if p.exists():
+        try:
+            return jsonify(json.loads(p.read_text()))
+        except Exception:
+            p.unlink(missing_ok=True)
+    return jsonify([])
 
 
 @app.route("/api/portfolio/holdings", methods=["POST"])
@@ -1085,15 +1083,8 @@ def api_portfolio_holdings_save():
     holdings = request.json
     if not isinstance(holdings, list):
         return jsonify({"error": "expected list"}), 400
-    session["portfolio"] = holdings
-    session.modified = True
-    # Also write to disk on local dev for durability
-    if not _IS_SERVERLESS:
-        try:
-            p = _PORTFOLIO_DIR / f"{auth.current_user()}.json"
-            p.write_text(json.dumps(holdings))
-        except Exception:
-            pass
+    p = _portfolio_path(auth.current_user())
+    p.write_text(json.dumps(holdings))
     return jsonify({"ok": True})
 
 
@@ -1101,7 +1092,11 @@ def api_portfolio_holdings_save():
 @auth.require_login_api
 def api_portfolio_summary():
     """Live price summary for the portfolio — no historical data, no AI."""
-    holdings = session.get("portfolio", [])
+    p = _portfolio_path(auth.current_user())
+    try:
+        holdings = json.loads(p.read_text()) if p.exists() else []
+    except Exception:
+        holdings = []
     if not holdings:
         return jsonify({"allocation": [], "metrics": {}})
 
