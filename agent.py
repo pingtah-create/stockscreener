@@ -763,16 +763,14 @@ def _format_stock_sections_UNUSED(data: dict) -> str:  # kept for reference only
 
 
 def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
-    """Return a ticker only for clear broad-overview / buy-or-sell requests."""
+    """Return a ticker if the message is a single-stock analysis request."""
     import re
     text_lower = text.lower().strip()
 
-    # Exclude multi-stock / market-wide / specific data queries
+    # Exclude multi-stock / market-wide queries
     if any(w in text_lower for w in [" vs ", " versus ", "compare ", "comparison",
                                       "find me", "screen", "best stocks", "top stocks",
-                                      "market overview", "macro ", "which sector",
-                                      "dividend", "earning", "news", "insider",
-                                      "option", "pe ratio", "price target", "analyst"]):
+                                      "market overview", "macro ", "which sector"]):
         return None
 
     ticker_universe = {s.get("symbol", "") for s in stock_cache}
@@ -782,16 +780,19 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
     if not valid:
         return None
 
-    # Only trigger for explicit overview / investment-decision intent
+    # Short query — bare ticker or very brief ("NVDA?", "tell me TSLA")
+    if len(text.strip().split()) <= 3:
+        return valid[0]
+
+    # Broader intent phrases — natural language people actually use
     analysis_words = [
-        "analyze", "analyse", "analysis", "full analysis",
-        "tell me about", "give me a report", "deep dive",
-        "breakdown", "report on", "thoughts on", "opinion on",
-        "assess", "evaluate", "research",
-        "should i buy", "should i sell", "worth buying", "worth it",
-        "good buy", "bad buy", "invest in",
-        "bullish on", "bearish on", "investment thesis",
-        "overview of", "overview on",
+        "analyze", "analyse", "analysis", "tell me about", "what do you think",
+        "should i buy", "should i sell", "overview", "research", "deep dive",
+        "breakdown", "report on", "thoughts on", "opinion on", "assess",
+        "evaluate", "review", "look at", "what about", "give me",
+        "how is", "how's", "how about", "what's happening with",
+        "worth buying", "worth it", "good buy", "bad buy", "invest in",
+        "bullish on", "bearish on", "long on", "short on",
     ]
     return valid[0] if any(w in text_lower for w in analysis_words) else None
 
