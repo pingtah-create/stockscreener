@@ -672,6 +672,8 @@ body {
   color: var(--text2);
   font-size: 11.5px;
 }
+.db-idx .mkt-card-chg.up   { color: var(--green); }
+.db-idx .mkt-card-chg.down { color: var(--red); }
 
 .db-idx-sep {
   color: var(--border2);
