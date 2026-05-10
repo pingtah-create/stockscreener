@@ -880,31 +880,46 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
 
     data_brief = "\n".join(brief_lines)
 
+    chg_sign = "+" if chg and chg > 0 else ""
     question_line = f"\nUser's question: {user_question}" if user_question else ""
-    prompt = f"""You are a sharp, opinionated stock analyst. Analyse {ticker} based on the data below.{question_line}
+    prompt = f"""You are a sharp stock analyst. Write a structured investment brief for {ticker}.{question_line}
 
+DATA:
 {data_brief}
 
-Write a clear, decisive analysis. Format:
+Output EXACTLY this format — no intro, no preamble, start with the header:
 
 ## {ticker} — {name}
-**${fmt(price, 2)}** {"(+" if chg and chg > 0 else "("}{fmt(chg, 2)}%)  ·  {sector}
+**${fmt(price, 2)}** ({chg_sign}{fmt(chg, 2)}%) · {sector}
 
-**Verdict: [BULLISH / BEARISH / NEUTRAL]** — one sentence, state the single most compelling reason.
+**[BULLISH / BEARISH / NEUTRAL]** — *one sentence: the single strongest reason for this verdict.*
 
 ### Bull Case
-- 2-3 specific reasons with numbers from the data
+- **[key metric]**: specific number + why it matters
+- **[key metric]**: specific number + why it matters
+- **[key metric]**: specific number + why it matters
 
 ### Bear Case
-- 1-2 real risks with numbers
+- **[risk]**: specific number + why it's a real threat
+- **[risk]**: specific number + why it's a real threat
 
 ### Key Numbers
-A compact table of the 6 most important metrics (pick the ones that matter most for this stock)
+| Metric | Value |
+|---|---|
+| [metric] | [value] |
+| [metric] | [value] |
+| [metric] | [value] |
+| [metric] | [value] |
+| [metric] | [value] |
+| [metric] | [value] |
 
-### What to Watch
-One sentence: what would change this view.
+### Watch
+*One sentence: the single event or data point that would change this view.*
 
-Rules: be direct and specific. Use the actual numbers. No hedging. No "it's important to note"."""
+Rules:
+- Use ONLY numbers from the data provided. No invented figures.
+- Bold the metric name in each bullet. Be direct — no hedging phrases.
+- Fill in every [ ] placeholder with actual values."""
 
     import requests as _req
     url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
