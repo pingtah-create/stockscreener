@@ -602,10 +602,10 @@ html, body {
 .stab-pane {
   flex: 1;
   overflow-y: auto;
-  padding: 12px 10px;
+  padding: 8px 10px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 .stab-pane::-webkit-scrollbar { width: 3px; }
 .stab-pane::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
@@ -616,59 +616,61 @@ html, body {
 
 .sidebar-section { }
 .sidebar-title {
-  font-size: 9px; font-weight: 700; letter-spacing: .12em;
-  text-transform: uppercase; color: var(--text3); margin-bottom: 8px;
-  font-family: var(--mono);
+  font-size: 8px; font-weight: 600; letter-spacing: .08em;
+  text-transform: uppercase; color: var(--text3); margin-bottom: 4px;
+  font-family: var(--mono); opacity: .55;
 }
 
 /* ── FUNDAMENTALS GRID ────────────────────────────────────── */
-.fund-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.fund-grid { display: flex; flex-direction: column; }
 .fund-item {
-  background: var(--bg2); border: 1px solid var(--border);
-  border-radius: 4px; padding: 5px 7px;
+  display: flex; justify-content: space-between; align-items: baseline;
+  padding: 3.5px 0;
+  background: none; border: none; border-radius: 0;
+  border-bottom: 1px solid var(--border);
 }
+.fund-item:last-child { border-bottom: none; }
 .fund-key {
-  font-size: 8px; font-weight: 700; letter-spacing: .08em;
-  text-transform: uppercase; color: var(--text3); margin-bottom: 2px;
+  font-size: 9.5px; font-weight: 400; letter-spacing: 0;
+  text-transform: none; color: var(--text3); margin-bottom: 0;
 }
-.fund-val { font-size: 12.5px; font-weight: 600; color: var(--text); font-family: var(--mono); }
+.fund-val { font-size: 11px; font-weight: 600; color: var(--text); font-family: var(--mono); }
 .fund-val.up   { color: var(--green); }
 .fund-val.down { color: var(--red); }
 .fund-loading  { color: var(--text3); font-size: 11px; }
 
 /* ── STRATEGY SCORES ──────────────────────────────────────── */
-.scores-list { display: flex; flex-direction: column; gap: 6px; }
-.score-row { display: flex; flex-direction: column; gap: 3px; }
-.score-row-top { display: flex; justify-content: space-between; align-items: center; }
-.score-name { font-size: 11px; font-weight: 500; color: var(--text2); }
-.score-num  { font-size: 11px; font-weight: 600; color: var(--text); font-family: var(--mono); }
-.score-bar-bg { background: var(--bg3); border-radius: 2px; height: 3px; overflow: hidden; }
+.scores-list { display: flex; flex-direction: column; gap: 4px; }
+.score-row { display: flex; align-items: center; gap: 6px; }
+.score-name { font-size: 10px; font-weight: 400; color: var(--text3); width: 68px; flex-shrink: 0; }
+.score-num  { font-size: 10px; font-weight: 600; color: var(--text); font-family: var(--mono); width: 18px; text-align: right; flex-shrink: 0; }
+.score-bar-bg { flex: 1; background: var(--bg3); border-radius: 1px; height: 2px; overflow: hidden; }
 .score-bar-fill {
-  height: 100%; border-radius: 2px;
+  height: 100%; border-radius: 1px;
   background: linear-gradient(90deg, var(--accent), var(--green));
   transition: width .7s ease;
 }
 
 /* ── 52-WEEK RANGE ────────────────────────────────────────── */
-.week52 { padding: 2px 0; }
-.week52-bar-wrap { padding: 0 4px; margin-bottom: 7px; }
-.week52-bar { height: 3px; background: var(--bg3); border-radius: 2px; position: relative; }
+.week52 { padding: 0; }
+.week52-bar-wrap { padding: 0 4px; margin-bottom: 5px; }
+.week52-bar { height: 2px; background: var(--bg3); border-radius: 1px; position: relative; }
 .week52-fill {
   position: absolute; left: 0; top: 0; height: 100%;
   background: linear-gradient(90deg, var(--red), var(--green));
-  border-radius: 2px; transition: width .5s;
+  border-radius: 1px; transition: width .5s;
 }
 .week52-thumb {
   position: absolute; top: 50%;
   transform: translate(-50%,-50%);
-  width: 10px; height: 10px;
+  width: 8px; height: 8px;
   background: var(--text); border-radius: 50%;
-  border: 2px solid var(--bg2);
+  border: 2px solid var(--bg);
   transition: left .5s;
 }
 .week52-labels {
   display: flex; justify-content: space-between;
-  font-size: 10px; font-weight: 600; color: var(--text3);
+  font-size: 9.5px; font-weight: 500; color: var(--text3);
   font-family: var(--mono);
 }
 
@@ -772,23 +774,24 @@ html, body {
 
 /* ── EARNINGS BADGE ───────────────────────────────────────── */
 .earnings-badge {
-  margin-top: 7px;
-  display: flex; align-items: center; gap: 5px;
-  border: 1px solid var(--border2);
-  border-radius: 4px; padding: 4px 8px;
-  font-size: 11px; color: var(--text3); font-weight: 500;
+  margin-top: 4px;
+  display: flex; align-items: center; gap: 4px;
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  font-size: 10px; color: var(--text3); font-weight: 500;
 }
 
 /* ── TICKER NOTES ─────────────────────────────────────────── */
 .ticker-note {
-  width: 100%; background: var(--bg2);
-  border: 1px solid var(--border); border-radius: 4px;
+  width: 100%; background: none;
+  border: none; border-bottom: 1px solid var(--border);
+  border-radius: 0;
   color: var(--text); font-family: inherit; font-size: 11px;
-  line-height: 1.5; padding: 6px 8px;
-  resize: vertical; min-height: 60px;
+  line-height: 1.5; padding: 4px 0;
+  resize: none; min-height: 52px;
 }
 .ticker-note::placeholder { color: var(--text3); }
-.ticker-note:focus { outline: none; border-color: var(--border2); }
+.ticker-note:focus { outline: none; border-bottom-color: var(--border2); }
 
 /* ── COMPARE OVERLAY ──────────────────────────────────────── */
 .compare-wrap {

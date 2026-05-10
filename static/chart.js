@@ -1646,16 +1646,11 @@ async function loadFundamentals() {
   const NAMES  = { value:'Value', growth:'Growth', momentum:'Momentum', quality:'Quality', dividend:'Dividend', deepvalue:'Deep Value' };
   document.getElementById('scoresList').innerHTML = Object.entries(NAMES).map(([k, name]) => {
     const sc = scores[k] ?? 0;
-    return `
-      <div class="score-row">
-        <div class="score-row-top">
-          <span class="score-name">${name}</span>
-          <span class="score-num">${sc}</span>
-        </div>
-        <div class="score-bar-bg">
-          <div class="score-bar-fill" style="width:${sc}%"></div>
-        </div>
-      </div>`;
+    return `<div class="score-row">
+      <span class="score-name">${name}</span>
+      <div class="score-bar-bg"><div class="score-bar-fill" style="width:${sc}%"></div></div>
+      <span class="score-num">${sc}</span>
+    </div>`;
   }).join('');
 
   // 52-week range
