@@ -521,23 +521,70 @@ def api_news_ticker(ticker: str):
         return jsonify([])
 
 
+_movers_cache: dict = {"gainers": [], "losers": [], "at": None}
+_MOVERS_TTL = 120  # seconds
+
+
 @app.route("/api/movers")
 @auth.require_login_api
 def api_movers():
     _ensure_stocks_loaded()
-    stocks = [s for s in _stock_cache
-              if s.get("regularMarketChangePercent") is not None
-              and not str(s.get("symbol", "")).endswith(".TW")]
-    stocks_sorted = sorted(stocks, key=lambda s: s.get("regularMarketChangePercent", 0), reverse=True)
+
+    # Serve from short-lived cache if fresh
+    if (_movers_cache["at"] and
+            (datetime.utcnow() - _movers_cache["at"]).total_seconds() < _MOVERS_TTL):
+        return jsonify({"gainers": _movers_cache["gainers"], "losers": _movers_cache["losers"]})
+
+    us_stocks = [s for s in _stock_cache
+                 if not str(s.get("symbol", "")).endswith(".TW") and s.get("symbol")]
+    all_tickers = [s["symbol"] for s in us_stocks]
+
+    # Fetch fresh daily closes for all US stocks in one call
+    fresh_chg: dict[str, float] = {}
+    try:
+        df = yf.download(
+            all_tickers, period="5d", interval="1d",
+            progress=False, auto_adjust=True, threads=True
+        )
+        if not df.empty:
+            close = df["Close"] if "Close" in df else df.get("Adj Close")
+            if close is not None and not close.empty:
+                for tkr in all_tickers:
+                    col = tkr if tkr in close.columns else None
+                    if col is None and len(all_tickers) == 1:
+                        col = close.columns[0] if not close.empty else None
+                    if col is None:
+                        continue
+                    series = close[col].dropna()
+                    if len(series) >= 2:
+                        cur, prev = float(series.iloc[-1]), float(series.iloc[-2])
+                        if prev > 0:
+                            fresh_chg[tkr] = round((cur - prev) / prev * 100, 4)
+    except Exception:
+        pass
+
+    def get_chg(s):
+        tkr = s.get("symbol", "")
+        return fresh_chg.get(tkr, s.get("regularMarketChangePercent", 0) or 0)
+
+    stocks_sorted = sorted(us_stocks, key=get_chg, reverse=True)
     gainers = stocks_sorted[:5]
     losers  = stocks_sorted[-5:][::-1]
+
     def fmt(s):
         return {
             "symbol": s.get("symbol"),
             "name":   s.get("shortName", ""),
-            "chg":    round(s.get("regularMarketChangePercent", 0), 2),
+            "chg":    round(get_chg(s), 2),
         }
-    return jsonify({"gainers": [fmt(s) for s in gainers], "losers": [fmt(s) for s in losers]})
+
+    result = {
+        "gainers": [fmt(s) for s in gainers],
+        "losers":  [fmt(s) for s in losers],
+    }
+    _movers_cache.update({"gainers": result["gainers"], "losers": result["losers"],
+                          "at": datetime.utcnow()})
+    return jsonify(result)
 
 
 _FX_CACHE: dict = {"TWDUSD": None, "at": None}

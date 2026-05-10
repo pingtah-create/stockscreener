@@ -57,8 +57,8 @@ let _patternMarkers = [];
 let volProfileOn   = false;
 
 // ── Comparison overlay state ──────────────────────────────────────
-let compSeries = null;
-let compTicker = null;
+const compMap = {};  // ticker → { series, bars, color }
+const COMP_COLORS = ['#ab47bc', '#ff9800', '#00bcd4', '#f44336', '#4caf50'];
 
 // ── Indicator defaults (loaded from localStorage if present) ──────
 const IND_DEFAULT = { bb: true, sma20: true, sma50: false, sma200: false, ema9: false, ema20: false, vwap: false };
@@ -375,7 +375,8 @@ async function loadData(period) {
       const btn = document.getElementById('patternBtn');
       if (btn) { patternOn = false; togglePatterns(btn); }
     }
-    if (compTicker) loadCompareData(compTicker);
+    const _compInput = document.getElementById('compareInput');
+    if (_compInput && _compInput.value.trim()) loadCompareData(_compInput.value.trim());
   } catch (e) {
     showChartError(`Failed to load chart.<br><span style="color:#4a5568;font-size:11px">${e.message}</span>`);
   }
@@ -2275,82 +2276,120 @@ function setupCompare() {
   });
 }
 
-async function loadCompareData(ticker) {
-  ticker = (ticker || '').toUpperCase().replace(/[^A-Z0-9.]/g, '');
-  if (!ticker || ticker === TICKER || !chartData?.ohlcv?.length) return;
+async function loadCompareData(input) {
+  if (!chartData?.ohlcv?.length) return;
 
-  // Remove previous comparison series
-  if (compSeries) {
-    try { priceChart.removeSeries(compSeries); } catch {}
-    compSeries = null;
-  }
+  const newTickers = (input || '').toUpperCase()
+    .split(/[\s,]+/)
+    .map(t => t.replace(/[^A-Z0-9.]/g, ''))
+    .filter(t => t && t !== TICKER)
+    .slice(0, 5);
 
-  try {
-    const res = await fetch(`/api/chart/${ticker}?period=${currentPeriod}`);
-    if (!res.ok) throw new Error('bad response');
-    const data = await res.json();
-    if (!data?.ohlcv?.length) throw new Error('no data');
-
-    // Align: find first comp bar >= main start date
-    const mainBars = chartData.ohlcv;
-    const mainStart = mainBars[0].date;
-    const compBars  = data.ohlcv.filter(b => b.date >= mainStart);
-    if (!compBars.length) throw new Error('no overlap');
-
-    const mainBase = mainBars[0].close;
-    const compBase = compBars[0].close;
-
-    const normalized = compBars.map(b => ({
-      time: b.date,
-      value: (b.close / compBase) * mainBase,
-    }));
-
-    compSeries = priceChart.addLineSeries({
-      color: '#ab47bc',
-      lineWidth: 1.5,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      crosshairMarkerVisible: false,
-      title: ticker,
-    });
-    compSeries.setData(normalized);
-    compTicker = ticker;
-
-    // Show result: % change for each
-    const mainPct = ((mainBars[mainBars.length-1].close / mainBase - 1) * 100).toFixed(1);
-    const compPct = ((compBars[compBars.length-1].close / compBase - 1) * 100).toFixed(1);
-    const mainSign = mainPct >= 0 ? '+' : '';
-    const compSign = compPct >= 0 ? '+' : '';
-    const mainColor = mainPct >= 0 ? '#00e676' : '#ff4f4f';
-    const compColor = compPct >= 0 ? '#00e676' : '#ff4f4f';
-
-    const resultEl = document.getElementById('compareResult');
-    if (resultEl) {
-      resultEl.innerHTML =
-        `<span style="color:#8899aa">${TICKER}</span> <span style="color:${mainColor}">${mainSign}${mainPct}%</span>` +
-        ` <span style="color:#555"> | </span>` +
-        `<span style="color:#ab47bc">${ticker}</span> <span style="color:${compColor}">${compSign}${compPct}%</span>`;
-      resultEl.style.display = '';
+  // Remove series for tickers no longer in the input
+  for (const t of Object.keys(compMap)) {
+    if (!newTickers.includes(t)) {
+      try { priceChart.removeSeries(compMap[t].series); } catch {}
+      delete compMap[t];
     }
-    const clearBtn = document.getElementById('compareClear');
-    if (clearBtn) clearBtn.style.display = '';
-
-  } catch {
-    const input = document.getElementById('compareInput');
-    if (input) { input.style.borderColor = '#ff4f4f'; setTimeout(() => { input.style.borderColor = ''; }, 1500); }
   }
+
+  if (!newTickers.length) {
+    _updateCompareResult();
+    return;
+  }
+
+  // Load each new ticker (skip ones already loaded)
+  const toLoad = newTickers.filter(t => !compMap[t]);
+  await Promise.all(toLoad.map(async (ticker) => {
+    const colorIdx = Object.keys(compMap).length % COMP_COLORS.length;
+    const color = COMP_COLORS[colorIdx];
+    try {
+      const res = await fetch(`/api/chart/${ticker}?period=${currentPeriod}`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (!data?.ohlcv?.length) throw new Error();
+
+      const mainBars  = chartData.ohlcv;
+      const mainStart = mainBars[0].date;
+      const compBars  = data.ohlcv.filter(b => b.date >= mainStart);
+      if (!compBars.length) throw new Error();
+
+      const mainBase = mainBars[0].close;
+      const compBase = compBars[0].close;
+      const normalized = compBars.map(b => ({
+        time: b.date,
+        value: (b.close / compBase) * mainBase,
+      }));
+
+      const series = priceChart.addLineSeries({
+        color,
+        lineWidth: 1.5,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+        title: ticker,
+      });
+      series.setData(normalized);
+      compMap[ticker] = { series, bars: compBars, color };
+    } catch {
+      const inputEl = document.getElementById('compareInput');
+      if (inputEl) {
+        inputEl.style.borderColor = '#ff4f4f';
+        setTimeout(() => { inputEl.style.borderColor = ''; }, 1500);
+      }
+    }
+  }));
+
+  _updateCompareResult();
+}
+
+function _updateCompareResult() {
+  const resultEl = document.getElementById('compareResult');
+  const clearBtn  = document.getElementById('compareClear');
+  if (!resultEl) return;
+
+  const hasComps = Object.keys(compMap).length > 0;
+  if (!hasComps || !chartData?.ohlcv?.length) {
+    resultEl.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+    return;
+  }
+
+  const mainBars = chartData.ohlcv;
+  const mainBase = mainBars[0].close;
+  const mainPct  = ((mainBars[mainBars.length - 1].close / mainBase - 1) * 100).toFixed(1);
+  const mainSign  = +mainPct >= 0 ? '+' : '';
+  const mainColor = +mainPct >= 0 ? '#00e676' : '#ff4f4f';
+
+  const parts = [
+    `<span style="color:#8899aa">${TICKER}</span> <span style="color:${mainColor}">${mainSign}${mainPct}%</span>`,
+  ];
+
+  for (const [ticker, { bars, color }] of Object.entries(compMap)) {
+    const base = bars[0].close;
+    const pct  = ((bars[bars.length - 1].close / base - 1) * 100).toFixed(1);
+    const sign  = +pct >= 0 ? '+' : '';
+    const pctColor = +pct >= 0 ? '#00e676' : '#ff4f4f';
+    parts.push(
+      `<span style="color:${color}">${ticker}</span> <span style="color:${pctColor}">${sign}${pct}%</span>`
+    );
+  }
+
+  resultEl.innerHTML = parts.join(' <span style="color:#555">|</span> ');
+  resultEl.style.display = '';
+  if (clearBtn) clearBtn.style.display = '';
 }
 
 function clearCompare() {
-  if (compSeries) {
-    try { priceChart.removeSeries(compSeries); } catch {}
-    compSeries = null;
+  for (const { series } of Object.values(compMap)) {
+    try { priceChart.removeSeries(series); } catch {}
   }
-  compTicker = null;
-  const input   = document.getElementById('compareInput');
+  for (const k of Object.keys(compMap)) delete compMap[k];
+
+  const input    = document.getElementById('compareInput');
   const clearBtn = document.getElementById('compareClear');
   const resultEl = document.getElementById('compareResult');
-  if (input)   input.value = '';
+  if (input)    input.value = '';
   if (clearBtn) clearBtn.style.display = 'none';
   if (resultEl) resultEl.style.display = 'none';
 }
