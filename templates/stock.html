@@ -10,21 +10,21 @@
 
 <!-- TOP BAR -->
 <div class="topbar">
-  <a class="back-btn" href="/">← Back</a>
+  <a class="back-link" href="/dashboard" title="Back to dashboard">←</a>
+  <div class="topbar-div"></div>
+
   <div class="stock-header">
     <span class="stock-ticker">{{ ticker }}</span>
     <span class="stock-name" id="stockName">Loading…</span>
     <span class="stock-price" id="stockPrice">—</span>
-    <span class="stock-chg" id="stockChg">—</span>
+    <span class="stock-chg"  id="stockChg">—</span>
 
-    <!-- Watchlist star -->
     <button class="watch-star" id="watchStar" title="Add to watchlist" onclick="toggleWatchlistTicker()">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
         <polygon points="8,1.5 10,6 14.5,6.4 11,9.5 12,14 8,11.6 4,14 5,9.5 1.5,6.4 6,6"/>
       </svg>
     </button>
 
-    <!-- Price alert bell -->
     <button class="alert-bell" id="alertBell" title="Set price alert">
       <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
         <path d="M8 1.5a4 4 0 0 0-4 4v2.4l-1.4 2.1a.5.5 0 0 0 .4.8h10a.5.5 0 0 0 .4-.8L12 7.9V5.5a4 4 0 0 0-4-4zm-1.5 11a1.5 1.5 0 1 0 3 0h-3z"/>
@@ -32,20 +32,19 @@
       <span class="alert-bell-badge" id="alertBellBadge" style="display:none">0</span>
     </button>
 
-    <!-- Alert popup -->
     <div class="alert-popup" id="alertPopup" style="display:none">
       <div class="alert-popup-header">PRICE ALERTS · {{ ticker }}</div>
       <div class="alert-popup-list" id="alertPopupList"></div>
       <div class="alert-popup-form">
-        <input class="alert-popup-input" id="alertPopupInput" type="number"
-               step="0.01" placeholder="Target price" />
+        <input class="alert-popup-input" id="alertPopupInput" type="number" step="0.01" placeholder="Target price" />
         <button class="alert-popup-btn above" onclick="addAlertFromInput('above')" title="Trigger when price ≥ target">▲ Above</button>
         <button class="alert-popup-btn below" onclick="addAlertFromInput('below')" title="Trigger when price ≤ target">▼ Below</button>
       </div>
     </div>
   </div>
 
-  <!-- CHART SEARCH -->
+  <div class="topbar-spacer"></div>
+
   <div class="chart-search-wrap" id="chartSearchWrap">
     <span class="chart-search-icon">⌕</span>
     <input class="chart-search-input" id="chartSearchInput" type="text"
@@ -72,12 +71,14 @@
     <!-- Indicator controls -->
     <div class="chart-controls">
       <div class="chart-type-btns">
-        <button class="ct-btn active" id="btnCandle" onclick="setChartType('candle')">Candles</button>
-        <button class="ct-btn" id="btnLine" onclick="setChartType('line')">Line</button>
-        <button class="ct-btn" id="btnHA" onclick="setChartType('ha')" title="Heikin-Ashi — smoother trend candles">HA</button>
+        <button class="ct-btn active" id="btnCandle" onclick="setChartType('candle')">Candle</button>
+        <button class="ct-btn" id="btnLine"   onclick="setChartType('line')">Line</button>
+        <button class="ct-btn" id="btnHA"     onclick="setChartType('ha')" title="Heikin-Ashi">HA</button>
       </div>
+
+      <div class="ctrl-sep"></div>
+
       <div class="ind-btns">
-        <span class="ind-label">Overlays:</span>
         <button class="ind-btn active" data-ind="bb"     style="--ic:#0e84ff" onclick="toggleInd('bb',this)">BB</button>
         <button class="ind-btn active" data-ind="sma20"  style="--ic:#00bcd4" onclick="toggleInd('sma20',this)">SMA20</button>
         <button class="ind-btn"        data-ind="sma50"  style="--ic:#ff9800" onclick="toggleInd('sma50',this)">SMA50</button>
@@ -85,12 +86,17 @@
         <button class="ind-btn"        data-ind="ema9"   style="--ic:#ab47bc" onclick="toggleInd('ema9',this)">EMA9</button>
         <button class="ind-btn"        data-ind="ema20"  style="--ic:#26c6da" onclick="toggleInd('ema20',this)">EMA20</button>
         <button class="ind-btn"        data-ind="vwap"   style="--ic:#ffd54f" onclick="toggleInd('vwap',this)">VWAP</button>
-        <button class="ind-btn"        data-ind="vp"     style="--ic:#4db6ac" onclick="toggleVolProfile(this)" title="Volume Profile — price-by-volume histogram">Vol Profile</button>
+        <button class="ind-btn"        data-ind="vp"     style="--ic:#4db6ac" onclick="toggleVolProfile(this)" title="Volume Profile">VP</button>
       </div>
-      <button class="auto-ta-btn" id="patternBtn" onclick="togglePatterns(this)" title="Detect candlestick patterns on chart">⌘ Patterns</button>
-      <button class="auto-ta-btn" id="autoTaBtn" onclick="toggleAutoTA(this)">✦ Auto TA</button>
 
-      <!-- Comparison overlay -->
+      <div class="ctrl-sep"></div>
+
+      <button class="ctrl-btn" id="autoTaBtn"  onclick="toggleAutoTA(this)"      title="Auto TA analysis">✦ TA</button>
+      <button class="ctrl-btn" id="patternBtn" onclick="togglePatterns(this)"    title="Candlestick patterns">⌘ Pat</button>
+      <button class="ctrl-btn" id="drawToggleBtn" onclick="toggleDrawToolbar(this)" title="Drawing tools">✏</button>
+
+      <div class="ctrl-sep"></div>
+
       <div class="compare-wrap">
         <span class="compare-label">vs</span>
         <input class="compare-input" id="compareInput" type="text" placeholder="SPY…" autocomplete="off" maxlength="10" />
@@ -102,46 +108,39 @@
     <!-- Auto TA findings panel -->
     <div id="autoTAPanel" class="autota-panel" style="display:none"></div>
 
-    <!-- OHLCV bar (hidden — replaced by floating tooltip) -->
-    <div class="ohlcv-bar" style="display:none">
-      <span id="ohlcvDate"></span><span id="ohlcvO"></span>
-      <span id="ohlcvH"></span><span id="ohlcvL"></span>
-      <span id="ohlcvC"></span><span id="ohlcvV"></span>
-    </div>
-
-    <!-- Drawing toolbar + charts side by side -->
+    <!-- Drawing toolbar + charts -->
     <div class="chart-with-toolbar">
 
-      <!-- Drawing tools vertical strip -->
-      <div class="drawing-toolbar">
-        <button class="dtool active" id="dtool-none"      onclick="setDrawTool('none')"      title="Select / Scroll">
+      <!-- Drawing tools (hidden by default) -->
+      <div class="drawing-toolbar" id="drawingToolbar" style="display:none">
+        <button class="dtool active" id="dtool-none"     onclick="setDrawTool('none')"     title="Select">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 1l10 6-5 1-2 5z" fill="currentColor"/></svg>
         </button>
         <div class="dtool-sep"></div>
-        <button class="dtool" id="dtool-trendline"  onclick="setDrawTool('trendline')"  title="Trend Line">
+        <button class="dtool" id="dtool-trendline" onclick="setDrawTool('trendline')" title="Trend Line">
           <svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="13" x2="14" y2="3" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
-        <button class="dtool" id="dtool-hline"      onclick="setDrawTool('hline')"      title="Horizontal Line">
-          <svg width="16" height="16" viewBox="0 0 16 16"><line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="1" y1="5" x2="3" y2="5" stroke="currentColor" stroke-width="1" stroke-dasharray="1,1" opacity=".4"/><line x1="1" y1="11" x2="3" y2="11" stroke="currentColor" stroke-width="1" stroke-dasharray="1,1" opacity=".4"/></svg>
+        <button class="dtool" id="dtool-hline"     onclick="setDrawTool('hline')"     title="Horizontal Line">
+          <svg width="16" height="16" viewBox="0 0 16 16"><line x1="1" y1="8" x2="15" y2="8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
-        <button class="dtool" id="dtool-ray"        onclick="setDrawTool('ray')"        title="Ray (one-direction line)">
+        <button class="dtool" id="dtool-ray"       onclick="setDrawTool('ray')"       title="Ray">
           <svg width="16" height="16" viewBox="0 0 16 16"><line x1="2" y1="12" x2="14" y2="4" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><polygon points="14,1 14,7 11,4" fill="currentColor"/></svg>
         </button>
-        <button class="dtool" id="dtool-rectangle"  onclick="setDrawTool('rectangle')"  title="Rectangle">
+        <button class="dtool" id="dtool-rectangle" onclick="setDrawTool('rectangle')" title="Rectangle">
           <svg width="16" height="16" viewBox="0 0 16 16"><rect x="2" y="4" width="12" height="8" fill="none" stroke="currentColor" stroke-width="1.5" rx="1"/></svg>
         </button>
-        <button class="dtool" id="dtool-fibonacci"  onclick="setDrawTool('fibonacci')"  title="Fibonacci Retracement">
+        <button class="dtool" id="dtool-fibonacci" onclick="setDrawTool('fibonacci')" title="Fibonacci">
           <svg width="16" height="16" viewBox="0 0 16 16"><text x="2" y="12" font-size="11" font-weight="bold" fill="currentColor">φ</text></svg>
         </button>
         <div class="dtool-sep"></div>
-        <label class="dtool color-swatch" title="Drawing color">
+        <label class="dtool color-swatch" title="Color">
           <input type="color" id="drawColor" value="#ffeb3b" onchange="updateDrawColor(this.value)" />
         </label>
         <div class="dtool-sep"></div>
-        <button class="dtool" onclick="undoDrawing()" title="Undo last (Ctrl+Z)">
+        <button class="dtool" onclick="undoDrawing()"  title="Undo (Ctrl+Z)">
           <svg width="16" height="16" viewBox="0 0 16 16"><path d="M3 8a5 5 0 1 1 1 3.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><polyline points="1,5 3,8 6,6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
         </button>
-        <button class="dtool" onclick="clearDrawings()" title="Clear all drawings">
+        <button class="dtool" onclick="clearDrawings()" title="Clear all">
           <svg width="16" height="16" viewBox="0 0 16 16"><line x1="3" y1="3" x2="13" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><line x1="13" y1="3" x2="3" y2="13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
         </button>
       </div>
@@ -150,11 +149,8 @@
       <div class="charts-col">
         <div class="chart-panel price-panel-wrap" id="pricePanel" style="flex:3.5">
           <canvas id="drawingCanvas" class="drawing-canvas"></canvas>
-          <!-- Floating candle info box -->
           <div id="candleTooltip" class="candle-tooltip" style="display:none"></div>
-          <!-- News event tooltip -->
           <div id="newsMarkerTooltip" class="news-marker-tooltip" style="display:none"></div>
-          <!-- Chart loading / error overlay -->
           <div id="chartOverlay" class="chart-overlay">
             <div id="chartOverlaySpinner" class="chart-spinner"></div>
             <div id="chartOverlayMsg" class="chart-overlay-msg" style="display:none"></div>
@@ -171,84 +167,73 @@
         <div class="chart-panel" id="oscPanel" style="flex:1.5"></div>
       </div>
     </div>
-
   </div>
 
-  <!-- Floating overlay panels (News + Insider) — fixed over chart -->
-  <div class="chart-float-panel" id="newsPanel" style="display:none">
-    <div class="cfp-header">
-      <span class="cfp-title">📰 Recent News</span>
-      <button class="cfp-close" onclick="toggleChartPanel('newsPanel', document.getElementById('btnNewsPanel'))">×</button>
-    </div>
-    <div id="sidebarNewsFeed" class="cfp-body cfp-news"><div class="fund-loading">Loading…</div></div>
-  </div>
-
-  <div class="chart-float-panel" id="insiderPanel" style="display:none">
-    <div class="cfp-header">
-      <span class="cfp-title">👤 Insider Transactions</span>
-      <button class="cfp-close" onclick="toggleChartPanel('insiderPanel', document.getElementById('btnInsiderPanel'))">×</button>
-    </div>
-    <div id="insiderFeed" class="cfp-body insider-feed"><div class="fund-loading">Loading…</div></div>
-  </div>
-
-  <!-- Swing panel -->
-  <div class="chart-float-panel swing-float-panel" id="swingPanel" style="display:none">
-    <div class="cfp-header">
-      <span class="cfp-title">🎯 Swing Setup · {{ ticker }}</span>
-      <button class="cfp-close" onclick="toggleChartPanel('swingPanel', document.getElementById('btnSwingPanel'))">×</button>
-    </div>
-    <div id="swingBody" class="cfp-body swing-body"><div class="intel-loading">Generating setup…<span class="intel-dots"></span></div></div>
-  </div>
-
-  <!-- Intel panel -->
-  <div class="chart-float-panel intel-float-panel" id="intelPanel" style="display:none">
-    <div class="cfp-header">
-      <span class="cfp-title">🧠 Company Intel · {{ ticker }}</span>
-      <button class="cfp-close" onclick="toggleChartPanel('intelPanel', document.getElementById('btnIntelPanel'))">×</button>
-    </div>
-    <div id="intelBody" class="cfp-body intel-body"><div class="intel-loading">Generating analysis…<span class="intel-dots"></span></div></div>
-  </div>
-
-  <!-- RIGHT: sidebar -->
+  <!-- RIGHT: sidebar with tabs -->
   <aside class="sidebar">
 
-    <!-- News / Insider / Intel toggle buttons -->
-    <div class="panel-toggle-row">
-      <button class="cpt-btn" id="btnNewsPanel"    onclick="toggleChartPanel('newsPanel',this)"    title="Recent news">📰 News</button>
-      <button class="cpt-btn" id="btnInsiderPanel" onclick="toggleChartPanel('insiderPanel',this)" title="Insider transactions">👤 Insider</button>
-      <button class="cpt-btn" id="btnIntelPanel"   onclick="openIntelPanel(this)"                  title="AI company analysis">🧠 Intel</button>
-      <button class="cpt-btn" id="btnSwingPanel"   onclick="openSwingPanel(this)"                  title="AI swing trade setup">🎯 Swing</button>
+    <div class="sidebar-tabs">
+      <button class="stab active" data-tab="fund"    onclick="switchSidebarTab('fund',this)">Fund</button>
+      <button class="stab"        data-tab="news"    onclick="switchSidebarTab('news',this)">News</button>
+      <button class="stab"        data-tab="insider" onclick="switchSidebarTab('insider',this)">Insider</button>
+      <button class="stab"        data-tab="intel"   onclick="openIntelPanel(this)">Intel</button>
+      <button class="stab"        data-tab="swing"   onclick="openSwingPanel(this)">Swing</button>
     </div>
 
-    <div class="sidebar-section">
-      <div class="sidebar-title">Fundamentals</div>
-      <div class="fund-grid" id="fundGrid"><div class="fund-loading">Loading…</div></div>
-      <div class="earnings-badge" id="earningsBadge" style="display:none"></div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-title">Strategy Scores</div>
-      <div class="scores-list" id="scoresList"><div class="fund-loading">Loading…</div></div>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-title">My Notes</div>
-      <textarea class="ticker-note" id="tickerNote" placeholder="Add your analysis notes on {{ ticker }}…" rows="3"></textarea>
-    </div>
-
-    <div class="sidebar-section">
-      <div class="sidebar-title">52-Week Range</div>
-      <div class="week52">
-        <div class="week52-bar-wrap">
-          <div class="week52-bar">
-            <div class="week52-fill" id="week52Fill" style="width:0%"></div>
-            <div class="week52-thumb" id="week52Thumb" style="left:0%"></div>
+    <!-- Fund tab -->
+    <div class="stab-pane" id="stab-fund">
+      <div class="sidebar-section" style="padding-top:0">
+        <div class="sidebar-title">Fundamentals</div>
+        <div class="fund-grid" id="fundGrid"><div class="fund-loading">Loading…</div></div>
+        <div class="earnings-badge" id="earningsBadge" style="display:none"></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">Strategy Scores</div>
+        <div class="scores-list" id="scoresList"><div class="fund-loading">Loading…</div></div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">52-Week Range</div>
+        <div class="week52">
+          <div class="week52-bar-wrap">
+            <div class="week52-bar">
+              <div class="week52-fill"  id="week52Fill"  style="width:0%"></div>
+              <div class="week52-thumb" id="week52Thumb" style="left:0%"></div>
+            </div>
+          </div>
+          <div class="week52-labels">
+            <span id="week52Lo">—</span>
+            <span id="week52Hi">—</span>
           </div>
         </div>
-        <div class="week52-labels">
-          <span id="week52Lo">—</span>
-          <span id="week52Hi">—</span>
-        </div>
+      </div>
+      <div class="sidebar-section">
+        <div class="sidebar-title">My Notes</div>
+        <textarea class="ticker-note" id="tickerNote"
+                  placeholder="Add your analysis notes on {{ ticker }}…" rows="3"></textarea>
+      </div>
+    </div>
+
+    <!-- News tab -->
+    <div class="stab-pane" id="stab-news" style="display:none">
+      <div id="sidebarNewsFeed" class="cfp-news"><div class="fund-loading">Loading…</div></div>
+    </div>
+
+    <!-- Insider tab -->
+    <div class="stab-pane" id="stab-insider" style="display:none">
+      <div id="insiderFeed" class="insider-feed"><div class="fund-loading">Loading…</div></div>
+    </div>
+
+    <!-- Intel tab -->
+    <div class="stab-pane" id="stab-intel" style="display:none">
+      <div id="intelBody" class="intel-body">
+        <div class="intel-loading">Click to generate analysis<span class="intel-dots"></span></div>
+      </div>
+    </div>
+
+    <!-- Swing tab -->
+    <div class="stab-pane" id="stab-swing" style="display:none">
+      <div id="swingBody" class="swing-body">
+        <div class="intel-loading">Click to generate setup<span class="intel-dots"></span></div>
       </div>
     </div>
 

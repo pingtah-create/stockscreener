@@ -32,9 +32,9 @@ html, body {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 0 16px;
-  height: 46px;
+  gap: 10px;
+  padding: 0 14px;
+  height: 44px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   position: sticky;
@@ -44,20 +44,25 @@ html, body {
   overflow: visible;
 }
 
-.back-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+.back-link {
   color: var(--text3);
   text-decoration: none;
-  font-size: 12px;
-  padding: 4px 10px;
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  white-space: nowrap;
-  transition: color .15s, border-color .15s;
+  font-size: 16px;
+  line-height: 1;
+  padding: 4px 2px;
+  transition: color .15s;
+  flex-shrink: 0;
 }
-.back-btn:hover { color: var(--text2); border-color: var(--border2); }
+.back-link:hover { color: var(--text2); }
+
+.topbar-div {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.topbar-spacer { flex: 1; }
 
 /* ── CHART SEARCH ─────────────────────────────────────────── */
 .chart-search-wrap {
@@ -353,7 +358,7 @@ html, body {
 /* ── MAIN LAYOUT ──────────────────────────────────────────── */
 .main-layout {
   display: flex;
-  height: calc(100vh - 46px);
+  height: calc(100vh - 44px);
   overflow: hidden;
 }
 
@@ -372,43 +377,71 @@ html, body {
 .chart-controls {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   flex-shrink: 0;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  overflow-x: auto;
 }
-.chart-type-btns { display: flex; gap: 2px; }
+.chart-controls::-webkit-scrollbar { display: none; }
+
+.ctrl-sep {
+  width: 1px;
+  height: 14px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.chart-type-btns { display: flex; gap: 2px; flex-shrink: 0; }
 .ct-btn {
   background: transparent;
   border: 1px solid var(--border);
   color: var(--text3);
-  padding: 3px 9px;
+  padding: 3px 8px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 11px;
   font-weight: 500;
   transition: all .15s;
+  white-space: nowrap;
 }
-.ct-btn:hover { color: var(--text2); border-color: var(--border2); }
-.ct-btn.active { color: var(--text); border-color: var(--border2); background: var(--bg3); }
+.ct-btn:hover  { color: var(--text2); border-color: var(--border2); }
+.ct-btn.active { color: var(--text);  border-color: var(--border2); background: var(--bg3); }
 
-.ind-btns { display: flex; align-items: center; gap: 3px; flex-wrap: wrap; }
-.ind-label { color: var(--text3); font-size: 10px; margin-right: 2px; }
+.ind-btns { display: flex; align-items: center; gap: 3px; flex-shrink: 0; }
 .ind-btn {
   background: transparent;
   border: 1px solid var(--ic, var(--border));
   color: var(--ic, var(--text3));
-  padding: 2px 7px;
+  padding: 2px 6px;
   border-radius: 3px;
   cursor: pointer;
   font-size: 10px;
   font-weight: 600;
   opacity: .35;
   transition: opacity .15s;
+  white-space: nowrap;
 }
 .ind-btn.active { opacity: 1; background: color-mix(in srgb, var(--ic, var(--accent)) 12%, transparent); }
 @supports not (background: color-mix(in srgb, red 10%, transparent)) {
   .ind-btn.active { background: rgba(255,255,255,.06); }
 }
+
+/* Generic small control button */
+.ctrl-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text3);
+  padding: 3px 8px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all .15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.ctrl-btn:hover  { color: var(--text2); border-color: var(--border2); }
+.ctrl-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(79,140,255,.08); }
 
 /* ── OHLCV BAR ────────────────────────────────────────────── */
 .ohlcv-bar {
@@ -526,14 +559,49 @@ html, body {
   width: 252px; flex-shrink: 0;
   background: var(--bg);
   border-left: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+
+/* Sidebar tab bar */
+.sidebar-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.stab {
+  flex: 1;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text3);
+  padding: 9px 4px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  font-family: inherit;
+}
+.stab:hover  { color: var(--text2); }
+.stab.active { color: var(--text); border-bottom-color: var(--accent); }
+
+/* Tab panes */
+.stab-pane {
+  flex: 1;
   overflow-y: auto;
   padding: 12px 10px;
-  display: flex; flex-direction: column; gap: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
-.sidebar::-webkit-scrollbar { width: 3px; }
-.sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+.stab-pane::-webkit-scrollbar { width: 3px; }
+.stab-pane::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
-.sidebar-section {}
+/* News / Insider panes — no padding, full bleed */
+#stab-news, #stab-insider { padding: 0; }
+#stab-intel, #stab-swing  { padding: 0; }
+
+.sidebar-section { }
 .sidebar-title {
   font-size: 9px; font-weight: 700; letter-spacing: .12em;
   text-transform: uppercase; color: var(--text3); margin-bottom: 8px;
@@ -768,16 +836,16 @@ html, body {
 .insider-meta { color: var(--text3); font-size: 10px; grid-column: 1 / 3; }
 .insider-val  { color: var(--text2); font-weight: 500; }
 
-/* ── AUTO TA BUTTON ───────────────────────────────────────── */
-.auto-ta-btn {
-  margin-left: auto; padding: 3px 10px;
-  border-radius: 4px; border: 1px solid var(--border);
-  background: transparent; color: var(--text3);
+/* ── PANEL TOGGLE BUTTONS (legacy, kept for compat) ───────── */
+.panel-toggle-row { display: flex; gap: 6px; flex-shrink: 0; }
+.cpt-btn {
+  flex: 1; background: transparent; border: 1px solid var(--border);
+  color: var(--text3); padding: 6px 4px; border-radius: 5px;
   font-size: 11px; font-weight: 500; cursor: pointer;
-  white-space: nowrap; transition: all .15s;
+  transition: all .15s; white-space: nowrap;
 }
-.auto-ta-btn:hover { color: var(--text2); border-color: var(--border2); }
-.auto-ta-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(79,140,255,.08); }
+.cpt-btn:hover  { color: var(--text2); border-color: var(--border2); }
+.cpt-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(79,140,255,.08); }
 
 /* ── AUTO TA PANEL ────────────────────────────────────────── */
 .autota-panel {

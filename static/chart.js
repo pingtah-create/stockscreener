@@ -1428,10 +1428,10 @@ function hexToRgba(hex, alpha) {
 // ══════════════════════════════════════════════════════════════════
 
 function openIntelPanel(btn) {
-  toggleChartPanel('intelPanel', btn);
-  const panel = document.getElementById('intelPanel');
-  if (panel.style.display !== 'none' && !panel.dataset.loaded) {
-    panel.dataset.loaded = '1';
+  switchSidebarTab('intel', btn);
+  const body = document.getElementById('intelBody');
+  if (body && !body.dataset.loaded) {
+    body.dataset.loaded = '1';
     loadIntel();
   }
 }
@@ -1498,10 +1498,10 @@ function renderIntel(d) {
 // ══════════════════════════════════════════════════════════════════
 
 function openSwingPanel(btn) {
-  toggleChartPanel('swingPanel', btn);
-  const panel = document.getElementById('swingPanel');
-  if (panel.style.display !== 'none' && !panel.dataset.loaded) {
-    panel.dataset.loaded = '1';
+  switchSidebarTab('swing', btn);
+  const body = document.getElementById('swingBody');
+  if (body && !body.dataset.loaded) {
+    body.dataset.loaded = '1';
     loadSwing();
   }
 }
@@ -2355,7 +2355,29 @@ function clearCompare() {
   if (resultEl) resultEl.style.display = 'none';
 }
 
-// ── Floating chart overlay panels (News / Insider) ────────────────
+// ── Sidebar tabs ───────────────────────────────────────────────────
+const _SIDEBAR_TABS = ['fund', 'news', 'insider', 'intel', 'swing'];
+
+function switchSidebarTab(name, btn) {
+  _SIDEBAR_TABS.forEach(t => {
+    const pane = document.getElementById('stab-' + t);
+    const b    = document.querySelector(`.stab[data-tab="${t}"]`);
+    if (pane) pane.style.display = t === name ? '' : 'none';
+    if (b)    b.classList.toggle('active', t === name);
+  });
+}
+
+// ── Drawing toolbar toggle ─────────────────────────────────────────
+function toggleDrawToolbar(btn) {
+  const tb = document.getElementById('drawingToolbar');
+  if (!tb) return;
+  const hidden = tb.style.display === 'none';
+  tb.style.display = hidden ? 'flex' : 'none';
+  btn.classList.toggle('active', hidden);
+  if (!hidden) setDrawTool('none');
+}
+
+// ── Floating chart overlay panels (legacy kept for compat) ─────────
 function toggleChartPanel(panelId, btn) {
   const panel = document.getElementById(panelId);
   if (!panel) return;
