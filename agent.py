@@ -46,6 +46,7 @@ def tool_get_stock_fundamentals(ticker: str, stock_cache: list) -> dict:
         "current_ratio": data.get("currentRatio"),
         "52w_high": data.get("fiftyTwoWeekHigh"),
         "52w_low": data.get("fiftyTwoWeekLow"),
+        "52w_position": data.get("fiftyTwoWeekPosition"),
         "50dma": data.get("fiftyDayAverage"),
         "200dma": data.get("twoHundredDayAverage"),
         "beta": data.get("beta"),
@@ -53,6 +54,8 @@ def tool_get_stock_fundamentals(ticker: str, stock_cache: list) -> dict:
         "analyst_rating": data.get("recommendationKey"),
         "short_ratio": data.get("shortRatio"),
         "short_float_pct": data.get("shortPercentOfFloat"),
+        "institutional_pct": data.get("heldPercentInstitutions"),
+        "insider_pct": data.get("heldPercentInsiders"),
         "scores": data.get("scores", {}),
     }
 
@@ -293,21 +296,43 @@ def tool_get_analyst_consensus(ticker: str, stock_cache: list) -> dict:
             "recommendation": data.get("recommendationKey"),
             "num_analysts":   data.get("numberOfAnalystOpinions"),
         }
-    recent = []
+    # Buy/Hold/Sell distribution from recommendations summary (new yfinance format)
+    distribution = {}
     try:
         recs = yf.Ticker(ticker).recommendations
         if recs is not None and not recs.empty:
-            for _, r in recs.tail(5).iterrows():
+            row = recs.iloc[0]
+            sb  = int(row.get("strongBuy",  0) or 0)
+            b   = int(row.get("buy",        0) or 0)
+            h   = int(row.get("hold",       0) or 0)
+            s   = int(row.get("sell",       0) or 0)
+            ss  = int(row.get("strongSell", 0) or 0)
+            distribution = {"strong_buy": sb, "buy": b, "hold": h,
+                            "sell": s, "strong_sell": ss, "total": sb+b+h+s+ss}
+    except Exception:
+        pass
+
+    # Recent firm upgrades/downgrades
+    recent = []
+    try:
+        ud = yf.Ticker(ticker).upgrades_downgrades
+        if ud is not None and not ud.empty:
+            ud = ud.sort_index(ascending=False)
+            for idx, r in ud.head(6).iterrows():
+                firm = str(r.get("Firm") or "").strip()
+                if not firm or firm in ("nan", "None", ""):
+                    continue
                 recent.append({
-                    "date":       str(r.name.date() if hasattr(r.name, "date") else r.name),
-                    "firm":       str(r.get("Firm") or ""),
-                    "to_grade":   str(r.get("To Grade") or ""),
-                    "from_grade": str(r.get("From Grade") or ""),
-                    "action":     str(r.get("Action") or ""),
+                    "date":       str(idx.date() if hasattr(idx, "date") else idx),
+                    "firm":       firm,
+                    "to_grade":   str(r.get("ToGrade")   or ""),
+                    "from_grade": str(r.get("FromGrade") or ""),
+                    "action":     str(r.get("Action")    or "").lower(),
                 })
     except Exception:
         pass
-    return {"ticker": ticker, **base, "recent_changes": recent}
+
+    return {"ticker": ticker, **base, "distribution": distribution, "recent_changes": recent}
 
 
 def tool_get_watchlist_analysis(tickers: list, stock_cache: list) -> dict:
@@ -620,11 +645,44 @@ def _format_stock_sections(data: dict) -> str:
     c  = data.get("consensus", {})
     n  = data.get("news", {})
     e  = data.get("earnings", {})
+    sw = data.get("swing")
 
-    def pct(v):   return f"{v*100:.1f}%" if v is not None else "—"
+    def pct(v):           return f"{v*100:.1f}%" if v is not None else "—"
     def fmtf(v, d=".2f"): return f"{v:{d}}" if v is not None else "—"
 
     lines = []
+
+    # ── Strategy Scores ───────────────────────────────────────
+    scores = f.get("scores") or {}
+    if scores:
+        SCORE_LABELS = [("value","Value"),("growth","Growth"),("momentum","Momentum"),
+                        ("quality","Quality"),("dividend","Dividend"),("deepvalue","DeepVal")]
+        best = max(scores, key=scores.get) if scores else None
+        parts = []
+        for key, label in SCORE_LABELS:
+            v = scores.get(key)
+            if v is None: continue
+            tag = f"**{label} {v}**" if key == best else f"{label} {v}"
+            parts.append(tag)
+        if parts:
+            lines.append("### Strategy Scores")
+            lines.append(" · ".join(parts))
+            lines.append("")
+
+    # ── Swing Setup ───────────────────────────────────────────
+    if sw:
+        lines.append("### Swing Setup")
+        entry  = sw.get("entry");  stop   = sw.get("stop")
+        target = sw.get("target"); rr     = sw.get("rr")
+        upside = sw.get("upside_pct")
+        line   = f"⚡ **{sw.get('type','')}**"
+        if entry:  line += f"  ·  Entry ${entry:.2f}"
+        if stop:   line += f"  |  Stop ${stop:.2f}"
+        if target: line += f"  |  Target ${target:.2f}"
+        if rr:     line += f"  |  R:R **{rr}x**"
+        if upside: line += f"  |  +{upside:.1f}% upside"
+        lines.append(line)
+        lines.append("")
 
     # ── Fundamentals table ────────────────────────────────────
     lines.append("### Fundamentals")
@@ -645,7 +703,17 @@ def _format_stock_sections(data: dict) -> str:
     lines.append(f"| Debt/Equity | {fmtf(f.get('debt_equity'), '.1f')} |")
     lines.append(f"| Beta | {fmtf(f.get('beta'))} |")
     lo, hi = f.get("52w_low"), f.get("52w_high")
-    lines.append(f"| 52W Range | {'$'+fmtf(lo)+' – $'+fmtf(hi) if lo and hi else '—'} |")
+    pos52 = f.get("52w_position")
+    range_str = f"${fmtf(lo)} – ${fmtf(hi)}" if lo and hi else "—"
+    if pos52 is not None: range_str += f" ({pos52:.0f}% of range)"
+    lines.append(f"| 52W Range | {range_str} |")
+    inst = f.get("institutional_pct")
+    ins  = f.get("insider_pct")
+    if inst is not None or ins is not None:
+        own_parts = []
+        if inst is not None: own_parts.append(f"Inst {inst*100:.1f}%")
+        if ins  is not None: own_parts.append(f"Insider {ins*100:.1f}%")
+        lines.append(f"| Ownership | {' · '.join(own_parts)} |")
     lines.append("")
 
     # ── Technical Signals ─────────────────────────────────────
@@ -656,10 +724,10 @@ def _format_stock_sections(data: dict) -> str:
     extra = []
     if sma50 and price:
         diff = (price - sma50) / sma50 * 100
-        extra.append(f"50 DMA: ${sma50:.2f} | price {'+' if diff > 0 else ''}{diff:.1f}% from MA")
+        extra.append(f"50 DMA ${sma50:.2f} | price {'+' if diff > 0 else ''}{diff:.1f}% from MA")
     if sma200 and price:
         diff = (price - sma200) / sma200 * 100
-        extra.append(f"200 DMA: ${sma200:.2f} | price {'+' if diff > 0 else ''}{diff:.1f}% from MA")
+        extra.append(f"200 DMA ${sma200:.2f} | price {'+' if diff > 0 else ''}{diff:.1f}% from MA")
     if signals or extra:
         lines.append("### Technical Signals")
         for s in signals + extra:
@@ -674,24 +742,32 @@ def _format_stock_sections(data: dict) -> str:
     cur_price = c.get("current_price")
     t_low     = c.get("target_low")
     t_high    = c.get("target_high")
-    recent    = (c.get("recent_changes") or [])[:3]
+    dist      = c.get("distribution") or {}
+    recent    = (c.get("recent_changes") or [])[:5]
     lines.append("### Analyst Consensus")
-    lines.append(f"- **Rating:** {rating}{' | ' + str(n_ana) + ' analysts' if n_ana else ''}")
+    lines.append(f"- **Consensus:** {rating}{' | ' + str(n_ana) + ' analysts' if n_ana else ''}")
     if target and cur_price:
-        up_str = f" → {'+' if upside and upside > 0 else ''}{upside:.1f}% upside" if upside else ""
+        up_str = f" → {'+' if upside and upside > 0 else ''}{upside:.1f}% upside" if upside is not None else ""
         lines.append(f"- **Price Target:** ${target:.2f} (current ${cur_price:.2f}{up_str})")
     if t_low and t_high:
-        lines.append(f"- **Range:** ${t_low:.2f} low – ${t_high:.2f} high")
+        lines.append(f"- **Target Range:** ${t_low:.2f} – ${t_high:.2f}")
+    total = dist.get("total", 0)
+    if total > 0:
+        buys  = dist.get("strong_buy", 0) + dist.get("buy", 0)
+        holds = dist.get("hold", 0)
+        sells = dist.get("sell", 0) + dist.get("strong_sell", 0)
+        lines.append(f"- **Analyst Split:** {buys} Buy · {holds} Hold · {sells} Sell")
     if recent:
-        lines.append("- **Recent changes:**")
+        lines.append("- **Recent upgrades/downgrades:**")
         for r in recent:
-            firm = r.get("firm", "")
+            firm   = r.get("firm", "")
             action = r.get("action", "")
-            frm  = r.get("from_grade", "")
-            to   = r.get("to_grade", "")
-            date = r.get("date", "")
-            change = f"{frm} → {to}" if frm and to else to
-            lines.append(f"  - {date}: {firm} {action} ({change})" if change else f"  - {date}: {firm} {action}")
+            frm    = r.get("from_grade", "")
+            to     = r.get("to_grade", "")
+            date   = r.get("date", "")
+            arrow  = "↑" if action == "up" else "↓" if action == "down" else "→"
+            change = f"{frm} → {to}" if frm and frm not in ("nan","None","") else to
+            lines.append(f"  - {date}: **{firm}** {arrow} {change}")
     lines.append("")
 
     # ── Earnings ──────────────────────────────────────────────
@@ -702,18 +778,18 @@ def _format_stock_sections(data: dict) -> str:
         if next_earn:
             lines.append(f"- **Next earnings:** {next_earn}")
         if eps_hist:
-            lines.append("- **Recent EPS history:**")
+            lines.append("- **Recent EPS (est vs actual):**")
             for q in eps_hist[-4:]:
                 est  = q.get("eps_estimate")
                 act  = q.get("eps_actual")
                 surp = q.get("surprise_pct")
                 dt   = q.get("date", "")
-                beat = " ✓ beat" if surp and surp > 0 else " ✗ miss" if surp and surp < 0 else ""
+                beat = " ✓" if surp and surp > 0 else " ✗" if surp and surp < 0 else ""
                 parts = [dt]
                 if est is not None: parts.append(f"est ${est:.2f}")
                 if act is not None: parts.append(f"act ${act:.2f}")
-                if surp is not None: parts.append(f"({'+' if surp > 0 else ''}{surp:.1f}%){beat}")
-                lines.append(f"  - {' | '.join(parts)}")
+                if surp is not None: parts.append(f"({'+' if surp > 0 else ''}{surp:.1f}%{beat})")
+                lines.append(f"  - {' · '.join(parts)}")
         lines.append("")
 
     # ── Recent News ───────────────────────────────────────────
@@ -776,6 +852,8 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     model  = GeminiModel("gemini-2.5-flash", provider=GoogleGLAProvider(api_key=api_key))
 
     # ── Stage 1: collect data ─────────────────────────────────
+    from screener import compute_swing_setup as _swing
+    raw_stock = next((s for s in stock_cache if s.get("symbol") == ticker), None)
     data = {
         "fundamentals": tool_get_stock_fundamentals(ticker, stock_cache),
         "technicals":   tool_get_technical_signals(ticker, stock_cache),
@@ -783,6 +861,7 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
         "consensus":    tool_get_analyst_consensus(ticker, stock_cache),
         "peers":        tool_get_peer_comparison(ticker, stock_cache),
         "earnings":     tool_get_earnings_info(ticker),
+        "swing":        _swing(raw_stock) if raw_stock else None,
     }
     data_text = json.dumps(data, default=str)
     analyst_prompt = f"Ticker: {ticker}\n\nData:\n{data_text}"
