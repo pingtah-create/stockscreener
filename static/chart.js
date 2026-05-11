@@ -2394,50 +2394,32 @@ function openFilingsPanel(btn) {
   }
 }
 
+function _mdSimple(text) {
+  if (!text) return '';
+  let s = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+  s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+  s = s.replace(/^[-•]\s+(.+)$/gm, '<li>$1</li>');
+  s = s.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+  s = s.replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>');
+  return `<p>${s}</p>`;
+}
+
 async function loadFilings() {
   const body = document.getElementById('filingsBody');
   if (!body) return;
-  body.innerHTML = '<div class="intel-loading">Loading SEC filings…<span class="intel-dots"></span></div>';
-  try {
-    const d = await fetch(`/api/filings/${TICKER}`).then(r => r.json());
-    if (d.error) { body.innerHTML = `<div class="intel-error">⚠ ${d.error}</div>`; return; }
-    const filings = d.filings || [];
-    if (!filings.length) {
-      body.innerHTML = '<div class="fund-loading">No filings found.</div>';
-      return;
-    }
-    const _formColor = { '10-K': '#4caf50', '10-Q': '#2196f3', '8-K': '#ff9800', 'DEF 14A': '#9c27b0' };
-    body.innerHTML = `
-      <div class="filings-company">${d.company || TICKER}</div>
-      <div class="filings-summary-wrap" id="filingsSummary">
-        <button class="filings-summarize-btn" onclick="loadFilingsSummary()">✦ AI Summary of Recent Filings</button>
-      </div>
-      <div class="filings-list">
-        ${filings.map(f => `
-          <a class="filing-row" href="${f.url}" target="_blank" rel="noopener">
-            <span class="filing-form" style="background:${_formColor[f.form] || '#607d8b'}">${f.form}</span>
-            <span class="filing-date">${f.date}</span>
-            <span class="filing-desc">${f.desc || 'View filing →'}</span>
-          </a>`).join('')}
-      </div>`;
-  } catch (e) {
-    body.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
-  }
-}
-
-async function loadFilingsSummary() {
-  const wrap = document.getElementById('filingsSummary');
-  if (!wrap) return;
-  wrap.innerHTML = '<div class="intel-loading">Reading filings…<span class="intel-dots"></span></div>';
+  body.innerHTML = '<div class="intel-loading">Analysing SEC filings…<span class="intel-dots"></span></div>';
   try {
     const d = await fetch(`/api/filings-summary/${TICKER}`).then(r => r.json());
     if (d.error) {
-      wrap.innerHTML = `<div class="intel-error">⚠ ${d.message || d.error}</div>`;
+      body.innerHTML = `<div class="intel-error">⚠ ${d.message || d.error}</div>`;
       return;
     }
-    wrap.innerHTML = `<div class="filings-ai-summary">${renderMarkdown(d.summary)}</div>`;
+    body.innerHTML = `
+      <div class="filings-company">${d.company || TICKER} · ${d.filing_count || ''} recent filings</div>
+      <div class="filings-ai-summary">${_mdSimple(d.summary)}</div>`;
   } catch (e) {
-    wrap.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
+    body.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
   }
 }
 
