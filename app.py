@@ -1290,6 +1290,69 @@ def api_portfolio_summary():
     })
 
 
+@app.route("/api/portfolio/perf", methods=["POST"])
+@auth.require_login_api
+def api_portfolio_perf():
+    """Lightweight portfolio performance chart — no AI. Supports 1d/5d/1mo/3mo/6mo/1y."""
+    import pandas as pd
+    _ensure_stocks_loaded()
+    body        = request.json or {}
+    holdings_in = body.get("holdings") or []
+    period      = body.get("period", "3mo")
+    if not holdings_in:
+        return jsonify({"error": "No holdings"}), 400
+
+    tickers    = [h["ticker"].upper() for h in holdings_in]
+    shares_map = {h["ticker"].upper(): float(h.get("shares", 1)) for h in holdings_in}
+    need_spy   = "SPY" not in tickers
+    dl_list    = tickers + (["SPY"] if need_spy else [])
+    interval   = "5m" if period == "1d" else ("1h" if period == "5d" else "1d")
+    date_fmt   = "%Y-%m-%d %H:%M" if interval in ("5m", "1h") else "%Y-%m-%d"
+
+    try:
+        raw = yf.download(dl_list, period=period, interval=interval,
+                          auto_adjust=True, progress=False)
+        if raw.empty:
+            return jsonify({"error": "No price data"}), 400
+        close = (pd.DataFrame({dl_list[0]: raw["Close"]}) if len(dl_list) == 1
+                 else raw["Close"].copy())
+        close = close.dropna(how="all").ffill()
+
+        port_vals, spy_vals, dates = [], [], []
+        for dt in close.index:
+            pv, ok = 0.0, True
+            for t in tickers:
+                if t not in close.columns or pd.isna(close.loc[dt, t]):
+                    ok = False; break
+                pv += float(close.loc[dt, t]) * shares_map[t]
+            if not ok:
+                continue
+            port_vals.append(pv)
+            dates.append(dt.strftime(date_fmt))
+            bv = close.loc[dt, "SPY"] if "SPY" in close.columns else None
+            spy_vals.append(float(bv) if bv is not None and not pd.isna(bv) else None)
+
+        if not port_vals:
+            return jsonify({"error": "Not enough data"}), 400
+
+        p0 = port_vals[0]
+        b0 = next((v for v in spy_vals if v is not None), None)
+        historical = []
+        for i, d in enumerate(dates):
+            entry = {"date": d, "value": round(port_vals[i], 2),
+                     "pct": round((port_vals[i] / p0 - 1) * 100, 2) if p0 else 0}
+            if b0 and spy_vals[i] is not None:
+                entry["spy_pct"] = round((spy_vals[i] / b0 - 1) * 100, 2)
+            historical.append(entry)
+
+        total = round(port_vals[-1], 2)
+        pnl   = round(port_vals[-1] - p0, 2)
+        return jsonify({"historical": historical, "total_value": total,
+                        "period_pnl": pnl, "period_pnl_pct": round(pnl / p0 * 100, 2) if p0 else 0})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/portfolio-analysis", methods=["POST"])
 @auth.require_login_api
 def api_portfolio_analysis():

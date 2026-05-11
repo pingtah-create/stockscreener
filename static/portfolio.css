@@ -1,5 +1,98 @@
 /* portfolio.css — portfolio-specific styles only; nav/buttons/base from style.css */
 
+/* ── Performance card ─────────────────────────────────────────────── */
+.port-perf-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 18px 20px 14px;
+}
+.port-perf-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+  flex-wrap: wrap;
+}
+.port-perf-meta { display: flex; flex-direction: column; gap: 3px; }
+.port-perf-value {
+  font-size: 26px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.port-perf-chg {
+  font-size: 13px;
+  color: var(--text2);
+  font-variant-numeric: tabular-nums;
+}
+.port-perf-chg.pos { color: var(--green); }
+.port-perf-chg.neg { color: var(--red); }
+
+.port-chart-area {
+  position: relative;
+  height: 180px;
+}
+.port-chart-area canvas { width: 100% !important; height: 100% !important; }
+.port-chart-empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: var(--text3);
+}
+
+/* ── Holdings card ────────────────────────────────────────────────── */
+.port-holdings-card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0;
+  overflow: hidden;
+}
+.port-holdings-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+}
+.port-holdings-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.port-holdings-title {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text3);
+}
+.port-price-stamp {
+  font-size: 11px;
+  color: var(--text3);
+}
+.port-holdings-btns { display: flex; gap: 6px; }
+
+.port-add-form {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg3);
+}
+
+/* ── AI analysis row ──────────────────────────────────────────────── */
+.port-ai-row {
+  display: flex;
+  justify-content: center;
+  padding: 4px 0;
+}
+
 /* ── Nav extras ───────────────────────────────────────────────────── */
 .db-nav-sep  { color: var(--text3); font-size: 12px; }
 .db-nav-page {
@@ -121,7 +214,7 @@
 /* ── Stats row ────────────────────────────────────────────────────── */
 .port-stats-row {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 .port-stat {
@@ -178,6 +271,7 @@
 .port-legend-pct { margin-left: auto; color: var(--text2); font-size: 11px; }
 
 /* ── Holdings table ───────────────────────────────────────────────── */
+#holdingsTable { padding: 0 4px; }
 .port-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
 .port-table th {
   text-align: left;
@@ -246,5 +340,7 @@
 @media (max-width: 720px) {
   .port-charts-row  { grid-template-columns: 1fr; }
   .port-stats-row   { grid-template-columns: 1fr 1fr; }
+  .port-perf-header { flex-direction: column; }
+  .port-holdings-hdr { flex-wrap: wrap; }
   .db-nav-page      { display: none; }
 }

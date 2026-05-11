@@ -13,20 +13,18 @@ let tickerUniverse = [];
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 async function init() {
-  loadTickerUniverse();   // fire-and-forget, populates dropdown
-  const localData = _localLoad(); // read local BEFORE server call
+  loadTickerUniverse();
+  const localData = _localLoad();
   try {
     const r = await fetch('/api/portfolio/holdings');
     if (r.ok) {
       const serverData = await r.json();
       if (Array.isArray(serverData) && serverData.length > 0) {
-        // Server has data — use it and update local backup
         holdings = serverData;
         try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
       } else if (localData.length > 0) {
-        // Server is empty (cold start wiped /tmp) but local backup exists — restore
         holdings = localData;
-        saveHoldings(); // sync back to server silently
+        saveHoldings();
       } else {
         holdings = [];
       }
@@ -36,9 +34,104 @@ async function init() {
   } catch {
     holdings = localData;
   }
-  renderPills();
   setupTickerSearch();
-  if (holdings.length) fetchSummary();
+  if (holdings.length) {
+    renderTable([]);          // show skeleton while loading
+    fetchSummary();           // live prices + stats
+    fetchPerf(period);        // performance chart
+  } else {
+    document.getElementById('portChartEmpty').style.display = 'flex';
+  }
+}
+
+// ── Add form toggle ───────────────────────────────────────────────────────────
+
+function toggleAddForm() {
+  const form = document.getElementById('portAddForm');
+  const btn  = document.getElementById('addToggleBtn');
+  const open = form.style.display === 'none' || form.style.display === '';
+  form.style.display = open ? 'block' : 'none';
+  btn.textContent    = open ? '− Close' : '+ Add';
+  if (open) document.getElementById('tickerInput').focus();
+}
+
+// ── Performance chart ─────────────────────────────────────────────────────────
+
+async function fetchPerf(p) {
+  if (!holdings.length) return;
+  const empty = document.getElementById('portChartEmpty');
+  if (empty) empty.style.display = 'none';
+  try {
+    const r = await fetch('/api/portfolio/perf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ holdings, period: p }),
+    });
+    const data = await r.json();
+    if (!r.ok || data.error) { if (empty) empty.style.display = 'flex'; return; }
+
+    // Header values
+    const fmv = v => '$' + (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    document.getElementById('portTotalValue').textContent = fmv(data.total_value);
+    const pnl    = data.period_pnl;
+    const pnlPct = data.period_pnl_pct;
+    const chgEl  = document.getElementById('portPeriodChg');
+    chgEl.textContent  = `${pnl >= 0 ? '+' : ''}${fmv(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`;
+    chgEl.className    = 'port-perf-chg ' + (pnl >= 0 ? 'pos' : 'neg');
+
+    renderPerfChart(data.historical);
+  } catch {}
+}
+
+function renderPerfChart(historical) {
+  const ctx    = document.getElementById('lineChart').getContext('2d');
+  const labels = historical.map(d => d.date);
+  const portPts = historical.map(d => d.pct);
+  const spyPts  = historical.map(d => d.spy_pct ?? null);
+  const isPos   = (portPts[portPts.length - 1] ?? 0) >= 0;
+
+  if (lineInst) lineInst.destroy();
+  lineInst = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Portfolio',
+          data: portPts,
+          borderColor: isPos ? '#4f8cff' : '#f44336',
+          backgroundColor: isPos ? 'rgba(79,140,255,0.07)' : 'rgba(244,67,54,0.07)',
+          borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true,
+        },
+        {
+          label: 'S&P 500',
+          data: spyPts,
+          borderColor: '#444', borderWidth: 1.5, borderDash: [4, 4],
+          pointRadius: 0, tension: 0.3, fill: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { labels: { color: '#666', font: { size: 11 }, boxWidth: 12, padding: 14 } },
+        tooltip: {
+          backgroundColor: '#161616', borderColor: '#222', borderWidth: 1,
+          titleColor: '#888', bodyColor: '#ccc',
+          callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(2)}%` },
+        },
+      },
+      scales: {
+        x: { ticks: { color: '#555', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1a1a1a' } },
+        y: {
+          ticks: { color: '#555', font: { size: 10 }, callback: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` },
+          grid: { color: '#1a1a1a' },
+        },
+      },
+    },
+  });
 }
 
 async function loadTickerUniverse() {
@@ -108,6 +201,7 @@ document.querySelectorAll('.port-period-btn').forEach(btn => {
     document.querySelectorAll('.port-period-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
     period = btn.dataset.period;
+    fetchPerf(period);
   });
 });
 
@@ -157,8 +251,11 @@ function handleImport(filename, text) {
   }
 
   saveHoldings();
-  renderPills();
-  if (holdings.length) fetchSummary();
+  if (holdings.length) {
+    renderTable([]);
+    fetchSummary();
+    fetchPerf(period);
+  }
   const parts = [];
   if (added)   parts.push(`${added} added`);
   if (updated) parts.push(`${updated} updated`);
@@ -251,40 +348,36 @@ function addHolding() {
   else holdings.push({ ticker, shares, buyin });
 
   saveHoldings();
-  renderPills();
+  renderTable([]);
   tickerEl.value = '';
   sharesEl.value = '';
   buyinEl.value  = '';
   tickerEl.focus();
   fetchSummary();
+  fetchPerf(period);
 }
 
 function removeHolding(ticker) {
   holdings = holdings.filter(h => h.ticker !== ticker);
   saveHoldings();
-  renderPills();
-  if (holdings.length) fetchSummary();
-  else {
-    document.getElementById('portSummary').style.display = 'none';
+  if (holdings.length) {
+    fetchSummary();
+    fetchPerf(period);
+  } else {
+    document.getElementById('holdingsTable').innerHTML = '';
+    document.getElementById('portStats').style.display = 'none';
+    document.getElementById('portAiRow').style.display = 'none';
     document.getElementById('portAnalysis').style.display = 'none';
+    document.getElementById('portTotalValue').textContent = '—';
+    document.getElementById('portPeriodChg').textContent = '';
+    const empty = document.getElementById('portChartEmpty');
+    if (empty) empty.style.display = 'flex';
+    if (lineInst) { lineInst.destroy(); lineInst = null; }
   }
 }
 
 function renderPills() {
-  const el = document.getElementById('holdingsList');
-  if (!holdings.length) {
-    el.innerHTML = '<span style="color:var(--text3);font-size:12px">No holdings yet — add a ticker above</span>';
-    return;
-  }
-  el.innerHTML = holdings.map(h => `
-    <div class="port-pill">
-      <span class="port-pill-ticker">${h.ticker}</span>
-      <span class="port-pill-shares">× ${h.shares}${h.buyin ? ` @ $${h.buyin}` : ''}</span>
-      <button class="port-pill-rm" data-ticker="${h.ticker}" title="Remove">×</button>
-    </div>`).join('');
-  el.querySelectorAll('button[data-ticker]').forEach(btn => {
-    btn.addEventListener('click', () => removeHolding(btn.dataset.ticker));
-  });
+  // Holdings are now shown in renderTable(); this is a no-op kept for import compatibility
 }
 
 // ── Live summary (auto-load) ───────────────────────────────────────────────────
@@ -304,7 +397,6 @@ async function fetchSummary() {
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
     renderStats(data.metrics);
     renderTable(data.allocation);
-    document.getElementById('portSummary').style.display = 'block';
     if (stamp) stamp.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
     if (stamp) stamp.textContent = 'Price fetch failed';
@@ -342,16 +434,10 @@ function renderStats(m) {
       <div class="port-stat-label">Largest Position</div>
       <div class="port-stat-value" style="font-size:20px">${m.top_stock || '—'}</div>
       <div class="port-stat-sub">${m.top_concentration_pct != null ? m.top_concentration_pct.toFixed(1) + '% of portfolio' : ''}</div>
-    </div>
-    <div class="port-stat">
-      <div class="port-stat-label">Run Full Analysis</div>
-      <div class="port-stat-value" style="font-size:13px;margin-top:6px">
-        <button class="btn btn-primary" onclick="analyzePortfolio()" style="width:100%;padding:10px">
-          Charts + AI →
-        </button>
-      </div>
-      <div class="port-stat-sub">historical + AI writeup</div>
     </div>`;
+
+  document.getElementById('portStats').style.display = 'grid';
+  document.getElementById('portAiRow').style.display = 'flex';
 }
 
 // ── Holdings table (live) ─────────────────────────────────────────────────────
@@ -439,49 +525,11 @@ async function analyzePortfolio() {
 }
 
 function renderAnalysis(data) {
-  const { historical, allocation, ticker_returns, analysis } = data;
+  const { allocation, analysis } = data;
   document.getElementById('portAnalysis').style.display = 'block';
-  renderLineChart(historical);
   renderDonut(allocation);
   renderAIText(analysis);
   document.getElementById('portAnalysis').scrollIntoView({ behavior: 'smooth' });
-}
-
-// ── Line chart ────────────────────────────────────────────────────────────────
-
-function renderLineChart(historical) {
-  const ctx      = document.getElementById('lineChart').getContext('2d');
-  const labels   = historical.map(d => d.date);
-  const portPts  = historical.map(d => +((d.portfolio - 100).toFixed(2)));
-  const benchPts = historical.map(d => d.benchmark != null ? +((d.benchmark - 100).toFixed(2)) : null);
-
-  if (lineInst) lineInst.destroy();
-  lineInst = new Chart(ctx, {
-    type: 'line',
-    data: {
-      labels,
-      datasets: [
-        { label: 'Portfolio', data: portPts, borderColor: '#4f8cff', backgroundColor: 'rgba(79,140,255,0.07)', borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true },
-        { label: 'S&P 500',   data: benchPts, borderColor: '#444', borderWidth: 1.5, borderDash: [5,4], pointRadius: 0, tension: 0.3, fill: false },
-      ],
-    },
-    options: {
-      responsive: true,
-      interaction: { mode: 'index', intersect: false },
-      plugins: {
-        legend: { labels: { color: '#888', font: { size: 11 }, boxWidth: 12, padding: 16 } },
-        tooltip: {
-          backgroundColor: '#161616', borderColor: '#222', borderWidth: 1,
-          titleColor: '#888', bodyColor: '#ccc',
-          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y >= 0 ? '+' : ''}${ctx.parsed.y.toFixed(2)}%` },
-        },
-      },
-      scales: {
-        x: { ticks: { color: '#444', maxTicksLimit: 7, maxRotation: 0, font: { size: 11 } }, grid: { color: '#1a1a1a' } },
-        y: { ticks: { color: '#444', font: { size: 11 }, callback: v => `${v >= 0 ? '+' : ''}${v}%` }, grid: { color: '#1a1a1a' } },
-      },
-    },
-  });
 }
 
 // ── Donut chart ───────────────────────────────────────────────────────────────
