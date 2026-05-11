@@ -1030,3 +1030,23 @@ html, body {
 .swing-box.t1    .swing-box-val { color: var(--green); }
 .swing-box.t2    .swing-box-val { color: var(--green); opacity: .7; }
 .swing-box.rr    .swing-box-val { color: var(--text2); }
+
+/* ── SEC FILINGS PANEL ────────────────────────────────────── */
+.filings-body { padding: 6px 0; }
+.filings-company { font-size: 11px; color: var(--text3); padding: 4px 10px 6px; text-transform: uppercase; letter-spacing: .05em; }
+.filings-list { display: flex; flex-direction: column; }
+.filing-row {
+  display: grid; grid-template-columns: 52px 78px 1fr;
+  align-items: center; gap: 6px;
+  padding: 7px 10px; border-bottom: 1px solid var(--border);
+  text-decoration: none; color: var(--text);
+  transition: background .12s;
+}
+.filing-row:hover { background: var(--bg2); }
+.filing-form {
+  font-size: 10px; font-weight: 700; letter-spacing: .04em;
+  padding: 2px 5px; border-radius: 3px; text-align: center;
+  color: #fff;
+}
+.filing-date { font-size: 11px; color: var(--text3); }
+.filing-desc { font-size: 11px; color: var(--text2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

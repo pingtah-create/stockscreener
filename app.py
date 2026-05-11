@@ -568,8 +568,16 @@ def api_news():
 @app.route("/api/news/<ticker>")
 @auth.require_login_api
 def api_news_ticker(ticker: str):
+    ticker = (_clean_ticker(ticker) or "").upper()
+    if not ticker:
+        return jsonify([])
     try:
-        return jsonify(_parse_news(yf.Ticker(ticker.upper()).news, 30))
+        from tools_external import fetch_finnhub_news
+        fh = fetch_finnhub_news(ticker, days=14)
+        if fh:
+            return jsonify(fh)
+        # fallback to yfinance
+        return jsonify(_parse_news(yf.Ticker(ticker).news, 30))
     except Exception:
         return jsonify([])
 
@@ -1592,7 +1600,32 @@ def api_earnings(ticker: str):
 @app.route("/api/insider/<ticker>")
 @auth.require_login_api
 def api_insider(ticker: str):
-    ticker = ticker.upper()
+    ticker = (_clean_ticker(ticker) or "").upper()
+    if not ticker:
+        return jsonify([])
+    try:
+        from tools_external import fetch_finnhub_insider
+        fh = fetch_finnhub_insider(ticker)
+        if fh:
+            rows = []
+            _code_map = {"P": "Buy", "S": "Sell", "A": "Grant", "D": "Disposition",
+                         "G": "Gift", "F": "Tax", "M": "Exercise"}
+            for t in fh:
+                code = t.get("transaction_code", "")
+                rows.append({
+                    "date":     t.get("date", ""),
+                    "name":     t.get("name", ""),
+                    "position": "",
+                    "type":     _code_map.get(code, code),
+                    "shares":   abs(int(t.get("change") or 0)),
+                    "value":    round(abs(t.get("change") or 0) * (t.get("transaction_price") or 0), 2) or None,
+                })
+            rows.sort(key=lambda x: x["date"], reverse=True)
+            if rows:
+                return jsonify(rows)
+    except Exception:
+        pass
+    # fallback: yfinance
     try:
         df = yf.Ticker(ticker).insider_transactions
         if df is None or df.empty:
@@ -1613,9 +1646,8 @@ def api_insider(ticker: str):
             date_raw = r.get("Start Date")
             if date_raw is None:
                 continue
-            date_str = str(date_raw)[:10]
             rows.append({
-                "date":     date_str,
+                "date":     str(date_raw)[:10],
                 "name":     str(r.get("Insider", "")).title(),
                 "position": str(r.get("Position", "")),
                 "type":     txn_type,
@@ -1626,6 +1658,33 @@ def api_insider(ticker: str):
         return jsonify(rows[:30])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/filings/<ticker>")
+@auth.require_login_api
+def api_filings(ticker: str):
+    """EDGAR SEC filings for a ticker. Cached 1h."""
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "invalid ticker"}), 400
+    if ticker.endswith(".TW"):
+        return jsonify({"filings": [], "note": "SEC filings not available for Taiwan stocks"})
+    from tools_external import fetch_sec_filings
+    return jsonify(fetch_sec_filings(ticker))
+
+
+@app.route("/api/fmp/<ticker>")
+@auth.require_login_api
+def api_fmp(ticker: str):
+    """FMP income statements + TTM ratios. Cached 24h."""
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "invalid ticker"}), 400
+    from tools_external import fetch_fmp_income, fetch_fmp_ratios
+    return jsonify({
+        "income": fetch_fmp_income(ticker),
+        "ratios": fetch_fmp_ratios(ticker),
+    })
 
 
 @app.route("/api/stock/<ticker>")

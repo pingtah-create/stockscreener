@@ -2384,8 +2384,46 @@ function clearCompare() {
   if (resultEl) resultEl.style.display = 'none';
 }
 
+// ── SEC Filings ────────────────────────────────────────────────────
+function openFilingsPanel(btn) {
+  switchSidebarTab('filings', btn);
+  const body = document.getElementById('filingsBody');
+  if (body && !body.dataset.loaded) {
+    body.dataset.loaded = '1';
+    loadFilings();
+  }
+}
+
+async function loadFilings() {
+  const body = document.getElementById('filingsBody');
+  if (!body) return;
+  body.innerHTML = '<div class="intel-loading">Loading SEC filings…<span class="intel-dots"></span></div>';
+  try {
+    const d = await fetch(`/api/filings/${TICKER}`).then(r => r.json());
+    if (d.error) { body.innerHTML = `<div class="intel-error">⚠ ${d.error}</div>`; return; }
+    const filings = d.filings || [];
+    if (!filings.length) {
+      body.innerHTML = '<div class="fund-loading">No filings found.</div>';
+      return;
+    }
+    const _formColor = { '10-K': '#4caf50', '10-Q': '#2196f3', '8-K': '#ff9800', 'DEF 14A': '#9c27b0' };
+    body.innerHTML = `
+      <div class="filings-company">${d.company || TICKER}</div>
+      <div class="filings-list">
+        ${filings.map(f => `
+          <a class="filing-row" href="${f.url}" target="_blank" rel="noopener">
+            <span class="filing-form" style="background:${_formColor[f.form] || '#607d8b'}">${f.form}</span>
+            <span class="filing-date">${f.date}</span>
+            <span class="filing-desc">${f.desc || 'View filing →'}</span>
+          </a>`).join('')}
+      </div>`;
+  } catch (e) {
+    body.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
+  }
+}
+
 // ── Sidebar tabs ───────────────────────────────────────────────────
-const _SIDEBAR_TABS = ['fund', 'news', 'insider', 'intel', 'swing'];
+const _SIDEBAR_TABS = ['fund', 'news', 'insider', 'intel', 'swing', 'filings'];
 
 function switchSidebarTab(name, btn) {
   _SIDEBAR_TABS.forEach(t => {

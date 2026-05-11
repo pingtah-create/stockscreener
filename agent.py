@@ -901,6 +901,38 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
     return valid[0] if any(w in text_lower for w in analysis_words) else None
 
 
+# ── External data tools ───────────────────────────────────────────────────────
+
+@finbot.tool
+def get_sec_filings(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Get recent SEC filings (10-K, 10-Q, 8-K) for a ticker from EDGAR. Use when asked about regulatory filings, annual/quarterly reports, or material events."""
+    from tools_external import fetch_sec_filings
+    return fetch_sec_filings(ticker)
+
+
+@finbot.tool
+def get_finnhub_data(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Get real-time Finnhub data: live quote, recent news headlines, insider transactions, earnings history. More current than yfinance data."""
+    from tools_external import fetch_finnhub_quote, fetch_finnhub_news, fetch_finnhub_insider, fetch_finnhub_earnings
+    return {
+        "quote":   fetch_finnhub_quote(ticker),
+        "news":    fetch_finnhub_news(ticker),
+        "insider": fetch_finnhub_insider(ticker),
+        "earnings": fetch_finnhub_earnings(ticker),
+    }
+
+
+@finbot.tool
+def get_fmp_financials(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
+    """Get Financial Modeling Prep data: income statements (last 4 quarters), TTM financial ratios (P/E, P/B, ROE, margins, etc.), and company profile."""
+    from tools_external import fetch_fmp_income, fetch_fmp_ratios, fetch_fmp_profile
+    return {
+        "income_statements": fetch_fmp_income(ticker),
+        "ratios":            fetch_fmp_ratios(ticker),
+        "profile":           fetch_fmp_profile(ticker),
+    }
+
+
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str,
                         user_question: str = "", stream: bool = False):
     """Gather data then write an opinionated narrative. Returns dict or generator when stream=True."""

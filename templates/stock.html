@@ -182,7 +182,8 @@
       <button class="stab"        data-tab="news"    onclick="switchSidebarTab('news',this)">News</button>
       <button class="stab"        data-tab="insider" onclick="switchSidebarTab('insider',this)">Insider</button>
       <button class="stab"        data-tab="intel"   onclick="openIntelPanel(this)">Intel</button>
-      <button class="stab"        data-tab="swing"   onclick="openSwingPanel(this)">Swing</button>
+      <button class="stab"        data-tab="swing"    onclick="openSwingPanel(this)">Swing</button>
+      <button class="stab"        data-tab="filings"  onclick="openFilingsPanel(this)">Filings</button>
     </div>
 
     <!-- Fund tab -->
@@ -239,6 +240,13 @@
     <div class="stab-pane" id="stab-swing" style="display:none">
       <div id="swingBody" class="swing-body">
         <div class="intel-loading">Click to generate setup<span class="intel-dots"></span></div>
+      </div>
+    </div>
+
+    <!-- Filings tab -->
+    <div class="stab-pane" id="stab-filings" style="display:none">
+      <div id="filingsBody" class="filings-body">
+        <div class="intel-loading">Click to load SEC filings<span class="intel-dots"></span></div>
       </div>
     </div>
 
