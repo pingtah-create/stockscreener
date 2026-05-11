@@ -96,6 +96,27 @@ def fetch_sec_filings(ticker: str) -> dict:
         return {"error": str(e), "filings": []}
 
 
+def fetch_filing_text(url: str, max_chars: int = 4000) -> str:
+    """Fetch a filing document from EDGAR and return plain text (stripped HTML)."""
+    try:
+        import re as _re
+        r = requests.get(url, headers={"User-Agent": _EDGAR_UA}, timeout=15)
+        r.raise_for_status()
+        text = r.text
+        # Strip HTML tags
+        text = _re.sub(r'<style[^>]*>.*?</style>', ' ', text, flags=_re.S | _re.I)
+        text = _re.sub(r'<script[^>]*>.*?</script>', ' ', text, flags=_re.S | _re.I)
+        text = _re.sub(r'<[^>]+>', ' ', text)
+        text = _re.sub(r'&nbsp;', ' ', text)
+        text = _re.sub(r'&amp;', '&', text)
+        text = _re.sub(r'&lt;', '<', text)
+        text = _re.sub(r'&gt;', '>', text)
+        text = _re.sub(r'\s+', ' ', text).strip()
+        return text[:max_chars]
+    except Exception as e:
+        return f"[Could not fetch filing: {e}]"
+
+
 # ── Finnhub ───────────────────────────────────────────────────────────────────
 
 def _fh(path: str, params: dict, ttl: int, cache_key: str):

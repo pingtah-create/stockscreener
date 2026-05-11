@@ -2409,6 +2409,9 @@ async function loadFilings() {
     const _formColor = { '10-K': '#4caf50', '10-Q': '#2196f3', '8-K': '#ff9800', 'DEF 14A': '#9c27b0' };
     body.innerHTML = `
       <div class="filings-company">${d.company || TICKER}</div>
+      <div class="filings-summary-wrap" id="filingsSummary">
+        <button class="filings-summarize-btn" onclick="loadFilingsSummary()">✦ AI Summary of Recent Filings</button>
+      </div>
       <div class="filings-list">
         ${filings.map(f => `
           <a class="filing-row" href="${f.url}" target="_blank" rel="noopener">
@@ -2419,6 +2422,22 @@ async function loadFilings() {
       </div>`;
   } catch (e) {
     body.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
+  }
+}
+
+async function loadFilingsSummary() {
+  const wrap = document.getElementById('filingsSummary');
+  if (!wrap) return;
+  wrap.innerHTML = '<div class="intel-loading">Reading filings…<span class="intel-dots"></span></div>';
+  try {
+    const d = await fetch(`/api/filings-summary/${TICKER}`).then(r => r.json());
+    if (d.error) {
+      wrap.innerHTML = `<div class="intel-error">⚠ ${d.message || d.error}</div>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="filings-ai-summary">${renderMarkdown(d.summary)}</div>`;
+  } catch (e) {
+    wrap.innerHTML = `<div class="intel-error">⚠ ${e.message}</div>`;
   }
 }
 

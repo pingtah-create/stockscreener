@@ -1673,6 +1673,77 @@ def api_filings(ticker: str):
     return jsonify(fetch_sec_filings(ticker))
 
 
+@app.route("/api/filings-summary/<ticker>")
+@auth.require_login_api
+def api_filings_summary(ticker: str):
+    """AI summary of recent SEC filings. Cached 6h."""
+    ticker = _clean_ticker(ticker)
+    if not ticker:
+        return jsonify({"error": "invalid ticker"}), 400
+
+    p = _INTEL_DIR / f"{ticker}_filings_summary.json"
+    if p.exists():
+        age = (datetime.utcnow() - datetime.utcfromtimestamp(p.stat().st_mtime)).total_seconds()
+        if age < 6 * 3600:
+            try:
+                return jsonify(json.loads(p.read_text()))
+            except Exception:
+                p.unlink(missing_ok=True)
+
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "GROQ_API_KEY not set"}), 503
+
+    from tools_external import fetch_sec_filings, fetch_filing_text
+    data = fetch_sec_filings(ticker)
+    filings = data.get("filings", [])
+    if not filings:
+        return jsonify({"error": "No filings found for this ticker"})
+
+    company = data.get("company", ticker)
+
+    # Fetch text for up to 3 most recent 8-Ks + reference the 10-K/10-Q dates
+    sections = []
+    eightk_count = 0
+    for f in filings:
+        if f["form"] == "8-K" and eightk_count < 3:
+            text = fetch_filing_text(f["url"], max_chars=3000)
+            sections.append(f"### 8-K filed {f['date']}\n{text}")
+            eightk_count += 1
+        elif f["form"] in ("10-K", "10-Q") and len(sections) < 5:
+            sections.append(f"### {f['form']} filed {f['date']} — {f.get('desc','')}")
+
+    if not sections:
+        sections = [f"### {f['form']} filed {f['date']}" for f in filings[:5]]
+
+    combined = "\n\n".join(sections)
+    prompt = f"""You are a financial analyst. Summarize the following SEC filings for {company} ({ticker}) in plain English for a retail investor.
+
+FILINGS:
+{combined}
+
+Write a clear, concise summary (3-5 bullet points) covering:
+- What material events were disclosed (acquisitions, earnings, guidance, leadership changes, legal issues)
+- Any risks or red flags mentioned
+- Overall tone: is the company in a strong or concerning position based on these filings?
+
+Format as bullet points. Be specific — use numbers and names from the filings. No preamble."""
+
+    try:
+        summary = _groq_complete(prompt, temperature=0.2, max_tokens=600)
+        result = {"ticker": ticker, "company": company, "summary": summary,
+                  "filing_count": len(filings)}
+        try:
+            p.write_text(json.dumps(result))
+        except Exception:
+            pass
+        return jsonify(result)
+    except Exception as ex:
+        if "429" in str(ex):
+            return jsonify({"error": "rate_limited", "message": "Rate limit hit — try again in a minute"}), 429
+        return jsonify({"error": str(ex)}), 500
+
+
 @app.route("/api/fmp/<ticker>")
 @auth.require_login_api
 def api_fmp(ticker: str):
