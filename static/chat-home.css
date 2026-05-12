@@ -84,9 +84,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 
 /* ── Hero ─────────────────────────────────────────── */
 .ch-hero {
-  margin-top: 18vh;
+  margin-top: 6vh;
   width: 100%;
-  text-align: center;
+  text-align: left;
+  padding-bottom: 100px;
 }
 .ch-hero-title {
   font-size: 32px;
@@ -426,6 +427,236 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   margin: 10px 0 20px;
   flex-shrink: 0;
 }
+
+/* ── Section labels ──────────────────────────────── */
+.ch-section { margin-top: 24px; width: 100%; }
+.ch-section-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  margin-bottom: 10px;
+  text-transform: uppercase;
+}
+
+/* ── Market Snapshot card ────────────────────────── */
+.ch-snapshot-card {
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  width: 100%;
+}
+.ch-snapshot-hdr {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.ch-snapshot-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+.ch-snapshot-time { font-size: 10px; color: var(--text-faint); }
+.ch-snapshot-loading-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 0;
+}
+.ch-snapshot-loading-text { font-size: 12px; color: var(--text-faint); }
+.ch-snap-indices { display: flex; gap: 20px; flex-wrap: wrap; }
+.ch-snap-idx { display: flex; flex-direction: column; gap: 2px; min-width: 80px; }
+.ch-snap-idx-name {
+  font-size: 10px;
+  color: var(--text-faint);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+.ch-snap-idx-val {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.ch-snap-idx-chg { font-size: 11px; font-variant-numeric: tabular-nums; }
+.ch-snap-idx-chg.pos { color: #3d9e6e; }
+.ch-snap-idx-chg.neg { color: #b84444; }
+.ch-snap-divider { height: 1px; background: var(--border); margin: 12px 0; }
+.ch-snap-fg { display: flex; align-items: center; gap: 8px; }
+.ch-snap-fg-label {
+  font-size: 10px;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.ch-snap-fg-score {
+  font-size: 20px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.ch-snap-fg-score.pos { color: #3d9e6e; }
+.ch-snap-fg-score.neg { color: #b84444; }
+.ch-snap-fg-score.neu { color: #888; }
+.ch-snap-fg-name { font-size: 12px; color: var(--text-dim); }
+.ch-snap-narrative {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-faint);
+  line-height: 1.5;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+/* ── Skills grid ─────────────────────────────────── */
+.ch-skills-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ch-skill-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #111;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  text-align: left;
+}
+.ch-skill-card:hover { border-color: #333; background: #141414; }
+.ch-skill-icon {
+  font-size: 15px;
+  color: var(--text-faint);
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+.ch-skill-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.ch-skill-desc { font-size: 11px; color: var(--text-faint); line-height: 1.4; }
+
+/* ── Skill ticker input ──────────────────────────── */
+.ch-skill-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: #111;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+}
+.ch-skill-input-label { font-size: 12px; color: var(--text-faint); flex-shrink: 0; }
+.ch-skill-ticker-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text);
+  font-size: 13px;
+  font-family: inherit;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.ch-skill-ticker-input::placeholder {
+  color: #333;
+  font-weight: 400;
+  text-transform: none;
+}
+.ch-skill-go {
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ch-skill-go:hover { opacity: 0.85; }
+.ch-skill-cancel {
+  background: none;
+  border: none;
+  color: var(--text-faint);
+  cursor: pointer;
+  font-size: 13px;
+  padding: 4px 6px;
+  transition: color 0.15s;
+}
+.ch-skill-cancel:hover { color: var(--text); }
+
+/* ── Trending ────────────────────────────────────── */
+.ch-trending-list { display: flex; flex-direction: column; gap: 1px; }
+.ch-trending-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px;
+  border-radius: 7px;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+.ch-trending-item:hover { background: #111; }
+.ch-trending-ticker {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  font-family: "SF Mono", Consolas, monospace;
+  width: 54px;
+  flex-shrink: 0;
+}
+.ch-trending-name {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-trending-chg {
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+.ch-trending-chg.pos { color: #3d9e6e; }
+.ch-trending-chg.neg { color: #b84444; }
+
+/* ── History ─────────────────────────────────────── */
+.ch-history-list { display: flex; flex-direction: column; gap: 1px; }
+.ch-history-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 8px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.ch-history-item:hover { background: #111; }
+.ch-history-title {
+  font-size: 12.5px;
+  color: var(--text);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ch-history-date { font-size: 10.5px; color: var(--text-faint); flex-shrink: 0; }
 
 /* ── Responsive ───────────────────────────────────── */
 @media (max-width: 640px) {

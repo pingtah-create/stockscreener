@@ -2,8 +2,10 @@
 // Multi-turn conversation with localStorage persistence, tool-call display,
 // rotating loading messages, and link-out to /stock/<TICKER> pages.
 
-const STORAGE_KEY = `stockdash_chat_v1_${window.CURRENT_USER || 'default'}`;
-const MAX_HISTORY = 20;
+const STORAGE_KEY  = `stockdash_chat_v1_${window.CURRENT_USER || 'default'}`;
+const SESSIONS_KEY = `stockdash_sessions_v1_${window.CURRENT_USER || 'default'}`;
+const MAX_HISTORY  = 20;
+const currentSessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 const heroEl    = document.getElementById('chHero');
 const chatEl    = document.getElementById('chChat');
@@ -41,11 +43,16 @@ const LOADING_PHRASES = [
   'Generating response…',
 ];
 
-if (messages.length) renderThread();
+if (messages.length) {
+  renderThread();
+} else {
+  initHero();
+}
 
 form.addEventListener('submit', e => { e.preventDefault(); send(input.value); });
 newChatBtn.addEventListener('click', () => {
   if (messages.length && !confirm('Start a new chat? Current conversation will be cleared.')) return;
+  saveCurrentSession();
   messages = [];
   saveHistory();
   threadEl.innerHTML = '';
@@ -54,6 +61,7 @@ newChatBtn.addEventListener('click', () => {
   input.placeholder = 'Ask about a stock — e.g. Is NVDA overvalued?';
   input.value = '';
   input.focus();
+  initHero();
 });
 
 document.querySelectorAll('.ch-chip').forEach(b => {
@@ -126,6 +134,7 @@ async function send(text) {
           const chartData = evt.chart_data || null;
           messages.push({ role: 'assistant', content: fullText, tickers, tools_used: tools, chart_data: chartData });
           saveHistory();
+          saveCurrentSession();
           if (msgNode) finaliseStreamingMessage(msgNode, fullText, tickers, tools, chartData);
           else { loadingNode.remove(); appendMessage('assistant', fullText, tickers, tools, false, chartData); }
 
@@ -423,3 +432,222 @@ function renderMarkdown(s) {
   out = out.replace(/\n/g, '<br>');
   return `<p>${out}</p>`;
 }
+
+// ── Hero init ──────────────────────────────────────────────────────────────────
+function initHero() {
+  loadMarketSnapshot();
+  loadTrending();
+  renderHistory();
+}
+
+// ── Market Snapshot ────────────────────────────────────────────────────────────
+async function loadMarketSnapshot() {
+  const body   = document.getElementById('snapshotBody');
+  const timeEl = document.getElementById('snapshotTime');
+  if (!body) return;
+  try {
+    const r = await fetch('/api/market-snapshot');
+    if (!r.ok) throw new Error('failed');
+    const d = await r.json();
+
+    // indices is a dict: { VIX: {price, change_pct}, SP500: {...}, NASDAQ: {...} }
+    const LABELS = { SP500: 'S&P 500', NASDAQ: 'NASDAQ', VIX: 'VIX' };
+    const idxOrder = ['SP500', 'NASDAQ', 'VIX'];
+    const indicesHtml = idxOrder.map(key => {
+      const idx  = (d.indices || {})[key] || {};
+      const chg  = idx.change_pct || 0;
+      const cls  = key === 'VIX' ? (chg > 0 ? 'neg' : 'pos') : (chg >= 0 ? 'pos' : 'neg');
+      const sign = chg >= 0 ? '+' : '';
+      const price = idx.price != null
+        ? idx.price.toLocaleString('en-US', { maximumFractionDigits: 2 })
+        : '—';
+      return `<div class="ch-snap-idx">
+        <span class="ch-snap-idx-name">${LABELS[key] || key}</span>
+        <span class="ch-snap-idx-val">${price}</span>
+        <span class="ch-snap-idx-chg ${cls}">${sign}${chg.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+
+    // fg_score and fg_label are top-level
+    const fgScore = d.fg_score != null ? d.fg_score : 50;
+    const fgLabel = d.fg_label || 'Neutral';
+    const fgCls   = fgScore >= 60 ? 'pos' : fgScore <= 40 ? 'neg' : 'neu';
+
+    body.innerHTML = `
+      <div class="ch-snap-indices">${indicesHtml}</div>
+      <div class="ch-snap-divider"></div>
+      <div class="ch-snap-fg">
+        <span class="ch-snap-fg-label">Fear &amp; Greed</span>
+        <span class="ch-snap-fg-score ${fgCls}">${fgScore}</span>
+        <span class="ch-snap-fg-name">${fgLabel}</span>
+      </div>
+      ${d.narrative ? `<div class="ch-snap-narrative">${d.narrative}</div>` : ''}
+    `;
+
+    if (timeEl) {
+      const now = new Date();
+      timeEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    }
+  } catch {
+    body.innerHTML = '<span class="ch-snapshot-loading-text">Market data unavailable</span>';
+  }
+}
+
+// ── Trending ───────────────────────────────────────────────────────────────────
+async function loadTrending() {
+  const el = document.getElementById('chTrending');
+  if (!el) return;
+  try {
+    const r = await fetch('/api/trending');
+    if (!r.ok) throw new Error('failed');
+    // trending returns an array directly
+    const stocks = await r.json();
+    if (!Array.isArray(stocks) || !stocks.length) {
+      el.innerHTML = '<span style="color:var(--text-faint);font-size:12px">No data</span>';
+      return;
+    }
+    el.innerHTML = stocks.map(s => {
+      const chg  = s.change_pct || 0;
+      const cls  = chg >= 0 ? 'pos' : 'neg';
+      const sign = chg >= 0 ? '+' : '';
+      return `<a href="/stock/${encodeURIComponent(s.ticker)}" class="ch-trending-item">
+        <span class="ch-trending-ticker">${s.ticker}</span>
+        <span class="ch-trending-name">${s.name || ''}</span>
+        <span class="ch-trending-chg ${cls}">${sign}${chg.toFixed(1)}%</span>
+      </a>`;
+    }).join('');
+  } catch {
+    el.innerHTML = '<span style="color:var(--text-faint);font-size:12px">Unavailable</span>';
+  }
+}
+
+// ── Skills ─────────────────────────────────────────────────────────────────────
+const SKILL_PROMPTS = {
+  fundamentals: t => `Is ${t} a great company to own long-term? Analyse its fundamentals, competitive moat, and business quality.`,
+  timing:       t => `What are the best entry and exit levels for ${t} right now? Include key support/resistance and signals.`,
+  swing:        t => `Give me a 2–4 week swing trade setup for ${t} with entry price, price target, and stop-loss.`,
+  earnings:     t => `Preview the next earnings for ${t}: consensus estimates, beat rate history, and what to watch for.`,
+  compare:      t => `Compare ${t} vs its closest peers on valuation, growth, and momentum. Who wins?`,
+  market:       ()=> `Give me a market overview: what's driving markets today and where the best opportunities are.`,
+};
+
+const SKILL_LABELS = {
+  fundamentals: 'Enter ticker for company analysis:',
+  timing:       'Enter ticker for entry/exit levels:',
+  swing:        'Enter ticker for swing trade setup:',
+  earnings:     'Enter ticker for earnings preview:',
+  compare:      'Enter ticker to compare vs peers:',
+};
+
+let activeSkill = null;
+
+document.querySelectorAll('.ch-skill-card').forEach(card => {
+  card.addEventListener('click', () => {
+    const skill = card.dataset.skill;
+    if (skill === 'market') { send(SKILL_PROMPTS.market()); return; }
+    activeSkill = skill;
+    const wrap   = document.getElementById('chSkillInputWrap');
+    const label  = document.getElementById('chSkillInputLabel');
+    const ticker = document.getElementById('chSkillTicker');
+    if (label)  label.textContent = SKILL_LABELS[skill] || 'Enter ticker:';
+    if (wrap)   wrap.style.display = 'flex';
+    if (ticker) { ticker.value = ''; ticker.focus(); }
+  });
+});
+
+document.getElementById('chSkillGo')?.addEventListener('click', runSkill);
+document.getElementById('chSkillTicker')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter')  runSkill();
+  if (e.key === 'Escape') cancelSkill();
+});
+document.getElementById('chSkillCancel')?.addEventListener('click', cancelSkill);
+
+function runSkill() {
+  const ticker = (document.getElementById('chSkillTicker')?.value || '').trim().toUpperCase();
+  if (!ticker || !activeSkill) return;
+  const prompt = SKILL_PROMPTS[activeSkill]?.(ticker);
+  if (!prompt) return;
+  cancelSkill();
+  send(prompt);
+}
+
+function cancelSkill() {
+  activeSkill = null;
+  const wrap = document.getElementById('chSkillInputWrap');
+  if (wrap) wrap.style.display = 'none';
+}
+
+// ── History ────────────────────────────────────────────────────────────────────
+function getSessions() {
+  try {
+    const raw = localStorage.getItem(SESSIONS_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
+function saveSessions(sessions) {
+  try { localStorage.setItem(SESSIONS_KEY, JSON.stringify(sessions.slice(0, 30))); } catch {}
+}
+
+function saveCurrentSession() {
+  if (!messages.length) return;
+  const first = messages.find(m => m.role === 'user');
+  const sessions = getSessions().filter(s => s.id !== currentSessionId);
+  sessions.unshift({
+    id: currentSessionId,
+    title: first ? first.content.slice(0, 60) : 'Untitled',
+    ts: Date.now(),
+    messages: messages.slice(-MAX_HISTORY * 2),
+  });
+  saveSessions(sessions);
+}
+
+function renderHistory() {
+  const section = document.getElementById('chHistorySection');
+  const list    = document.getElementById('chHistoryList');
+  const sessions = getSessions();
+  if (!section || !list) return;
+  if (!sessions.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  list.innerHTML = sessions.map(s => {
+    const dateStr = new Date(s.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    return `<div class="ch-history-item" data-id="${s.id}">
+      <span class="ch-history-title">${escHtml(s.title)}</span>
+      <span class="ch-history-date">${dateStr}</span>
+    </div>`;
+  }).join('');
+  list.querySelectorAll('.ch-history-item').forEach(item => {
+    item.addEventListener('click', () => loadSession(item.dataset.id));
+  });
+}
+
+function loadSession(id) {
+  const s = getSessions().find(x => x.id === id);
+  if (!s) return;
+  messages = s.messages || [];
+  saveHistory();
+  renderThread();
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+document.getElementById('historyBtn')?.addEventListener('click', () => {
+  if (!chatEl.hidden) {
+    saveCurrentSession();
+    messages = [];
+    saveHistory();
+    threadEl.innerHTML = '';
+    chatEl.hidden = true;
+    heroEl.hidden = false;
+    initHero();
+  } else {
+    const section = document.getElementById('chHistorySection');
+    if (section) {
+      const shown = section.style.display !== 'none';
+      if (!shown) renderHistory();
+      section.style.display = shown ? 'none' : '';
+    }
+  }
+});

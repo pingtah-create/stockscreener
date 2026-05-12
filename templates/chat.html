@@ -11,6 +11,7 @@
 <header class="ch-nav">
   <a class="db-brand" href="/">◈ STOCKDASH</a>
   <nav class="ch-nav-links">
+    <button id="historyBtn" class="ch-link-btn" title="View history">History</button>
     <button id="newChatBtn" class="ch-link-btn" title="Start a new conversation">New chat</button>
     <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
     <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
@@ -25,15 +26,89 @@
 
   <!-- HERO state: only shown before any messages -->
   <section class="ch-hero" id="chHero">
-    <h1 class="ch-hero-title">Your AI Wall Street analyst.</h1>
-    <p class="ch-hero-sub">Ask anything about a stock. Mention a ticker and I'll pull live fundamentals, technicals, and news.</p>
-    <div class="ch-suggestions" id="chSuggestions">
-      <button class="ch-chip" data-q="Why is NVDA up today?">Why is NVDA up today?</button>
-      <button class="ch-chip" data-q="Compare AAPL vs MSFT on growth and valuation">Compare AAPL vs MSFT</button>
-      <button class="ch-chip" data-q="Is TSLA overvalued at current price?">Is TSLA overvalued?</button>
-      <button class="ch-chip" data-q="Best dividend stocks in the S&P 500 right now?">Best dividend plays</button>
-      <button class="ch-chip" data-q="Walk me through 2330.TW (TSMC) — bull and bear case">TSMC bull/bear</button>
+
+    <!-- Market Snapshot -->
+    <div class="ch-snapshot-card" id="chSnapshot">
+      <div class="ch-snapshot-hdr">
+        <span class="ch-snapshot-label">MARKET SNAPSHOT</span>
+        <span class="ch-snapshot-time" id="snapshotTime"></span>
+      </div>
+      <div id="snapshotBody" class="ch-snapshot-loading-wrap">
+        <span class="ch-snapshot-loading-text">Loading market data…</span>
+      </div>
     </div>
+
+    <!-- Skills -->
+    <div class="ch-section">
+      <div class="ch-section-label">POPULAR SKILLS</div>
+      <div class="ch-skills-grid">
+        <div class="ch-skill-card" data-skill="fundamentals">
+          <div class="ch-skill-icon">$</div>
+          <div class="ch-skill-info">
+            <div class="ch-skill-title">Is This a Great Company</div>
+            <div class="ch-skill-desc">Judge if a company is worth owning long-term</div>
+          </div>
+        </div>
+        <div class="ch-skill-card" data-skill="timing">
+          <div class="ch-skill-icon">⌖</div>
+          <div class="ch-skill-info">
+            <div class="ch-skill-title">When to Buy and Sell</div>
+            <div class="ch-skill-desc">Find smartest entry and exit levels</div>
+          </div>
+        </div>
+        <div class="ch-skill-card" data-skill="swing">
+          <div class="ch-skill-icon">↗</div>
+          <div class="ch-skill-info">
+            <div class="ch-skill-title">Swing Trade Setup</div>
+            <div class="ch-skill-desc">2–4 week setup with entry, target, stop-loss</div>
+          </div>
+        </div>
+        <div class="ch-skill-card" data-skill="earnings">
+          <div class="ch-skill-icon">◎</div>
+          <div class="ch-skill-info">
+            <div class="ch-skill-title">Earnings Preview</div>
+            <div class="ch-skill-desc">Estimates, beat rate, and what to watch</div>
+          </div>
+        </div>
+        <div class="ch-skill-card" data-skill="compare">
+          <div class="ch-skill-icon">⇄</div>
+          <div class="ch-skill-info">
+            <div class="ch-skill-title">Compare vs Peers</div>
+            <div class="ch-skill-desc">Who wins on valuation, growth, and momentum</div>
+          </div>
+        </div>
+        <div class="ch-skill-card" data-skill="market">
+          <div class="ch-skill-icon">◈</div>
+          <div class="ch-skill-info">
+            <div class="ch-skill-title">Market Overview</div>
+            <div class="ch-skill-desc">What's driving markets and where to look</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skill ticker input -->
+      <div class="ch-skill-input-wrap" id="chSkillInputWrap" style="display:none">
+        <span class="ch-skill-input-label" id="chSkillInputLabel">Enter ticker:</span>
+        <input class="ch-skill-ticker-input" id="chSkillTicker" placeholder="e.g. AAPL" autocomplete="off" />
+        <button class="ch-skill-go" id="chSkillGo">Run →</button>
+        <button class="ch-skill-cancel" id="chSkillCancel">✕</button>
+      </div>
+    </div>
+
+    <!-- Trending -->
+    <div class="ch-section">
+      <div class="ch-section-label">TRENDING</div>
+      <div class="ch-trending-list" id="chTrending">
+        <span style="color:var(--text-faint);font-size:12px">Loading…</span>
+      </div>
+    </div>
+
+    <!-- History -->
+    <div class="ch-section" id="chHistorySection" style="display:none">
+      <div class="ch-section-label">RECENT ANALYSES</div>
+      <div class="ch-history-list" id="chHistoryList"></div>
+    </div>
+
   </section>
 
   <!-- CHAT state: messages -->

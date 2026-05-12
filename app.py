@@ -45,6 +45,7 @@ INDICES = {
 
 _indices_cache: dict = {}
 _indices_cached_at: datetime | None = None
+_snapshot_cache: dict = {"data": None, "ts": 0.0}
 
 import os as _os
 # Load .env for local development
@@ -1931,6 +1932,111 @@ def api_stock(ticker: str):
     resp = jsonify(data)
     resp.headers["Cache-Control"] = "no-store, max-age=0"
     return resp
+
+
+# ── Market Snapshot ───────────────────────────────────────────────────────────
+
+def _calc_fg(vix: float) -> tuple[int, str]:
+    score = max(5, min(95, int(100 - (vix - 10) * 3.0)))
+    if score >= 75: label = "Extreme Greed"
+    elif score >= 55: label = "Greed"
+    elif score >= 45: label = "Neutral"
+    elif score >= 25: label = "Fear"
+    else: label = "Extreme Fear"
+    return score, label
+
+
+@app.route("/api/market-snapshot")
+@auth.require_login_api
+def api_market_snapshot():
+    import time as _t
+    if _snapshot_cache["data"] and _t.time() - _snapshot_cache["ts"] < 3600:
+        return jsonify(_snapshot_cache["data"])
+
+    idx = _indices_cache or {}
+    vix    = (idx.get("VIX")    or {}).get("price") or 20.0
+    sp500  = idx.get("SP500")   or {}
+    nasdaq = idx.get("NASDAQ")  or {}
+    dow    = idx.get("DOW")     or {}
+    fg_score, fg_label = _calc_fg(float(vix))
+
+    headline  = "Markets in Focus"
+    narrative = "Equities are trading on mixed signals as investors weigh macro data and earnings results."
+    bullets   = [
+        "Monitor key economic data releases this week",
+        "Earnings season drives individual stock moves",
+        "Watch sector rotation for positioning clues",
+        "Fed commentary remains the key macro driver",
+    ]
+
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+    if api_key:
+        try:
+            import requests as _req, re as _re
+            prompt = (
+                f"Market data right now: VIX={vix:.1f} ({fg_label}), "
+                f"S&P 500 {sp500.get('change_pct', 0):+.2f}%, "
+                f"NASDAQ {nasdaq.get('change_pct', 0):+.2f}%, "
+                f"DOW {dow.get('change_pct', 0):+.2f}%.\n\n"
+                "Write a brief market snapshot. Return ONLY valid JSON with no extra text:\n"
+                '{"headline":"6-8 word headline","narrative":"2 sentences on what\'s driving markets",'
+                '"bullets":["bullet1","bullet2","bullet3","bullet4"]}'
+            )
+            r = _req.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
+                json={"model": "llama-3.1-8b-instant",
+                      "messages": [{"role": "user", "content": prompt}],
+                      "temperature": 0.5, "max_tokens": 350},
+                timeout=8,
+            )
+            txt = r.json()["choices"][0]["message"]["content"]
+            m = _re.search(r'\{.*\}', txt, _re.S)
+            if m:
+                parsed = json.loads(m.group())
+                headline  = parsed.get("headline", headline)
+                narrative = parsed.get("narrative", narrative)
+                bullets   = parsed.get("bullets", bullets)[:4]
+        except Exception:
+            pass
+
+    result = {
+        "headline": headline, "narrative": narrative, "bullets": bullets,
+        "fg_score": fg_score, "fg_label": fg_label,
+        "indices": {
+            "VIX":    {"price": vix,                        "change_pct": (idx.get("VIX")    or {}).get("change_pct", 0)},
+            "SP500":  {"price": sp500.get("price"),          "change_pct": sp500.get("change_pct", 0)},
+            "NASDAQ": {"price": nasdaq.get("price"),         "change_pct": nasdaq.get("change_pct", 0)},
+        },
+        "generated_at": datetime.utcnow().strftime("%H:%M UTC"),
+    }
+    _snapshot_cache["data"] = result
+    _snapshot_cache["ts"] = _t.time()
+    return jsonify(result)
+
+
+@app.route("/api/trending")
+@auth.require_login_api
+def api_trending():
+    _ensure_stocks_loaded()
+    us = [s for s in _stock_cache
+          if not str(s.get("symbol", "")).endswith(".TW") and s.get("symbol")]
+
+    def _score(s):
+        chg = abs(s.get("regularMarketChangePercent") or 0)
+        vol  = s.get("regularMarketVolume") or 0
+        avg  = s.get("averageVolume") or 1
+        vol_ratio = min(5.0, vol / max(avg, 1))
+        return chg * (1 + vol_ratio)
+
+    top = sorted(us, key=_score, reverse=True)[:10]
+    return jsonify([{
+        "rank":       i + 1,
+        "ticker":     s.get("symbol"),
+        "name":       (s.get("shortName") or s.get("longName") or s.get("symbol", ""))[:28],
+        "price":      round(float(s.get("currentPrice") or s.get("regularMarketPrice") or 0), 2),
+        "change_pct": round(float(s.get("regularMarketChangePercent") or 0), 2),
+    } for i, s in enumerate(top)])
 
 
 if __name__ == "__main__":
