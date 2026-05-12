@@ -451,7 +451,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
+  margin-bottom: 14px;
 }
 .ch-snapshot-label {
   font-size: 10px;
@@ -470,28 +470,28 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-snapshot-loading-text { font-size: 12px; color: var(--text-faint); }
 .ch-snap-cols {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: 1fr 1fr;
+  gap: 0;
 }
 .ch-snap-col {
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 4px;
-  padding: 4px 0;
+  padding: 10px 14px;
   border-right: 1px solid var(--border);
-  text-align: center;
+  border-bottom: 1px solid var(--border);
 }
-.ch-snap-col:last-child { border-right: none; }
+.ch-snap-col:nth-child(2n) { border-right: none; }
+.ch-snap-col:nth-child(n+3) { border-bottom: none; }
 .ch-snap-col-label {
-  font-size: 9px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
   color: var(--text-faint);
   text-transform: uppercase;
-  white-space: nowrap;
 }
 .ch-snap-col-val {
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
@@ -501,7 +501,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-snap-col-val.neg { color: #b84444; }
 .ch-snap-col-val.neu { color: #888; }
 .ch-snap-col-chg {
-  font-size: 11px;
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
 .ch-snap-col-chg.pos { color: #3d9e6e; }

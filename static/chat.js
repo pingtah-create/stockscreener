@@ -475,7 +475,7 @@ async function loadMarketSnapshot() {
     const fgCol = `<div class="ch-snap-col">
       <span class="ch-snap-col-label">Fear &amp; Greed</span>
       <span class="ch-snap-col-val ${fgCls}">${fgScore}</span>
-      <span class="ch-snap-col-chg" style="color:var(--text-faint)">${fgLabel}</span>
+      <span class="ch-snap-col-chg ${fgCls}">${fgLabel}</span>
     </div>`;
 
     body.innerHTML = `
