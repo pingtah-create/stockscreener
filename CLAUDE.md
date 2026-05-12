@@ -25,6 +25,9 @@ Local dev uses `.env` for secrets (auto-loaded by `app.py`):
 ```
 GROQ_API_KEY=...      # free key from console.groq.com — powers all AI features
 FINNHUB_API_KEY=...   # optional — enables real-time quotes on stock page
+SUPABASE_URL=...      # optional — enables cloud user storage and portfolio/watchlist sync
+SUPABASE_KEY=...      # anon JWT key (eyJ...) from Supabase Settings → API
+SIGNUP_CODE=...       # optional — if set, users must enter this code to create an account
 ```
 
 ## Architecture
@@ -45,11 +48,16 @@ All routes require login. HTML routes use `@auth.require_login` (redirects to `/
 
 ### Auth (`auth.py`)
 
-Two modes depending on environment:
-- **Local dev**: flat-file `auth/users.json` with werkzeug scrypt hashes. Signup enabled.
-- **Vercel**: reads `AUTH_USERS=user1:pass1,user2:pass2` env var (hashed in memory at import time). Signup disabled. Secret key must be set via `FLASK_SECRET_KEY` env var — without it, every cold start generates a new key, immediately invalidating sessions and breaking signed cookies.
+Three-tier user storage, tried in order:
+1. **Supabase** (`users` table, RLS must be disabled): persistent cross-device accounts. Active when `SUPABASE_URL` + `SUPABASE_KEY` are set.
+2. **`AUTH_USERS` env var**: `user1:pass1,user2:pass2` — backwards-compat for Vercel deployments without Supabase.
+3. **Flat-file `auth/users.json`**: local dev fallback, werkzeug scrypt hashes.
 
-Required Vercel env vars: `FLASK_SECRET_KEY`, `AUTH_USERS`, `GROQ_API_KEY`.
+Signup is enabled when `SIGNUP_CODE` env var is set (Vercel) or in local dev (no code required). The signup page shows an invite code field only when `SIGNUP_CODE` is required. `SIGNUP_CODE` is read at call-time (`os.environ.get()` inside a function), not at import time — important because dotenv loads after the module imports.
+
+`FLASK_SECRET_KEY` must be stable on Vercel — without it, every cold start generates a new key, invalidating sessions.
+
+Required Vercel env vars: `FLASK_SECRET_KEY`, `GROQ_API_KEY`, and either `AUTH_USERS` or `SUPABASE_URL`+`SUPABASE_KEY`.
 
 ### AI layer (`agent.py`)
 
@@ -90,27 +98,36 @@ Key API endpoints:
 - `GET /api/intel/<ticker>`: AI company overview (business model, macro drivers, strengths, competitors). Cached 7 days on disk.
 - `GET /api/swing/<ticker>`: AI swing trade setup. Cached 24h on disk.
 - `GET /api/news-events/<ticker>`: AI-labelled significant price moves with nearby news. Cached 6h on disk.
+- `GET /api/market-snapshot`: S&P 500, NASDAQ, VIX + Fear & Greed score (derived from VIX via `_calc_fg()`) + 2-sentence Groq narrative. Cached 1h in `_snapshot_cache`. VIX-to-F&G formula: `score = max(5, min(95, int(100 - (vix - 10) * 3.0)))`.
+- `GET /api/trending`: top 10 US stocks ranked by `|change%| × (1 + min(5, vol/avgVol))`. No cache — uses in-memory `_stock_cache`.
+- `GET /api/watchlist` / `POST /api/watchlist`: per-user watchlist. Reads/writes Supabase `watchlist` column first, localStorage fallback in the browser.
 
-### Portfolio persistence (three layers)
+### Portfolio persistence (four layers)
 
-Portfolio holdings use three redundant storage layers, each a fallback for the next:
+Portfolio holdings use four redundant storage layers, tried in order on read:
 
-1. **Server disk** (`auth/portfolios/<user>.json` locally, `/tmp/portfolios/<user>.json` on Vercel): written on every `POST /api/portfolio/holdings`. Ephemeral on Vercel — wiped on cold starts.
-2. **Cookie** (`pf_<user>`): set on every save, 90-day expiry, plain base64-encoded JSON (`{"u": username, "h": holdings}`). Survives logout (separate from session cookie). No dependency on `app.secret_key` — works across different Vercel instances.
-3. **`localStorage`** (key: `stockdash_portfolio_v1_<username>`): the most reliable layer on Vercel since it lives in the browser. `init()` in `portfolio.js` reads localStorage *before* the server call; if the server returns empty but localStorage has data, it uses localStorage and syncs back to server.
+1. **Supabase** (`portfolios` table, `holdings` column): primary layer when `SUPABASE_URL`+`SUPABASE_KEY` are set. RLS must be disabled on the table.
+2. **Server disk** (`auth/portfolios/<user>.json` locally, `/tmp/portfolios/<user>.json` on Vercel): written on every `POST /api/portfolio/holdings`. Ephemeral on Vercel — wiped on cold starts.
+3. **Cookie** (`pf_<user>`): set on every save, 90-day expiry, plain base64-encoded JSON (`{"u": username, "h": holdings}`). Survives logout. Not signed with `app.secret_key` — works across Vercel instances.
+4. **`localStorage`** (key: `stockdash_portfolio_v1_<username>`): most reliable on Vercel. `init()` in `portfolio.js` reads localStorage *before* the server call; if the server returns empty, it uses localStorage and syncs back.
+
+The Supabase `portfolios` table also stores `watchlist` in a second column — both are upserted together via the generic `_sb_save(username, **cols)` helper in `app.py`.
 
 **Critical: `/api/portfolio/summary` is a POST that accepts `{holdings: [...]}` in the body.** The client always sends its current in-memory holdings — the server just fetches live prices. This endpoint never reads from disk during normal operation, which eliminates race conditions between `saveHoldings()` and `fetchSummary()` calls.
 
 ### Frontend
 
 **`/` — AI Chat (`chat.js` + `chat-home.css`)**
-- Hero state (first load) collapses to thread view on first message send.
-- Conversation history persisted in `localStorage` (key: `stockdash_chat_v1_<username>`), last 20 messages sent to `/api/chat` per request.
-- Ticker pills auto-rendered from `data.tickers` in the API response, linking to `/stock/<ticker>`.
+- Hero state (first load) shows market snapshot, 6 skill cards, trending stocks, and session history. Collapses to thread view on first message.
+- **Skills**: clicking a skill card (fundamentals, timing, swing, earnings, compare) shows a ticker input; "Market Overview" fires immediately. `runSkill()` builds the prompt and calls `send()`.
+- **Market snapshot**: `loadMarketSnapshot()` fetches `/api/market-snapshot` on hero init. Indices dict keyed by `SP500`/`NASDAQ`/`VIX`; F&G at top-level `fg_score`/`fg_label`.
+- **Trending**: `loadTrending()` fetches `/api/trending` (returns an array directly, not `{trending:[...]}`).
+- **Session history**: each conversation gets a `currentSessionId`. `saveCurrentSession()` is called after every assistant reply. Up to 30 sessions stored in `localStorage` under `stockdash_sessions_v1_<username>`. "History" nav button toggles the history panel (on hero) or returns from chat to hero with history shown.
+- Current conversation in `stockdash_chat_v1_<username>`; last 20 messages sent to `/api/chat`.
 
 **`/dashboard` — Dashboard (`app.js` + `stock-map.js` + `style.css`)**
 - Auto-refresh intervals: indices 60s, movers 60s, heatmap 60s, stock map 60s, watchlist 30s, swing setups 120s.
-- Watchlist stored in `localStorage`; quotes fetched live via `/api/quotes`.
+- Watchlist: `initWatchlist()` fetches from `/api/watchlist` first (Supabase-backed), falls back to `localStorage` (`stockdash_watchlist_v1_<username>`). `saveWatchlist()` fires-and-forgets `POST /api/watchlist` and updates localStorage.
 - Stock map (`stock-map.js`): squarified treemap (Bruls/Huijsen/van Wijk algorithm). Tile color = `colorForChange()` — red ↔ grey ↔ green capped at ±5%.
 
 **`/stock/<ticker>` — Chart (`chart.js` + `chart.css`)**
@@ -138,3 +155,7 @@ Portfolio holdings use three redundant storage layers, each a fallback for the n
 - `GROQ_API_KEY` is read first; `GEMINI_API_KEY` is the fallback. Don't rename the Vercel env var.
 - All ticker URL parameters must go through `_clean_ticker()` before being passed to yfinance — without it, arbitrary strings reach the Yahoo Finance API.
 - Per-user localStorage keys use the pattern `stockdash_<feature>_v1_<username>`. `window.CURRENT_USER` is injected into every page template via `<script>window.CURRENT_USER = "{{ current_user or '' }}";</script>`.
+- Supabase tables (`users`, `portfolios`) must have RLS disabled (`ALTER TABLE x DISABLE ROW LEVEL SECURITY`) — all access is server-side with the anon key.
+- `SIGNUP_CODE` must be read inside a function (`os.environ.get()`) not at module level — dotenv loads after imports, so a module-level read always returns `""`.
+- `/api/market-snapshot` response shape: `{fg_score, fg_label, narrative, headline, bullets, indices: {SP500, NASDAQ, VIX}}` — indices is a dict, not an array.
+- `/api/trending` returns a bare array, not `{trending: [...]}`.
