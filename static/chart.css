@@ -82,6 +82,13 @@ html, body {
 }
 
 .topbar-spacer { flex: 1; }
+.topbar-user-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
 
 /* ── CHART SEARCH ─────────────────────────────────────────── */
 .chart-search-wrap {

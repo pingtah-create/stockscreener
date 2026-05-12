@@ -11,9 +11,7 @@
 <!-- TOP BAR -->
 <div class="topbar">
   <nav class="topbar-nav">
-    <a href="/">Chat</a>
-    <a href="/dashboard">Dashboard</a>
-    <a href="/portfolio">Portfolio</a>
+    <a class="db-brand" href="/dashboard">◈ STOCKDASH</a>
   </nav>
   <div class="topbar-div"></div>
 
@@ -63,6 +61,14 @@
     <button class="period-btn" data-period="6mo">6M</button>
     <button class="period-btn" data-period="1y">1Y</button>
     <button class="period-btn" data-period="2y">2Y</button>
+  </div>
+  <div class="topbar-user-nav">
+    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
+    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
+    {% if current_user %}
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm">Logout</a>
+    {% endif %}
   </div>
 </div>
 

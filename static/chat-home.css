@@ -36,6 +36,18 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-brand { display: flex; align-items: center; gap: 8px; }
 .ch-logo  { font-size: 18px; color: var(--text-faint); }
 .ch-name  { font-size: 13px; font-weight: 600; letter-spacing: 0.08em; color: var(--text-dim); }
+.db-brand {
+  font-family: var(--mono, monospace);
+  font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+  color: var(--text-dim); text-decoration: none;
+}
+.db-brand:hover { color: var(--text); }
+.nav-user {
+  display: inline-flex; align-items: center;
+  padding: 4px 9px; border: 1px solid transparent;
+  font-size: 11px; font-weight: 600; color: var(--text-faint);
+  letter-spacing: 0.04em; border-radius: 5px;
+}
 
 .ch-nav-links { display: flex; gap: 4px; align-items: center; }
 .ch-nav-links a, .ch-link-btn {

@@ -9,18 +9,14 @@
 <body>
 
 <header class="ch-nav">
-  <div class="ch-brand">
-    <span class="ch-logo">◈</span>
-    <span class="ch-name">STOCKDASH</span>
-  </div>
+  <a class="db-brand" href="/dashboard">◈ STOCKDASH</a>
   <nav class="ch-nav-links">
-    <a href="/" class="ch-nav-active">Chat</a>
-    <a href="/dashboard">Dashboard</a>
-    <a href="/portfolio">Portfolio</a>
     <button id="newChatBtn" class="ch-link-btn" title="Start a new conversation">New chat</button>
+    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
+    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
     {% if current_user %}
-      <span class="ch-user" title="Signed in as {{ current_user }}">{{ current_user }}</span>
-      <a href="/logout" class="ch-link-btn" title="Sign out">Logout</a>
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm">Logout</a>
     {% endif %}
   </nav>
 </header>
