@@ -453,7 +453,7 @@ async function loadMarketSnapshot() {
     // indices is a dict: { VIX: {price, change_pct}, SP500: {...}, NASDAQ: {...} }
     const LABELS = { SP500: 'S&P 500', NASDAQ: 'NASDAQ', VIX: 'VIX' };
     const idxOrder = ['SP500', 'NASDAQ', 'VIX'];
-    const indicesHtml = idxOrder.map(key => {
+    const colsHtml = idxOrder.map(key => {
       const idx  = (d.indices || {})[key] || {};
       const chg  = idx.change_pct || 0;
       const cls  = key === 'VIX' ? (chg > 0 ? 'neg' : 'pos') : (chg >= 0 ? 'pos' : 'neg');
@@ -461,26 +461,25 @@ async function loadMarketSnapshot() {
       const price = idx.price != null
         ? idx.price.toLocaleString('en-US', { maximumFractionDigits: 2 })
         : '—';
-      return `<div class="ch-snap-idx">
-        <span class="ch-snap-idx-name">${LABELS[key] || key}</span>
-        <span class="ch-snap-idx-val">${price}</span>
-        <span class="ch-snap-idx-chg ${cls}">${sign}${chg.toFixed(2)}%</span>
+      return `<div class="ch-snap-col">
+        <span class="ch-snap-col-label">${LABELS[key] || key}</span>
+        <span class="ch-snap-col-val">${price}</span>
+        <span class="ch-snap-col-chg ${cls}">${sign}${chg.toFixed(2)}%</span>
       </div>`;
     }).join('');
 
-    // fg_score and fg_label are top-level
+    // Fear & Greed as 4th column
     const fgScore = d.fg_score != null ? d.fg_score : 50;
     const fgLabel = d.fg_label || 'Neutral';
     const fgCls   = fgScore >= 60 ? 'pos' : fgScore <= 40 ? 'neg' : 'neu';
+    const fgCol = `<div class="ch-snap-col">
+      <span class="ch-snap-col-label">Fear &amp; Greed</span>
+      <span class="ch-snap-col-val ${fgCls}">${fgScore}</span>
+      <span class="ch-snap-col-chg" style="color:var(--text-faint)">${fgLabel}</span>
+    </div>`;
 
     body.innerHTML = `
-      <div class="ch-snap-indices">${indicesHtml}</div>
-      <div class="ch-snap-divider"></div>
-      <div class="ch-snap-fg">
-        <span class="ch-snap-fg-label">Fear &amp; Greed</span>
-        <span class="ch-snap-fg-score ${fgCls}">${fgScore}</span>
-        <span class="ch-snap-fg-name">${fgLabel}</span>
-      </div>
+      <div class="ch-snap-cols">${colsHtml}${fgCol}</div>
       ${d.narrative ? `<div class="ch-snap-narrative">${d.narrative}</div>` : ''}
     `;
 

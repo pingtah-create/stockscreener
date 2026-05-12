@@ -468,44 +468,46 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   padding: 8px 0;
 }
 .ch-snapshot-loading-text { font-size: 12px; color: var(--text-faint); }
-.ch-snap-indices { display: flex; gap: 20px; flex-wrap: wrap; }
-.ch-snap-idx { display: flex; flex-direction: column; gap: 2px; min-width: 80px; }
-.ch-snap-idx-name {
-  font-size: 10px;
-  color: var(--text-faint);
-  font-weight: 600;
-  letter-spacing: 0.04em;
+.ch-snap-cols {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
 }
-.ch-snap-idx-val {
-  font-size: 15px;
+.ch-snap-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+  border-right: 1px solid var(--border);
+  text-align: center;
+}
+.ch-snap-col:last-child { border-right: none; }
+.ch-snap-col-label {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.ch-snap-col-val {
+  font-size: 16px;
   font-weight: 600;
   color: var(--text);
   font-variant-numeric: tabular-nums;
-}
-.ch-snap-idx-chg { font-size: 11px; font-variant-numeric: tabular-nums; }
-.ch-snap-idx-chg.pos { color: #3d9e6e; }
-.ch-snap-idx-chg.neg { color: #b84444; }
-.ch-snap-divider { height: 1px; background: var(--border); margin: 12px 0; }
-.ch-snap-fg { display: flex; align-items: center; gap: 8px; }
-.ch-snap-fg-label {
-  font-size: 10px;
-  color: var(--text-faint);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  font-weight: 600;
-}
-.ch-snap-fg-score {
-  font-size: 20px;
-  font-weight: 700;
-  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.ch-snap-fg-score.pos { color: #3d9e6e; }
-.ch-snap-fg-score.neg { color: #b84444; }
-.ch-snap-fg-score.neu { color: #888; }
-.ch-snap-fg-name { font-size: 12px; color: var(--text-dim); }
+.ch-snap-col-val.pos { color: #3d9e6e; }
+.ch-snap-col-val.neg { color: #b84444; }
+.ch-snap-col-val.neu { color: #888; }
+.ch-snap-col-chg {
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.ch-snap-col-chg.pos { color: #3d9e6e; }
+.ch-snap-col-chg.neg { color: #b84444; }
 .ch-snap-narrative {
-  margin-top: 10px;
+  margin-top: 12px;
   font-size: 12px;
   color: var(--text-faint);
   line-height: 1.5;
