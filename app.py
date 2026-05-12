@@ -3,9 +3,10 @@ US Stock Screener — Flask backend
 Run: python app.py
 """
 import json
+import os as _os_top
 import base64 as _b64
 import threading
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from flask import Flask, render_template, jsonify, request, redirect, url_for, session, make_response, Response, stream_with_context
 
@@ -1121,6 +1122,56 @@ def portfolio_page():
     return render_template("portfolio.html")
 
 
+_SB_URL = _os_top.environ.get("SUPABASE_URL", "").rstrip("/")
+_SB_KEY = _os_top.environ.get("SUPABASE_KEY", "")
+
+
+def _sb_headers():
+    return {
+        "apikey": _SB_KEY,
+        "Authorization": f"Bearer {_SB_KEY}",
+        "Content-Type": "application/json",
+    }
+
+
+def _sb_load(username: str) -> list | None:
+    if not _SB_URL or not _SB_KEY:
+        return None
+    import requests as _req
+    try:
+        r = _req.get(
+            f"{_SB_URL}/rest/v1/portfolios",
+            headers={**_sb_headers(), "Accept": "application/json"},
+            params={"username": f"eq.{username}", "select": "holdings"},
+            timeout=5,
+        )
+        data = r.json()
+        if isinstance(data, list) and data:
+            return data[0].get("holdings", [])
+    except Exception:
+        pass
+    return None
+
+
+def _sb_save(username: str, holdings: list) -> None:
+    if not _SB_URL or not _SB_KEY:
+        return
+    import requests as _req
+    try:
+        _req.post(
+            f"{_SB_URL}/rest/v1/portfolios",
+            headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates,return=minimal"},
+            json={
+                "username": username,
+                "holdings": holdings,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            },
+            timeout=5,
+        )
+    except Exception:
+        pass
+
+
 def _portfolio_path(user: str):
     return _PORTFOLIO_DIR / f"{user}.json"
 
@@ -1152,6 +1203,11 @@ def _pf_cookie_load(user: str) -> list | None:
 @auth.require_login_api
 def api_portfolio_holdings_get():
     user = auth.current_user()
+    # 1. Supabase — reliable cross-device store
+    sb_data = _sb_load(user)
+    if sb_data is not None:
+        return jsonify(sb_data)
+    # 2. Disk — local dev or warm Vercel instance
     p = _portfolio_path(user)
     if p.exists():
         try:
@@ -1160,7 +1216,7 @@ def api_portfolio_holdings_get():
                 return jsonify(data)
         except Exception:
             p.unlink(missing_ok=True)
-    # Disk missing or empty — try cookie backup (survives Vercel cold starts)
+    # 3. Cookie — last resort (survives Vercel cold starts without Supabase)
     cookie_data = _pf_cookie_load(user)
     if cookie_data:
         try:
@@ -1181,10 +1237,13 @@ def api_portfolio_holdings_save():
         return jsonify({"error": "expected list"}), 400
     if len(holdings) > 100:
         return jsonify({"error": "portfolio exceeds 100 holdings limit"}), 400
-    p = _portfolio_path(user)
-    p.write_text(json.dumps(holdings))
-    # Also persist in a long-lived cookie — survives Vercel cold starts and
-    # works across instances (no secret-key dependency, just base64 JSON).
+    # Write to all three layers
+    _sb_save(user, holdings)
+    try:
+        p = _portfolio_path(user)
+        p.write_text(json.dumps(holdings))
+    except Exception:
+        pass
     resp = make_response(jsonify({"ok": True}))
     try:
         resp.set_cookie(_pf_cookie(user), _pf_cookie_encode(user, holdings),
