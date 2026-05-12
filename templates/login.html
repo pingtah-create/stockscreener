@@ -17,7 +17,9 @@
 
   <div class="auth-tabs">
     <a href="/login"  class="auth-tab {{ 'is-active' if mode == 'login' else '' }}">Sign in</a>
+    {% if signup_enabled %}
     <a href="/signup" class="auth-tab {{ 'is-active' if mode == 'signup' else '' }}">Create account</a>
+    {% endif %}
   </div>
 
   <h1 class="auth-title">
@@ -61,7 +63,7 @@
 
   <div class="auth-foot">
     {% if mode == 'login' %}
-      No account? <a href="/signup">Create one</a>
+      {% if signup_enabled %}No account? <a href="/signup">Create one</a>{% endif %}
     {% else %}
       Already have an account? <a href="/login">Sign in</a>
     {% endif %}

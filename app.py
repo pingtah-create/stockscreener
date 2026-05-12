@@ -262,7 +262,9 @@ def login_page():
                 nxt = url_for("index")
             return redirect(nxt)
         error = "Invalid username or password."
-    return render_template("login.html", mode="login", error=error)
+    return render_template("login.html", mode="login", error=error,
+                           signup_enabled=auth.signup_enabled(),
+                           signup_code_required=bool(auth.SIGNUP_CODE))
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -286,6 +288,7 @@ def signup_page():
                 return redirect(url_for("index"))
             error = msg
     return render_template("login.html", mode="signup", error=error,
+                           signup_enabled=auth.signup_enabled(),
                            signup_code_required=bool(auth.SIGNUP_CODE))
 
 
