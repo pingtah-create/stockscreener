@@ -25,7 +25,7 @@
   </h1>
   <p class="auth-sub">
     {% if mode == 'login' %}Sign in to access your AI research analyst.
-    {% else %}Pick a username and password — accounts are stored locally on this server.
+    {% else %}Create your account. You'll need an invite code.
     {% endif %}
   </p>
 
@@ -46,6 +46,12 @@
       <label class="auth-label" for="confirm">Confirm password</label>
       <input class="auth-input" id="confirm" name="confirm" type="password"
              autocomplete="new-password" required minlength="6" />
+
+      {% if signup_code_required %}
+      <label class="auth-label" for="invite_code">Invite code</label>
+      <input class="auth-input" id="invite_code" name="invite_code" type="text"
+             autocomplete="off" required placeholder="Enter your invite code" />
+      {% endif %}
     {% endif %}
 
     <button class="auth-submit" type="submit">

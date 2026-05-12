@@ -269,20 +269,24 @@ def login_page():
 def signup_page():
     if auth.current_user():
         return redirect(url_for("index"))
+    if not auth.signup_enabled():
+        return redirect(url_for("login_page"))
     error = None
     if request.method == "POST":
-        username = (request.form.get("username") or "").strip()
-        password = request.form.get("password") or ""
-        confirm  = request.form.get("confirm")  or ""
+        username    = (request.form.get("username")    or "").strip()
+        password    = request.form.get("password")    or ""
+        confirm     = request.form.get("confirm")     or ""
+        invite_code = request.form.get("invite_code") or ""
         if password != confirm:
             error = "Passwords do not match."
         else:
-            ok, msg = auth.create_user(username, password)
+            ok, msg = auth.create_user(username, password, invite_code)
             if ok:
                 auth.login_session(username)
                 return redirect(url_for("index"))
             error = msg
-    return render_template("login.html", mode="signup", error=error)
+    return render_template("login.html", mode="signup", error=error,
+                           signup_code_required=bool(auth.SIGNUP_CODE))
 
 
 @app.route("/logout", methods=["POST", "GET"])
