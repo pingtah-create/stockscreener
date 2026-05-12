@@ -323,13 +323,9 @@ def api_status():
     })
 
 
-@app.route("/api/indices")
-@auth.require_login_api
-def api_indices():
+def _fetch_indices() -> dict:
+    """Fetch all indices from yfinance and update the module-level cache."""
     global _indices_cache, _indices_cached_at
-    # Cache for 5 minutes
-    if _indices_cached_at and datetime.now() - _indices_cached_at < timedelta(minutes=5):
-        return jsonify(_indices_cache)
     result = {}
     for name, sym in INDICES.items():
         try:
@@ -337,17 +333,27 @@ def api_indices():
             info = t.fast_info
             price = getattr(info, "last_price", None)
             prev  = getattr(info, "previous_close", None)
-            if price and prev:
-                chg = (price - prev) / prev * 100
-            else:
-                chg = 0
+            chg = (price - prev) / prev * 100 if price and prev else 0
             result[name] = {"symbol": sym, "price": round(price, 2) if price else None,
                             "change_pct": round(chg, 2)}
         except Exception:
             result[name] = {"symbol": sym, "price": None, "change_pct": 0}
     _indices_cache = result
     _indices_cached_at = datetime.now()
-    return jsonify(result)
+    return result
+
+
+def _ensure_indices_loaded() -> dict:
+    """Return cached indices, fetching fresh data if the cache is empty or stale."""
+    if _indices_cached_at and datetime.now() - _indices_cached_at < timedelta(minutes=5):
+        return _indices_cache
+    return _fetch_indices()
+
+
+@app.route("/api/indices")
+@auth.require_login_api
+def api_indices():
+    return jsonify(_ensure_indices_loaded())
 
 
 @app.route("/api/sparkline/<ticker>")
@@ -1953,11 +1959,11 @@ def api_market_snapshot():
     if _snapshot_cache["data"] and _t.time() - _snapshot_cache["ts"] < 3600:
         return jsonify(_snapshot_cache["data"])
 
-    idx = _indices_cache or {}
-    vix    = (idx.get("VIX")    or {}).get("price") or 20.0
-    sp500  = idx.get("SP500")   or {}
-    nasdaq = idx.get("NASDAQ")  or {}
-    dow    = idx.get("DOW")     or {}
+    idx = _ensure_indices_loaded()
+    vix    = (idx.get("VIX")     or {}).get("price") or 20.0
+    sp500  = idx.get("S&P 500")  or {}
+    nasdaq = idx.get("NASDAQ")   or {}
+    dow    = idx.get("DOW")      or {}
     fg_score, fg_label = _calc_fg(float(vix))
 
     headline  = "Markets in Focus"
