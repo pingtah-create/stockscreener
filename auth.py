@@ -28,9 +28,12 @@ _SECRET_FILE = _AUTH_DIR / "secret.key"
 USERNAME_RE   = re.compile(r"^[a-zA-Z0-9_.-]{3,32}$")
 MIN_PASSWORD_LEN = 6
 
-_SB_URL     = os.environ.get("SUPABASE_URL", "").rstrip("/")
-_SB_KEY     = os.environ.get("SUPABASE_KEY", "")
-SIGNUP_CODE = os.environ.get("SIGNUP_CODE", "")
+_SB_URL = os.environ.get("SUPABASE_URL", "").rstrip("/")
+_SB_KEY = os.environ.get("SUPABASE_KEY", "")
+
+
+def _signup_code() -> str:
+    return os.environ.get("SIGNUP_CODE", "")
 
 # ── Supabase user helpers ─────────────────────────────────────────────────────
 
@@ -141,8 +144,8 @@ def init_app(app):
 
 
 def signup_enabled() -> bool:
-    """Signup is open when SIGNUP_CODE is set (or in local dev without Supabase)."""
-    return bool(SIGNUP_CODE) or not _IS_SERVERLESS
+    """Signup is open when SIGNUP_CODE is set (or in local dev)."""
+    return bool(_signup_code()) or not _IS_SERVERLESS
 
 
 def user_count() -> int:
@@ -157,7 +160,8 @@ def create_user(username: str, password: str, invite_code: str = "") -> tuple[bo
         return False, f"Password must be at least {MIN_PASSWORD_LEN} characters."
 
     # Invite code check
-    if SIGNUP_CODE and invite_code.strip() != SIGNUP_CODE:
+    code = _signup_code()
+    if code and invite_code.strip() != code:
         return False, "Invalid invite code."
 
     password_hash = generate_password_hash(password)

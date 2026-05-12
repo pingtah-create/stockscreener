@@ -264,7 +264,7 @@ def login_page():
         error = "Invalid username or password."
     return render_template("login.html", mode="login", error=error,
                            signup_enabled=auth.signup_enabled(),
-                           signup_code_required=bool(auth.SIGNUP_CODE))
+                           signup_code_required=bool(auth._signup_code()))
 
 
 @app.route("/signup", methods=["GET", "POST"])
@@ -289,7 +289,7 @@ def signup_page():
             error = msg
     return render_template("login.html", mode="signup", error=error,
                            signup_enabled=auth.signup_enabled(),
-                           signup_code_required=bool(auth.SIGNUP_CODE))
+                           signup_code_required=bool(auth._signup_code()))
 
 
 @app.route("/logout", methods=["POST", "GET"])
