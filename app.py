@@ -1134,7 +1134,7 @@ def _sb_headers():
     }
 
 
-def _sb_load(username: str) -> list | None:
+def _sb_load(username: str, col: str = "holdings") -> list | None:
     if not _SB_URL or not _SB_KEY:
         return None
     import requests as _req
@@ -1142,18 +1142,18 @@ def _sb_load(username: str) -> list | None:
         r = _req.get(
             f"{_SB_URL}/rest/v1/portfolios",
             headers={**_sb_headers(), "Accept": "application/json"},
-            params={"username": f"eq.{username}", "select": "holdings"},
+            params={"username": f"eq.{username}", "select": col},
             timeout=5,
         )
         data = r.json()
         if isinstance(data, list) and data:
-            return data[0].get("holdings", [])
+            return data[0].get(col, [])
     except Exception:
         pass
     return None
 
 
-def _sb_save(username: str, holdings: list) -> None:
+def _sb_save(username: str, **cols) -> None:
     if not _SB_URL or not _SB_KEY:
         return
     import requests as _req
@@ -1161,11 +1161,7 @@ def _sb_save(username: str, holdings: list) -> None:
         _req.post(
             f"{_SB_URL}/rest/v1/portfolios",
             headers={**_sb_headers(), "Prefer": "resolution=merge-duplicates,return=minimal"},
-            json={
-                "username": username,
-                "holdings": holdings,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            },
+            json={"username": username, "updated_at": datetime.now(timezone.utc).isoformat(), **cols},
             timeout=5,
         )
     except Exception:
@@ -1204,7 +1200,7 @@ def _pf_cookie_load(user: str) -> list | None:
 def api_portfolio_holdings_get():
     user = auth.current_user()
     # 1. Supabase — reliable cross-device store
-    sb_data = _sb_load(user)
+    sb_data = _sb_load(user, "holdings")
     if sb_data is not None:
         return jsonify(sb_data)
     # 2. Disk — local dev or warm Vercel instance
@@ -1238,7 +1234,7 @@ def api_portfolio_holdings_save():
     if len(holdings) > 100:
         return jsonify({"error": "portfolio exceeds 100 holdings limit"}), 400
     # Write to all three layers
-    _sb_save(user, holdings)
+    _sb_save(user, holdings=holdings)
     try:
         p = _portfolio_path(user)
         p.write_text(json.dumps(holdings))
@@ -1251,6 +1247,27 @@ def api_portfolio_holdings_save():
     except Exception:
         pass
     return resp
+
+
+@app.route("/api/watchlist", methods=["GET"])
+@auth.require_login_api
+def api_watchlist_get():
+    user = auth.current_user()
+    data = _sb_load(user, "watchlist")
+    if data is not None:
+        return jsonify(data)
+    return jsonify([])
+
+
+@app.route("/api/watchlist", methods=["POST"])
+@auth.require_login_api
+def api_watchlist_save():
+    user = auth.current_user()
+    watchlist = request.json
+    if not isinstance(watchlist, list):
+        return jsonify({"error": "expected list"}), 400
+    _sb_save(user, watchlist=watchlist)
+    return jsonify({"ok": True})
 
 
 @app.route("/api/portfolio/summary", methods=["GET", "POST"])

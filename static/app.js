@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   setInterval(updateMarketStatus, 30000);
   await loadIndices();
   if (typeof loadStockMap === "function") loadStockMap();
-  loadWatchlist();
+  initWatchlist();
   preloadStocksForSearch();
   setInterval(loadIndices, 60000);
   if (typeof loadStockMap === "function") setInterval(loadStockMap, 60000);
@@ -272,7 +272,7 @@ function fireAlertNotification(ticker, msg) {
 }
 
 // ── WATCHLIST ─────────────────────────────────────────
-const WATCHLIST_KEY = "watchlist";
+const WATCHLIST_KEY = `stockdash_watchlist_v1_${window.CURRENT_USER || 'default'}`;
 
 function getWatchlist() {
   try { return JSON.parse(localStorage.getItem(WATCHLIST_KEY) || "[]"); }
@@ -280,6 +280,11 @@ function getWatchlist() {
 }
 function saveWatchlist(list) {
   localStorage.setItem(WATCHLIST_KEY, JSON.stringify(list));
+  fetch('/api/watchlist', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(list),
+  }).catch(() => {});
 }
 function addToWatchlist(ticker) {
   ticker = (ticker || "").trim().toUpperCase();
@@ -292,6 +297,18 @@ function addToWatchlist(ticker) {
 }
 function removeFromWatchlist(ticker) {
   saveWatchlist(getWatchlist().filter(t => t !== ticker));
+  loadWatchlist();
+}
+async function initWatchlist() {
+  try {
+    const r = await fetch('/api/watchlist');
+    if (r.ok) {
+      const server = await r.json();
+      if (Array.isArray(server) && server.length > 0) {
+        localStorage.setItem(WATCHLIST_KEY, JSON.stringify(server));
+      }
+    }
+  } catch {}
   loadWatchlist();
 }
 
