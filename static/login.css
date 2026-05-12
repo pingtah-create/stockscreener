@@ -1,33 +1,22 @@
-/* login.css — auth page styling. Builds on chat-home.css vars. */
+/* login.css — auth page styling, uses style.css variables */
 
 .auth-body {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
   padding: 24px;
-  background:
-    radial-gradient(circle at 30% 20%, rgba(79,140,255,0.08) 0%, transparent 50%),
-    radial-gradient(circle at 80% 80%, rgba(120,80,255,0.06) 0%, transparent 50%),
-    var(--bg);
+  background: var(--bg);
 }
 
 .auth-card {
   width: 100%;
-  max-width: 420px;
-  background: var(--bg-elev);
+  max-width: 400px;
+  background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 36px 32px 28px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
-}
-
-.auth-brand {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  margin-bottom: 24px;
+  border-radius: 12px;
+  padding: 32px 28px 24px;
 }
 
 .auth-tabs {
@@ -35,95 +24,94 @@
   gap: 4px;
   background: var(--bg);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 4px;
-  margin-bottom: 28px;
+  border-radius: 8px;
+  padding: 3px;
+  margin-bottom: 24px;
 }
 .auth-tab {
   flex: 1;
   text-align: center;
-  padding: 9px 12px;
-  border-radius: 7px;
+  padding: 8px 12px;
+  border-radius: 6px;
   text-decoration: none;
-  color: var(--text-dim);
-  font-size: 13px;
+  color: var(--text3);
+  font-size: 12px;
   font-weight: 500;
   transition: all 0.15s;
 }
 .auth-tab.is-active {
-  background: var(--bg-elev);
+  background: var(--bg3);
   color: var(--text);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+  border: 1px solid var(--border2);
 }
-.auth-tab:hover:not(.is-active) { color: var(--text); }
+.auth-tab:hover:not(.is-active) { color: var(--text2); }
 
 .auth-title {
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 600;
   margin: 0 0 6px;
+  color: var(--text);
   letter-spacing: -0.01em;
 }
 .auth-sub {
-  color: var(--text-dim);
+  color: var(--text2);
   font-size: 13px;
-  margin: 0 0 22px;
+  margin: 0 0 20px;
   line-height: 1.5;
 }
 
 .auth-error {
-  background: rgba(255, 107, 107, 0.1);
-  border: 1px solid rgba(255, 107, 107, 0.3);
-  color: var(--error);
-  border-radius: 8px;
+  background: rgba(244, 67, 54, 0.08);
+  border: 1px solid rgba(244, 67, 54, 0.25);
+  color: var(--red);
+  border-radius: 6px;
   padding: 10px 12px;
   font-size: 13px;
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
 .auth-form { display: flex; flex-direction: column; }
 .auth-label {
-  font-size: 12px;
-  color: var(--text-dim);
-  margin: 8px 0 6px;
-  letter-spacing: 0.02em;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text3);
+  margin: 12px 0 5px;
 }
 .auth-input {
   background: var(--bg);
-  border: 1px solid var(--border-strong);
-  border-radius: 9px;
-  padding: 11px 13px;
+  border: 1px solid var(--border2);
+  border-radius: 6px;
+  padding: 9px 12px;
   color: var(--text);
-  font-size: 14px;
+  font-size: 13px;
   font-family: inherit;
   outline: none;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition: border-color 0.15s;
 }
-.auth-input:focus {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px var(--accent-glow);
-}
+.auth-input:focus { border-color: var(--accent); }
 
 .auth-submit {
-  margin-top: 22px;
+  margin-top: 20px;
   background: var(--accent);
-  color: white;
+  color: #fff;
   border: none;
-  border-radius: 10px;
-  padding: 12px 18px;
-  font-size: 14px;
+  border-radius: 7px;
+  padding: 11px 18px;
+  font-size: 13px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: opacity 0.15s, transform 0.1s;
+  transition: opacity 0.15s;
 }
-.auth-submit:hover { opacity: 0.92; }
-.auth-submit:active { transform: scale(0.98); }
+.auth-submit:hover { opacity: 0.88; }
 
 .auth-foot {
-  margin-top: 22px;
+  margin-top: 18px;
   text-align: center;
-  font-size: 13px;
-  color: var(--text-dim);
+  font-size: 12px;
+  color: var(--text3);
 }
 .auth-foot a { color: var(--accent); text-decoration: none; }
 .auth-foot a:hover { text-decoration: underline; }
