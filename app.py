@@ -244,8 +244,8 @@ def _ensure_stocks_loaded():
         with _stock_cache_lock:
             if not _stock_cache:  # double-checked — only one thread loads
                 _stock_cache = _load_all_from_cache()
-    if _IS_SERVERLESS:
-        threading.Thread(target=_refresh_live_prices, daemon=True).start()
+    # Always keep live prices warm — background thread is a no-op if throttle hasn't expired
+    threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -784,6 +784,10 @@ def api_stockmap():
     """Per-stock treemap data: sector, market cap (USD), % change. Used by
     the dashboard stock-map panel (Finviz-style)."""
     _ensure_stocks_loaded()
+    # If prices have never been refreshed (e.g. fresh cold start with seed data),
+    # do a synchronous refresh so the first stockmap response has live prices.
+    if _prices_refreshed_at is None:
+        _refresh_live_prices()
     twd_usd = _twd_to_usd_rate()
     rows = []
     for s in _stock_cache:
