@@ -521,60 +521,49 @@ async function loadTrending() {
 }
 
 // ── Skills ─────────────────────────────────────────────────────────────────────
-const SKILL_PROMPTS = {
-  fundamentals: t => `Is ${t} a great company to own long-term? Analyse its fundamentals, competitive moat, and business quality.`,
-  timing:       t => `What are the best entry and exit levels for ${t} right now? Include key support/resistance and signals.`,
-  swing:        t => `Give me a 2–4 week swing trade setup for ${t} with entry price, price target, and stop-loss.`,
-  earnings:     t => `Preview the next earnings for ${t}: consensus estimates, beat rate history, and what to watch for.`,
-  compare:      t => `Compare ${t} vs its closest peers on valuation, growth, and momentum. Who wins?`,
-  market:       ()=> `Give me a market overview: what's driving markets today and where the best opportunities are.`,
+// Clicking a skill card pre-fills the main input with a template prompt.
+// "AAPL" is used as a placeholder ticker and is auto-selected so the user
+// can immediately type their ticker to replace it.
+const SKILL_TEMPLATES = {
+  fundamentals: `Is AAPL a great company to own long-term?`,
+  timing:       `What are the best entry and exit levels for AAPL right now?`,
+  swing:        `Give me a swing trade setup for AAPL with entry, target, and stop-loss.`,
+  earnings:     `Preview the next earnings for AAPL — estimates, beat rate, and what to watch.`,
+  compare:      `Compare AAPL vs its closest peers on valuation, growth, and momentum.`,
+  market:       `Give me a market overview: what's driving markets today and where the opportunities are.`,
 };
-
-const SKILL_LABELS = {
-  fundamentals: 'Enter ticker for company analysis:',
-  timing:       'Enter ticker for entry/exit levels:',
-  swing:        'Enter ticker for swing trade setup:',
-  earnings:     'Enter ticker for earnings preview:',
-  compare:      'Enter ticker to compare vs peers:',
-};
-
-let activeSkill = null;
 
 document.querySelectorAll('.ch-skill-card').forEach(card => {
   card.addEventListener('click', () => {
     const skill = card.dataset.skill;
-    if (skill === 'market') { send(SKILL_PROMPTS.market()); return; }
-    activeSkill = skill;
-    const wrap   = document.getElementById('chSkillInputWrap');
-    const label  = document.getElementById('chSkillInputLabel');
-    const ticker = document.getElementById('chSkillTicker');
-    if (label)  label.textContent = SKILL_LABELS[skill] || 'Enter ticker:';
-    if (wrap)   wrap.style.display = 'flex';
-    if (ticker) { ticker.value = ''; ticker.focus(); }
+    const template = SKILL_TEMPLATES[skill];
+    if (!template) return;
+
+    // Highlight clicked card briefly
+    document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
+    card.classList.add('ch-skill-active');
+
+    if (skill === 'market') {
+      send(template);
+      return;
+    }
+
+    // Pre-fill main input and select "AAPL" so user can type their ticker
+    input.value = template;
+    input.focus();
+    const start = template.indexOf('AAPL');
+    if (start !== -1) input.setSelectionRange(start, start + 4);
+
+    // Show hint pointing to the input box
+    const hint = document.getElementById('chSkillHint');
+    const hintText = document.getElementById('chSkillHintText');
+    if (hint && hintText) {
+      hintText.textContent = '↓ Replace AAPL with your ticker in the box below, then press Enter';
+      hint.style.display = '';
+      setTimeout(() => { hint.style.display = 'none'; }, 4000);
+    }
   });
 });
-
-document.getElementById('chSkillGo')?.addEventListener('click', runSkill);
-document.getElementById('chSkillTicker')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter')  runSkill();
-  if (e.key === 'Escape') cancelSkill();
-});
-document.getElementById('chSkillCancel')?.addEventListener('click', cancelSkill);
-
-function runSkill() {
-  const ticker = (document.getElementById('chSkillTicker')?.value || '').trim().toUpperCase();
-  if (!ticker || !activeSkill) return;
-  const prompt = SKILL_PROMPTS[activeSkill]?.(ticker);
-  if (!prompt) return;
-  cancelSkill();
-  send(prompt);
-}
-
-function cancelSkill() {
-  activeSkill = null;
-  const wrap = document.getElementById('chSkillInputWrap');
-  if (wrap) wrap.style.display = 'none';
-}
 
 // ── History ────────────────────────────────────────────────────────────────────
 function getSessions() {
