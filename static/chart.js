@@ -362,8 +362,16 @@ async function loadData(period) {
       const btn = document.getElementById('patternBtn');
       if (btn) { patternOn = false; togglePatterns(btn); }
     }
-    const _compInput = document.getElementById('compareInput');
-    if (_compInput && _compInput.value.trim()) loadCompareData(_compInput.value.trim());
+    // Reload all compare tickers for the new period
+    if (Object.keys(compMap).length) {
+      const prevTickers = Object.keys(compMap).join(',');
+      for (const { series } of Object.values(compMap)) { try { priceChart.removeSeries(series); } catch {} }
+      for (const k of Object.keys(compMap)) delete compMap[k];
+      loadCompareData(prevTickers);
+    } else {
+      const _compInput = document.getElementById('compareInput');
+      if (_compInput && _compInput.value.trim()) loadCompareData(_compInput.value.trim());
+    }
   } catch (e) {
     showChartError(`Failed to load chart.<br><span style="color:#4a5568;font-size:11px">${e.message}</span>`);
   }
@@ -2256,14 +2264,68 @@ function loadTickerNote() {
 }
 
 // ── Comparison overlay ────────────────────────────────────────────
+let _compareUniverse = [];
+(async () => {
+  try {
+    const r = await fetch('/api/screen', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({filters:{}, sort_by:'marketCap', sort_dir:'desc', page:1, per_page:600}),
+    });
+    _compareUniverse = (await r.json()).results || [];
+  } catch {}
+})();
+
 function setupCompare() {
   const input = document.getElementById('compareInput');
+  const dd    = document.getElementById('compareDropdown');
   if (!input) return;
-  input.addEventListener('input', () => { input.value = input.value.toUpperCase(); });
-  input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { loadCompareData(input.value.trim()); input.blur(); }
-    if (e.key === 'Escape') clearCompare();
+
+  let debounce;
+  input.addEventListener('input', () => {
+    input.value = input.value.toUpperCase();
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (!q) { dd.classList.remove('open'); return; }
+    debounce = setTimeout(() => {
+      const found = _compareUniverse.filter(s =>
+        s.symbol?.toUpperCase().startsWith(q) ||
+        (s.shortName||'').toUpperCase().includes(q)
+      ).slice(0, 6);
+      if (!found.length) { dd.classList.remove('open'); return; }
+      dd.innerHTML = found.map(s => `
+        <div class="search-result-item" data-symbol="${s.symbol}">
+          <span class="search-ticker">${s.symbol}</span>
+          <span class="search-name">${s.shortName||''}</span>
+        </div>`).join('');
+      dd.querySelectorAll('.search-result-item').forEach(el => {
+        el.addEventListener('mousedown', e => {
+          e.preventDefault();
+          _addCompareTicker(el.dataset.symbol);
+          input.value = '';
+          dd.classList.remove('open');
+        });
+      });
+      dd.classList.add('open');
+    }, 150);
   });
+
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      const t = input.value.trim().toUpperCase();
+      if (t) { _addCompareTicker(t); input.value = ''; dd.classList.remove('open'); }
+    }
+    if (e.key === 'Escape') { dd.classList.remove('open'); input.value = ''; }
+  });
+
+  document.addEventListener('click', ev => {
+    if (!input.closest('.compare-input-wrap')?.contains(ev.target)) dd.classList.remove('open');
+  });
+}
+
+function _addCompareTicker(ticker) {
+  ticker = ticker.replace(/[^A-Z0-9.]/g, '');
+  if (!ticker || ticker === TICKER || compMap[ticker]) return;
+  loadCompareData(ticker);
 }
 
 async function loadCompareData(input) {
@@ -2273,22 +2335,11 @@ async function loadCompareData(input) {
     .split(/[\s,]+/)
     .map(t => t.replace(/[^A-Z0-9.]/g, ''))
     .filter(t => t && t !== TICKER)
-    .slice(0, 5);
+    .slice(0, 8);
 
-  // Remove series for tickers no longer in the input
-  for (const t of Object.keys(compMap)) {
-    if (!newTickers.includes(t)) {
-      try { priceChart.removeSeries(compMap[t].series); } catch {}
-      delete compMap[t];
-    }
-  }
+  if (!newTickers.length) { _updateCompareResult(); return; }
 
-  if (!newTickers.length) {
-    _updateCompareResult();
-    return;
-  }
-
-  // Load each new ticker (skip ones already loaded)
+  // Load each new ticker (skip ones already loaded for this period)
   const toLoad = newTickers.filter(t => !compMap[t]);
   await Promise.all(toLoad.map(async (ticker) => {
     const colorIdx = Object.keys(compMap).length % COMP_COLORS.length;
@@ -2312,21 +2363,16 @@ async function loadCompareData(input) {
       }));
 
       const series = priceChart.addLineSeries({
-        color,
-        lineWidth: 1.5,
-        priceLineVisible: false,
-        lastValueVisible: false,
-        crosshairMarkerVisible: false,
-        title: ticker,
+        color, lineWidth: 1.5,
+        priceLineVisible: false, lastValueVisible: true,
+        crosshairMarkerVisible: false, title: ticker,
       });
       series.setData(normalized);
       compMap[ticker] = { series, bars: compBars, color };
     } catch {
+      // flash input red briefly on error
       const inputEl = document.getElementById('compareInput');
-      if (inputEl) {
-        inputEl.style.borderColor = '#ff4f4f';
-        setTimeout(() => { inputEl.style.borderColor = ''; }, 1500);
-      }
+      if (inputEl) { inputEl.style.borderColor='#ff4f4f'; setTimeout(()=>{ inputEl.style.borderColor=''; },1500); }
     }
   }));
 
@@ -2334,54 +2380,54 @@ async function loadCompareData(input) {
 }
 
 function _updateCompareResult() {
+  const chipsEl  = document.getElementById('compareChips');
   const resultEl = document.getElementById('compareResult');
-  const clearBtn  = document.getElementById('compareClear');
-  if (!resultEl) return;
+  if (!chipsEl) return;
 
-  const hasComps = Object.keys(compMap).length > 0;
-  if (!hasComps || !chartData?.ohlcv?.length) {
-    resultEl.style.display = 'none';
-    if (clearBtn) clearBtn.style.display = 'none';
+  const tickers = Object.keys(compMap);
+
+  // Render chips
+  chipsEl.innerHTML = tickers.map(t => {
+    const { color } = compMap[t];
+    return `<span class="comp-chip" style="border-color:${color};color:${color}" data-ticker="${t}">
+      ${t} <span class="comp-chip-x" data-ticker="${t}">×</span>
+    </span>`;
+  }).join('');
+  chipsEl.querySelectorAll('.comp-chip-x').forEach(x => {
+    x.addEventListener('click', e => { e.stopPropagation(); removeCompareTicker(x.dataset.ticker); });
+  });
+
+  // Performance summary
+  if (!tickers.length || !chartData?.ohlcv?.length) {
+    if (resultEl) resultEl.style.display = 'none';
     return;
   }
-
   const mainBars = chartData.ohlcv;
   const mainBase = mainBars[0].close;
-  const mainPct  = ((mainBars[mainBars.length - 1].close / mainBase - 1) * 100).toFixed(1);
-  const mainSign  = +mainPct >= 0 ? '+' : '';
-  const mainColor = +mainPct >= 0 ? '#00e676' : '#ff4f4f';
-
+  const mainPct  = ((mainBars[mainBars.length-1].close / mainBase - 1) * 100).toFixed(1);
   const parts = [
-    `<span style="color:#8899aa">${TICKER}</span> <span style="color:${mainColor}">${mainSign}${mainPct}%</span>`,
+    `<span style="color:#8899aa">${TICKER}</span> <span style="color:${+mainPct>=0?'#00e676':'#ff4f4f'}">${+mainPct>=0?'+':''}${mainPct}%</span>`,
   ];
-
-  for (const [ticker, { bars, color }] of Object.entries(compMap)) {
-    const base = bars[0].close;
-    const pct  = ((bars[bars.length - 1].close / base - 1) * 100).toFixed(1);
-    const sign  = +pct >= 0 ? '+' : '';
-    const pctColor = +pct >= 0 ? '#00e676' : '#ff4f4f';
-    parts.push(
-      `<span style="color:${color}">${ticker}</span> <span style="color:${pctColor}">${sign}${pct}%</span>`
-    );
+  for (const [t, {bars, color}] of Object.entries(compMap)) {
+    const pct = ((bars[bars.length-1].close / bars[0].close - 1) * 100).toFixed(1);
+    parts.push(`<span style="color:${color}">${t}</span> <span style="color:${+pct>=0?'#00e676':'#ff4f4f'}">${+pct>=0?'+':''}${pct}%</span>`);
   }
+  if (resultEl) { resultEl.innerHTML = parts.join(' <span style="color:#555">|</span> '); resultEl.style.display = ''; }
+}
 
-  resultEl.innerHTML = parts.join(' <span style="color:#555">|</span> ');
-  resultEl.style.display = '';
-  if (clearBtn) clearBtn.style.display = '';
+function removeCompareTicker(ticker) {
+  if (!compMap[ticker]) return;
+  try { priceChart.removeSeries(compMap[ticker].series); } catch {}
+  delete compMap[ticker];
+  _updateCompareResult();
 }
 
 function clearCompare() {
-  for (const { series } of Object.values(compMap)) {
-    try { priceChart.removeSeries(series); } catch {}
-  }
+  for (const {series} of Object.values(compMap)) { try { priceChart.removeSeries(series); } catch {} }
   for (const k of Object.keys(compMap)) delete compMap[k];
-
-  const input    = document.getElementById('compareInput');
-  const clearBtn = document.getElementById('compareClear');
-  const resultEl = document.getElementById('compareResult');
-  if (input)    input.value = '';
-  if (clearBtn) clearBtn.style.display = 'none';
-  if (resultEl) resultEl.style.display = 'none';
+  const input = document.getElementById('compareInput');
+  if (input) input.value = '';
+  _updateCompareResult();
 }
 
 // ── SEC Filings ────────────────────────────────────────────────────

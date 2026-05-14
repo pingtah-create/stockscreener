@@ -111,10 +111,13 @@
 
       <div class="ctrl-sep"></div>
 
-      <div class="compare-wrap">
+      <div class="compare-wrap" id="compareWrap">
         <span class="compare-label">vs</span>
-        <input class="compare-input" id="compareInput" type="text" placeholder="SPY,QQQ…" autocomplete="off" maxlength="40" />
-        <button class="compare-clear" id="compareClear" style="display:none" onclick="clearCompare()" title="Remove comparison">×</button>
+        <div class="compare-chips" id="compareChips"></div>
+        <div class="compare-input-wrap">
+          <input class="compare-input" id="compareInput" type="text" placeholder="Add ticker…" autocomplete="off" maxlength="10" />
+          <div class="chart-search-dropdown compare-dropdown" id="compareDropdown"></div>
+        </div>
         <span class="compare-result" id="compareResult" style="display:none"></span>
       </div>
     </div>
