@@ -2575,3 +2575,109 @@ async function saveJournalEntry() {
   }
 }
 
+// ── Journal sidebar tab ───────────────────────────────────────────────────────
+
+let _cjnlEntries = null; // null = not loaded yet
+
+// Wire up segmented controls in journal tab
+document.querySelectorAll('#cjfDirection .jnl-seg-btn, #cjfStatus .jnl-seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => _jfSeg(btn.closest('.jnl-seg').id, btn.dataset.val));
+});
+
+async function openJournalTab(tabBtn) {
+  switchSidebarTab('journal', tabBtn);
+  if (_cjnlEntries === null) await cjnlLoad();
+}
+
+async function cjnlLoad() {
+  try {
+    const r = await fetch('/api/journal');
+    if (!r.ok) throw new Error();
+    const all = await r.json();
+    _cjnlEntries = all.filter(e => e.ticker === TICKER);
+  } catch {
+    _cjnlEntries = [];
+  }
+  // Pre-fill entry price
+  const priceEl = document.getElementById('stockPrice');
+  const price = priceEl ? parseFloat(priceEl.textContent.replace(/[^0-9.]/g, '')) : '';
+  if (price && document.getElementById('cjfEntry')) document.getElementById('cjfEntry').value = price;
+  cjnlRender();
+}
+
+function cjnlRender() {
+  const container = document.getElementById('cjnlEntries');
+  const empty     = document.getElementById('cjnlEmpty');
+  if (!container) return;
+  if (!_cjnlEntries?.length) { empty.style.display = ''; container.innerHTML = ''; container.appendChild(empty); return; }
+  empty.style.display = 'none';
+  container.innerHTML = _cjnlEntries.map(e => {
+    const pnl = cjnlCalcPnl(e);
+    const pnlHtml = pnl !== null ? `<span class="cjnl-pnl ${pnl >= 0 ? 'green' : 'red'}">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}%</span>` : '';
+    const statusClass = { Idea: 'idea', Open: 'open', Closed: 'closed' }[e.status] || '';
+    return `
+    <div class="cjnl-entry" data-id="${e.id}">
+      <div class="cjnl-entry-top">
+        <span class="jnl-dir ${e.direction === 'Short' ? 'short' : 'long'}">${e.direction}</span>
+        <span class="jnl-status ${statusClass}">${e.status}</span>
+        ${pnlHtml}
+        <span class="cjnl-date">${e.date_opened || ''}</span>
+        <button class="cjnl-del" data-id="${e.id}" title="Delete">✕</button>
+      </div>
+      ${e.entry_price ? `<div class="cjnl-prices">Entry $${e.entry_price}${e.target ? ` → $${e.target}` : ''}${e.stop ? ` | Stop $${e.stop}` : ''}</div>` : ''}
+      ${e.notes ? `<div class="cjnl-entry-notes">${e.notes.replace(/\n/g,'<br>')}</div>` : ''}
+    </div>`;
+  }).join('');
+  container.querySelectorAll('.cjnl-del').forEach(btn => {
+    btn.addEventListener('click', () => cjnlDelete(btn.dataset.id));
+  });
+}
+
+function cjnlCalcPnl(e) {
+  if (e.status !== 'Closed' || !e.entry_price || !e.close_price) return null;
+  const ep = parseFloat(e.entry_price), cp = parseFloat(e.close_price);
+  return e.direction === 'Short' ? (ep - cp) / ep * 100 : (cp - ep) / ep * 100;
+}
+
+async function cjnlSave() {
+  const notes = document.getElementById('cjfNotes')?.value.trim();
+  const body = {
+    ticker:      TICKER,
+    direction:   _jfGetSeg('cjfDirection'),
+    status:      _jfGetSeg('cjfStatus'),
+    entry_price: document.getElementById('cjfEntry')?.value  || null,
+    target:      document.getElementById('cjfTarget')?.value || null,
+    stop:        document.getElementById('cjfStop')?.value   || null,
+    notes,
+    date_opened: new Date().toISOString().split('T')[0],
+  };
+  const saveBtn = document.querySelector('.cjnl-save-btn');
+  if (saveBtn) saveBtn.disabled = true;
+  try {
+    const r = await fetch('/api/journal', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    const created = await r.json();
+    if (_cjnlEntries === null) _cjnlEntries = [];
+    _cjnlEntries.unshift(created);
+    // Reset form
+    if (document.getElementById('cjfNotes'))  document.getElementById('cjfNotes').value  = '';
+    if (document.getElementById('cjfTarget')) document.getElementById('cjfTarget').value = '';
+    if (document.getElementById('cjfStop'))   document.getElementById('cjfStop').value   = '';
+    _jfSeg('cjfDirection', 'Long');
+    _jfSeg('cjfStatus', 'Idea');
+    cjnlRender();
+  } catch (err) {
+    alert('Failed to save: ' + err.message);
+  } finally {
+    if (saveBtn) saveBtn.disabled = false;
+  }
+}
+
+async function cjnlDelete(id) {
+  if (!confirm('Delete this entry?')) return;
+  await fetch(`/api/journal/${id}`, { method: 'DELETE' });
+  _cjnlEntries = _cjnlEntries.filter(e => e.id !== id);
+  cjnlRender();
+}
+

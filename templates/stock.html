@@ -194,6 +194,7 @@
       <button class="stab"        data-tab="intel"   onclick="openIntelPanel(this)">Intel</button>
       <button class="stab"        data-tab="swing"    onclick="openSwingPanel(this)">Swing</button>
       <button class="stab"        data-tab="filings"  onclick="openFilingsPanel(this)">Filings</button>
+      <button class="stab"        data-tab="journal"  onclick="openJournalTab(this)">Journal</button>
     </div>
 
     <!-- Fund tab -->
@@ -257,6 +258,37 @@
     <div class="stab-pane" id="stab-filings" style="display:none">
       <div id="filingsBody" class="filings-body">
         <div class="intel-loading">Click to load SEC filings<span class="intel-dots"></span></div>
+      </div>
+    </div>
+
+    <!-- Journal tab -->
+    <div class="stab-pane" id="stab-journal" style="display:none">
+      <div class="cjnl-pane">
+        <!-- Quick add -->
+        <div class="cjnl-add">
+          <div class="cjnl-add-row">
+            <div class="jnl-seg cjnl-dir" id="cjfDirection">
+              <button class="jnl-seg-btn active" data-val="Long">Long</button>
+              <button class="jnl-seg-btn" data-val="Short">Short</button>
+            </div>
+            <div class="jnl-seg cjnl-status" id="cjfStatus">
+              <button class="jnl-seg-btn active" data-val="Idea">Idea</button>
+              <button class="jnl-seg-btn" data-val="Open">Open</button>
+              <button class="jnl-seg-btn" data-val="Closed">Closed</button>
+            </div>
+          </div>
+          <div class="cjnl-add-row">
+            <input class="jnl-input cjnl-price" id="cjfEntry"  type="number" step="any" placeholder="Entry" />
+            <input class="jnl-input cjnl-price" id="cjfTarget" type="number" step="any" placeholder="Target" />
+            <input class="jnl-input cjnl-price" id="cjfStop"   type="number" step="any" placeholder="Stop" />
+          </div>
+          <textarea class="jnl-textarea cjnl-notes" id="cjfNotes" rows="3" placeholder="Your thesis, setup, what you're watching…"></textarea>
+          <button class="btn btn-primary cjnl-save-btn" onclick="cjnlSave()">+ Log Entry</button>
+        </div>
+        <!-- Entries for this ticker -->
+        <div class="cjnl-entries" id="cjnlEntries">
+          <div class="cjnl-empty" id="cjnlEmpty">No entries yet for {{ ticker }}</div>
+        </div>
       </div>
     </div>
 
