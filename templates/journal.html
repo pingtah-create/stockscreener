@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Journal · Stockdash</title>
+  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/journal.css" />
+</head>
+<body>
+
+<nav class="db-nav">
+  <a class="db-brand" href="/">◈ STOCKDASH</a>
+  <div class="db-nav-right">
+    <a href="/" class="btn btn-secondary sm">AI Research</a>
+    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
+    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
+    <span class="btn btn-secondary sm db-nav-current">Journal</span>
+    {% if current_user %}
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm">Logout</a>
+    {% endif %}
+  </div>
+</nav>
+
+<div class="jnl-layout">
+
+  <!-- Header row -->
+  <div class="jnl-header">
+    <div class="jnl-header-left">
+      <h1 class="jnl-title">Trade Journal</h1>
+      <div class="jnl-filters" id="jnlFilters">
+        <button class="jnl-filter-btn active" data-status="all">All</button>
+        <button class="jnl-filter-btn" data-status="Idea">Idea</button>
+        <button class="jnl-filter-btn" data-status="Open">Open</button>
+        <button class="jnl-filter-btn" data-status="Closed">Closed</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="openEntryModal()">+ New Entry</button>
+  </div>
+
+  <!-- Stats row -->
+  <div class="jnl-stats" id="jnlStats" style="display:none">
+    <div class="jnl-stat">
+      <div class="jnl-stat-val" id="statTotal">—</div>
+      <div class="jnl-stat-lbl">Total Trades</div>
+    </div>
+    <div class="jnl-stat">
+      <div class="jnl-stat-val green" id="statWins">—</div>
+      <div class="jnl-stat-lbl">Wins</div>
+    </div>
+    <div class="jnl-stat">
+      <div class="jnl-stat-val red" id="statLosses">—</div>
+      <div class="jnl-stat-lbl">Losses</div>
+    </div>
+    <div class="jnl-stat">
+      <div class="jnl-stat-val" id="statWinRate">—</div>
+      <div class="jnl-stat-lbl">Win Rate</div>
+    </div>
+    <div class="jnl-stat">
+      <div class="jnl-stat-val" id="statAvgPnl">—</div>
+      <div class="jnl-stat-lbl">Avg P&amp;L %</div>
+    </div>
+  </div>
+
+  <!-- Entries list -->
+  <div class="jnl-list" id="jnlList">
+    <div class="jnl-empty" id="jnlEmpty">No entries yet — click + New Entry to log your first trade</div>
+  </div>
+
+</div>
+
+<!-- Entry modal -->
+<div class="jnl-modal-overlay" id="jnlModalOverlay" style="display:none" onclick="closeEntryModal(event)">
+  <div class="jnl-modal" id="jnlModal">
+    <div class="jnl-modal-header">
+      <span class="jnl-modal-title" id="jnlModalTitle">New Entry</span>
+      <button class="jnl-modal-close" onclick="closeEntryModal()">✕</button>
+    </div>
+
+    <div class="jnl-modal-body">
+      <div class="jnl-form-row">
+        <div class="jnl-form-group" style="flex:1.5">
+          <label>Ticker</label>
+          <div class="jnl-ticker-wrap">
+            <input class="jnl-input" id="fTicker" placeholder="e.g. TSLA" autocomplete="off" maxlength="10" />
+            <div class="search-dropdown" id="jnlTickerDropdown"></div>
+          </div>
+        </div>
+        <div class="jnl-form-group" style="flex:1">
+          <label>Direction</label>
+          <div class="jnl-seg" id="fDirection">
+            <button class="jnl-seg-btn active" data-val="Long">Long</button>
+            <button class="jnl-seg-btn" data-val="Short">Short</button>
+          </div>
+        </div>
+        <div class="jnl-form-group" style="flex:1">
+          <label>Status</label>
+          <div class="jnl-seg" id="fStatus">
+            <button class="jnl-seg-btn active" data-val="Idea">Idea</button>
+            <button class="jnl-seg-btn" data-val="Open">Open</button>
+            <button class="jnl-seg-btn" data-val="Closed">Closed</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="jnl-form-row">
+        <div class="jnl-form-group">
+          <label>Entry Price</label>
+          <input class="jnl-input" id="fEntry" type="number" step="any" placeholder="0.00" />
+        </div>
+        <div class="jnl-form-group">
+          <label>Target</label>
+          <input class="jnl-input" id="fTarget" type="number" step="any" placeholder="0.00" />
+        </div>
+        <div class="jnl-form-group">
+          <label>Stop-Loss</label>
+          <input class="jnl-input" id="fStop" type="number" step="any" placeholder="0.00" />
+        </div>
+        <div class="jnl-form-group" id="fClosePriceGroup" style="display:none">
+          <label>Close Price</label>
+          <input class="jnl-input" id="fClosePrice" type="number" step="any" placeholder="0.00" />
+        </div>
+      </div>
+
+      <div class="jnl-form-row">
+        <div class="jnl-form-group">
+          <label>Date Opened</label>
+          <input class="jnl-input" id="fDateOpened" type="date" />
+        </div>
+        <div class="jnl-form-group" id="fDateClosedGroup" style="display:none">
+          <label>Date Closed</label>
+          <input class="jnl-input" id="fDateClosed" type="date" />
+        </div>
+      </div>
+
+      <div class="jnl-form-group">
+        <label>Notes — your thesis, setup, what you're watching</label>
+        <textarea class="jnl-textarea" id="fNotes" placeholder="Why are you taking this trade? What's the catalyst? What would make you exit early?" rows="4"></textarea>
+      </div>
+    </div>
+
+    <div class="jnl-modal-footer">
+      <button class="btn btn-secondary" onclick="closeEntryModal()">Cancel</button>
+      <button class="btn btn-primary" id="jnlSaveBtn" onclick="saveEntry()">Save</button>
+    </div>
+  </div>
+</div>
+
+<script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
+<script src="/static/journal.js"></script>
+</body>
+</html>

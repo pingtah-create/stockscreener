@@ -2510,3 +2510,68 @@ function setupChartSidebarResize() {
     document.addEventListener('mouseup', onUp);
   });
 }
+
+// ── Journal modal (from chart page) ──────────────────────────────────────────
+
+function _jfSeg(groupId, val) {
+  document.querySelectorAll(`#${groupId} .jnl-seg-btn`).forEach(b => {
+    b.classList.toggle('active', b.dataset.val === val);
+  });
+}
+function _jfGetSeg(groupId) {
+  return document.querySelector(`#${groupId} .jnl-seg-btn.active`)?.dataset.val || '';
+}
+
+document.querySelectorAll('#jfDirection .jnl-seg-btn, #jfStatus .jnl-seg-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    _jfSeg(btn.closest('.jnl-seg').id, btn.dataset.val);
+  });
+});
+
+function openJournalModal() {
+  const overlay = document.getElementById('jnlModalOverlay');
+  if (!overlay) return;
+  document.getElementById('jnlModalTicker').textContent = TICKER;
+  // Pre-fill entry price from current displayed price
+  const priceEl = document.getElementById('stockPrice');
+  const price = priceEl ? parseFloat(priceEl.textContent.replace(/[^0-9.]/g, '')) : '';
+  document.getElementById('jfEntry').value  = price || '';
+  document.getElementById('jfTarget').value = '';
+  document.getElementById('jfStop').value   = '';
+  document.getElementById('jfNotes').value  = '';
+  _jfSeg('jfDirection', 'Long');
+  _jfSeg('jfStatus', 'Idea');
+  overlay.style.display = 'flex';
+  document.getElementById('jfNotes').focus();
+}
+
+function closeJournalModal() {
+  const overlay = document.getElementById('jnlModalOverlay');
+  if (overlay) overlay.style.display = 'none';
+}
+
+async function saveJournalEntry() {
+  const body = {
+    ticker:      TICKER,
+    direction:   _jfGetSeg('jfDirection'),
+    status:      _jfGetSeg('jfStatus'),
+    entry_price: document.getElementById('jfEntry').value  || null,
+    target:      document.getElementById('jfTarget').value || null,
+    stop:        document.getElementById('jfStop').value   || null,
+    notes:       document.getElementById('jfNotes').value.trim(),
+    date_opened: new Date().toISOString().split('T')[0],
+  };
+  try {
+    const r = await fetch('/api/journal', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    closeJournalModal();
+    // Brief flash on button
+    const btn = document.getElementById('jnlLogBtn');
+    if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = '📓 Log'; }, 2000); }
+  } catch (err) {
+    alert('Failed to save: ' + err.message);
+  }
+}
+

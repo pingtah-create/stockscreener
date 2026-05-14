@@ -188,6 +188,25 @@ html, body {
 .chg-down { color: var(--red); }
 
 /* ── WATCHLIST STAR ───────────────────────────────────────── */
+.jnl-log-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text2);
+  height: 26px;
+  border-radius: 4px;
+  display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s;
+  margin-left: 6px;
+  align-self: center;
+  flex-shrink: 0;
+  padding: 0 8px;
+  font-size: 11.5px;
+  font-family: inherit;
+  gap: 4px;
+}
+.jnl-log-btn:hover { color: var(--accent); border-color: var(--accent); }
+
 .watch-star {
   background: transparent;
   border: 1px solid var(--border);

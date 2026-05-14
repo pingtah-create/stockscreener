@@ -21,6 +21,8 @@
     <span class="stock-price" id="stockPrice">—</span>
     <span class="stock-chg"  id="stockChg">—</span>
 
+    <button class="jnl-log-btn" id="jnlLogBtn" title="Log to journal" onclick="openJournalModal()">📓 Log</button>
+
     <button class="watch-star" id="watchStar" title="Add to watchlist" onclick="toggleWatchlistTicker()">
       <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round">
         <polygon points="8,1.5 10,6 14.5,6.4 11,9.5 12,14 8,11.6 4,14 5,9.5 1.5,6.4 6,6"/>
@@ -66,6 +68,7 @@
     <a href="/" class="btn btn-secondary sm">AI Research</a>
     <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
     <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
+    <a href="/journal" class="btn btn-secondary sm">Journal</a>
     {% if current_user %}
       <span class="nav-user">{{ current_user }}</span>
       <a href="/logout" class="btn btn-secondary sm">Logout</a>
@@ -260,6 +263,58 @@
   </aside>
 </div>
 
+<!-- Journal modal (lightweight, no extra CSS load needed — reuses chart.css vars) -->
+<div class="jnl-modal-overlay" id="jnlModalOverlay" style="display:none" onclick="if(event.target===this)closeJournalModal()">
+  <div class="jnl-modal">
+    <div class="jnl-modal-header">
+      <span class="jnl-modal-title">Log Trade — <span id="jnlModalTicker"></span></span>
+      <button class="jnl-modal-close" onclick="closeJournalModal()">✕</button>
+    </div>
+    <div class="jnl-modal-body">
+      <div class="jnl-form-row">
+        <div class="jnl-form-group" style="flex:1">
+          <label>Direction</label>
+          <div class="jnl-seg" id="jfDirection">
+            <button class="jnl-seg-btn active" data-val="Long">Long</button>
+            <button class="jnl-seg-btn" data-val="Short">Short</button>
+          </div>
+        </div>
+        <div class="jnl-form-group" style="flex:1">
+          <label>Status</label>
+          <div class="jnl-seg" id="jfStatus">
+            <button class="jnl-seg-btn active" data-val="Idea">Idea</button>
+            <button class="jnl-seg-btn" data-val="Open">Open</button>
+            <button class="jnl-seg-btn" data-val="Closed">Closed</button>
+          </div>
+        </div>
+      </div>
+      <div class="jnl-form-row">
+        <div class="jnl-form-group">
+          <label>Entry Price</label>
+          <input class="jnl-input" id="jfEntry" type="number" step="any" placeholder="0.00" />
+        </div>
+        <div class="jnl-form-group">
+          <label>Target</label>
+          <input class="jnl-input" id="jfTarget" type="number" step="any" placeholder="0.00" />
+        </div>
+        <div class="jnl-form-group">
+          <label>Stop-Loss</label>
+          <input class="jnl-input" id="jfStop" type="number" step="any" placeholder="0.00" />
+        </div>
+      </div>
+      <div class="jnl-form-group">
+        <label>Notes</label>
+        <textarea class="jnl-textarea" id="jfNotes" rows="3" placeholder="Why are you taking this trade?"></textarea>
+      </div>
+    </div>
+    <div class="jnl-modal-footer">
+      <button class="btn btn-secondary" onclick="closeJournalModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveJournalEntry()">Save to Journal</button>
+    </div>
+  </div>
+</div>
+
+<link rel="stylesheet" href="/static/journal.css" />
 <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <script>const TICKER = "{{ ticker }}";</script>
 <script src="/static/chart.js"></script>

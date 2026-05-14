@@ -1947,6 +1947,85 @@ def api_trending():
     } for i, s in enumerate(top)])
 
 
+# ── Journal ───────────────────────────────────────────────────────────────────
+
+@app.route("/journal")
+@auth.require_login
+def journal_page():
+    return render_template("journal.html", current_user=auth.current_user())
+
+
+@app.route("/api/journal", methods=["GET"])
+@auth.require_login_api
+def api_journal_get():
+    user = auth.current_user()
+    entries = _sb_load(user, col="journal") or []
+    if not isinstance(entries, list):
+        entries = []
+    return jsonify(entries)
+
+
+@app.route("/api/journal", methods=["POST"])
+@auth.require_login_api
+def api_journal_post():
+    user = auth.current_user()
+    body = request.json or {}
+    entries = _sb_load(user, col="journal") or []
+    if not isinstance(entries, list):
+        entries = []
+    import uuid as _uuid
+    entry = {
+        "id":         str(_uuid.uuid4()),
+        "ticker":     (body.get("ticker") or "").upper().strip(),
+        "direction":  body.get("direction", "Long"),
+        "status":     body.get("status", "Idea"),
+        "entry_price": body.get("entry_price"),
+        "target":     body.get("target"),
+        "stop":       body.get("stop"),
+        "close_price": body.get("close_price"),
+        "notes":      body.get("notes", ""),
+        "date_opened": body.get("date_opened") or datetime.now(timezone.utc).date().isoformat(),
+        "date_closed": body.get("date_closed"),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    entries.insert(0, entry)
+    _sb_save(user, journal=entries)
+    return jsonify(entry), 201
+
+
+@app.route("/api/journal/<entry_id>", methods=["PATCH"])
+@auth.require_login_api
+def api_journal_patch(entry_id):
+    user = auth.current_user()
+    body = request.json or {}
+    entries = _sb_load(user, col="journal") or []
+    if not isinstance(entries, list):
+        entries = []
+    for e in entries:
+        if e.get("id") == entry_id:
+            for k in ("ticker", "direction", "status", "entry_price", "target",
+                      "stop", "close_price", "notes", "date_opened", "date_closed"):
+                if k in body:
+                    e[k] = body[k]
+            if body.get("status") == "Closed" and not e.get("date_closed"):
+                e["date_closed"] = datetime.now(timezone.utc).date().isoformat()
+            _sb_save(user, journal=entries)
+            return jsonify(e)
+    return jsonify({"error": "not found"}), 404
+
+
+@app.route("/api/journal/<entry_id>", methods=["DELETE"])
+@auth.require_login_api
+def api_journal_delete(entry_id):
+    user = auth.current_user()
+    entries = _sb_load(user, col="journal") or []
+    if not isinstance(entries, list):
+        entries = []
+    entries = [e for e in entries if e.get("id") != entry_id]
+    _sb_save(user, journal=entries)
+    return jsonify({"ok": True})
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  US Stock Screener  ·  http://localhost:5000")
