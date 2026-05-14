@@ -540,24 +540,6 @@ const SKILL_LABELS = {
 
 let _activeSkill = null;
 
-function fireSkill() {
-  const row        = document.getElementById('chSkillTickerRow');
-  const tickerEl   = document.getElementById('chSkillTickerInput');
-  if (!tickerEl || !_activeSkill) return;
-  const ticker = tickerEl.value.trim().toUpperCase();
-  if (!ticker) { tickerEl.focus(); return; }
-  const fn = SKILL_TEMPLATES[_activeSkill];
-  if (!fn) return;
-  if (row) row.style.display = 'none';
-  document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
-  send(fn(ticker));
-}
-
-document.getElementById('chSkillTickerBtn')?.addEventListener('click', fireSkill);
-document.getElementById('chSkillTickerInput')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter') fireSkill();
-});
-
 document.querySelectorAll('.ch-skill-card').forEach(card => {
   card.addEventListener('click', () => {
     const skill = card.dataset.skill;
@@ -572,14 +554,34 @@ document.querySelectorAll('.ch-skill-card').forEach(card => {
     card.classList.add('ch-skill-active');
     _activeSkill = skill;
 
+    // Show ticker row below the skill grid
     const row        = document.getElementById('chSkillTickerRow');
     const tickerInput = document.getElementById('chSkillTickerInput');
     const label      = document.getElementById('chSkillTickerLabel');
     if (label) label.textContent = SKILL_LABELS[skill] || 'Analyse';
     if (tickerInput) tickerInput.value = '';
-    if (row) row.style.display = 'flex';
+    if (row) { row.style.display = 'flex'; row.style.visibility = 'visible'; }
     if (tickerInput) tickerInput.focus();
   });
+});
+
+function fireSkill() {
+  const tickerEl = document.getElementById('chSkillTickerInput');
+  if (!tickerEl || !_activeSkill) return;
+  const ticker = tickerEl.value.trim().toUpperCase();
+  if (!ticker) { tickerEl.focus(); return; }
+  const fn = SKILL_TEMPLATES[_activeSkill];
+  if (!fn) return;
+  const row = document.getElementById('chSkillTickerRow');
+  if (row) row.style.display = 'none';
+  document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
+  _activeSkill = null;
+  send(fn(ticker));
+}
+
+document.getElementById('chSkillTickerBtn')?.addEventListener('click', fireSkill);
+document.getElementById('chSkillTickerInput')?.addEventListener('keydown', e => {
+  if (e.key === 'Enter') fireSkill();
 });
 
 // ── History ────────────────────────────────────────────────────────────────────
