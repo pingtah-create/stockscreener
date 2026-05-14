@@ -619,6 +619,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   display: flex;
   align-items: center;
   gap: 6px;
+  overflow: visible;
 }
 .ch-skill-ticker-label {
   font-size: 11.5px;
@@ -628,6 +629,10 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-skill-ticker-wrap {
   position: relative;
   width: 130px;
+}
+.ch-skill-ticker-wrap .search-dropdown {
+  min-width: 260px;
+  width: max-content;
 }
 .ch-skill-ticker-input {
   width: 100%;
