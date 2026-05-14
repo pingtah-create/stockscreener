@@ -464,24 +464,33 @@ _GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
 _GROQ_BASE_URL   = "https://api.groq.com/openai/v1"
 
 
+_GROQ_FALLBACK_MODEL = "llama-3.1-8b-instant"
+
 def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
                max_tokens: int = 3000) -> str:
-    """POST to Groq with up to 5 retries on 429."""
+    """POST to Groq. Falls back to 8B instant model if 70B hits daily rate limit."""
     import requests as _req, time as _time
-    for attempt in range(5):
-        r = _req.post(
-            f"{_GROQ_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": _GROQ_CHAT_MODEL, "messages": messages,
-                  "temperature": temperature, "max_tokens": max_tokens},
-            timeout=30,
-        )
-        if r.status_code == 429:
-            wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
-            _time.sleep(wait)
-            continue
-        r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"].strip()
+    models = [_GROQ_CHAT_MODEL, _GROQ_FALLBACK_MODEL]
+    for model in models:
+        for attempt in range(3):
+            r = _req.post(
+                f"{_GROQ_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"model": model, "messages": messages,
+                      "temperature": temperature, "max_tokens": max_tokens},
+                timeout=30,
+            )
+            if r.status_code == 429:
+                err = r.json().get("error", {})
+                # Daily token limit exhausted — try fallback model immediately
+                if "tokens per day" in err.get("message", ""):
+                    break
+                # Per-minute rate limit — short wait then retry
+                wait = min(float(r.headers.get("retry-after", 2 ** (attempt + 1))), 10)
+                _time.sleep(wait)
+                continue
+            r.raise_for_status()
+            return r.json()["choices"][0]["message"]["content"].strip()
     r.raise_for_status()
     return ""
 
