@@ -98,7 +98,10 @@
       <!-- Skill hint: appears below grid after a card click via JS -->
       <div class="ch-skill-ticker-row" id="chSkillTickerRow" style="display:none">
         <span class="ch-skill-ticker-label" id="chSkillTickerLabel"></span>
-        <input class="ch-skill-ticker-input" id="chSkillTickerInput" placeholder="Ticker, e.g. TSLA" autocomplete="off" maxlength="10" />
+        <div class="ch-skill-ticker-wrap">
+          <input class="ch-skill-ticker-input" id="chSkillTickerInput" placeholder="e.g. TSLA" autocomplete="off" maxlength="10" />
+          <div class="search-dropdown" id="chSkillDropdown"></div>
+        </div>
         <button class="ch-skill-ticker-btn" id="chSkillTickerBtn">Go</button>
       </div>
     </div>

@@ -520,6 +520,20 @@ async function loadTrending() {
   }
 }
 
+// ── Skill ticker universe ──────────────────────────────────────────────────────
+let _skillUniverse = [];
+(async () => {
+  try {
+    const r = await fetch('/api/screen', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filters: {}, sort_by: 'marketCap', sort_dir: 'desc', page: 1, per_page: 600 }),
+    });
+    const d = await r.json();
+    _skillUniverse = d.results || [];
+  } catch {}
+})();
+
 // ── Skills ─────────────────────────────────────────────────────────────────────
 const SKILL_TEMPLATES = {
   fundamentals: t => `Is ${t} a great company to own long-term?`,
@@ -540,6 +554,31 @@ const SKILL_LABELS = {
 
 let _activeSkill = null;
 
+function _skillDropdownOpen(q) {
+  const dd = document.getElementById('chSkillDropdown');
+  if (!dd) return;
+  if (!q) { dd.classList.remove('open'); return; }
+  const found = _skillUniverse.filter(s =>
+    s.symbol?.toUpperCase().startsWith(q) ||
+    (s.shortName || '').toUpperCase().includes(q)
+  ).slice(0, 8);
+  if (!found.length) { dd.classList.remove('open'); return; }
+  dd.innerHTML = found.map(s => `
+    <div class="search-result-item" data-symbol="${s.symbol}">
+      <span class="search-ticker">${s.symbol}</span>
+      <span class="search-name">${s.shortName || ''}</span>
+    </div>`).join('');
+  dd.querySelectorAll('.search-result-item').forEach(el => {
+    el.addEventListener('mousedown', e => {
+      e.preventDefault();
+      document.getElementById('chSkillTickerInput').value = el.dataset.symbol;
+      dd.classList.remove('open');
+      fireSkill();
+    });
+  });
+  dd.classList.add('open');
+}
+
 document.querySelectorAll('.ch-skill-card').forEach(card => {
   card.addEventListener('click', () => {
     const skill = card.dataset.skill;
@@ -554,12 +593,11 @@ document.querySelectorAll('.ch-skill-card').forEach(card => {
     card.classList.add('ch-skill-active');
     _activeSkill = skill;
 
-    // Show ticker row below the skill grid
-    const row        = document.getElementById('chSkillTickerRow');
+    const row         = document.getElementById('chSkillTickerRow');
     const tickerInput = document.getElementById('chSkillTickerInput');
-    const label      = document.getElementById('chSkillTickerLabel');
+    const label       = document.getElementById('chSkillTickerLabel');
     if (label) label.textContent = SKILL_LABELS[skill] || 'Analyse';
-    if (tickerInput) tickerInput.value = '';
+    if (tickerInput) { tickerInput.value = ''; }
     if (row) { row.style.display = 'flex'; row.style.visibility = 'visible'; }
     if (tickerInput) tickerInput.focus();
   });
@@ -573,15 +611,28 @@ function fireSkill() {
   const fn = SKILL_TEMPLATES[_activeSkill];
   if (!fn) return;
   const row = document.getElementById('chSkillTickerRow');
+  const dd  = document.getElementById('chSkillDropdown');
   if (row) row.style.display = 'none';
+  if (dd)  dd.classList.remove('open');
   document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
   _activeSkill = null;
   send(fn(ticker));
 }
 
 document.getElementById('chSkillTickerBtn')?.addEventListener('click', fireSkill);
+
+document.getElementById('chSkillTickerInput')?.addEventListener('input', function() {
+  _skillDropdownOpen(this.value.trim().toUpperCase());
+});
 document.getElementById('chSkillTickerInput')?.addEventListener('keydown', e => {
-  if (e.key === 'Enter') fireSkill();
+  if (e.key === 'Enter')  { document.getElementById('chSkillDropdown')?.classList.remove('open'); fireSkill(); }
+  if (e.key === 'Escape') { document.getElementById('chSkillDropdown')?.classList.remove('open'); }
+});
+document.addEventListener('click', e => {
+  const wrap = document.getElementById('chSkillTickerRow');
+  if (wrap && !wrap.contains(e.target)) {
+    document.getElementById('chSkillDropdown')?.classList.remove('open');
+  }
 });
 
 // ── History ────────────────────────────────────────────────────────────────────
