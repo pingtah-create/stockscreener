@@ -613,14 +613,42 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 }
 .ch-skill-desc { font-size: 11px; color: var(--text-faint); line-height: 1.4; }
 
-/* ── Skill hint ──────────────────────────────────── */
-.ch-skill-hint {
+/* ── Skill ticker row ────────────────────────────── */
+.ch-skill-ticker-row {
   margin-top: 8px;
-  font-size: 11.5px;
-  color: var(--accent);
-  text-align: center;
-  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
+.ch-skill-ticker-label {
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.ch-skill-ticker-input {
+  flex: 1;
+  background: #111;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 5px 10px;
+  outline: none;
+  font-family: inherit;
+  text-transform: uppercase;
+}
+.ch-skill-ticker-input::placeholder { text-transform: none; color: var(--text-faint); }
+.ch-skill-ticker-btn {
+  background: var(--accent);
+  border: none;
+  border-radius: 6px;
+  color: #fff;
+  font-size: 14px;
+  padding: 5px 12px;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.ch-skill-ticker-btn:hover { opacity: 0.85; }
 
 /* ── Trending ────────────────────────────────────── */
 .ch-trending-list { display: flex; flex-direction: column; gap: 1px; }

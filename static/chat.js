@@ -521,47 +521,61 @@ async function loadTrending() {
 }
 
 // ── Skills ─────────────────────────────────────────────────────────────────────
-// Clicking a skill card pre-fills the main input with a template prompt.
-// "AAPL" is used as a placeholder ticker and is auto-selected so the user
-// can immediately type their ticker to replace it.
 const SKILL_TEMPLATES = {
-  fundamentals: `Is AAPL a great company to own long-term?`,
-  timing:       `What are the best entry and exit levels for AAPL right now?`,
-  swing:        `Give me a swing trade setup for AAPL with entry, target, and stop-loss.`,
-  earnings:     `Preview the next earnings for AAPL — estimates, beat rate, and what to watch.`,
-  compare:      `Compare AAPL vs its closest peers on valuation, growth, and momentum.`,
-  market:       `Give me a market overview: what's driving markets today and where the opportunities are.`,
+  fundamentals: t => `Is ${t} a great company to own long-term?`,
+  timing:       t => `What are the best entry and exit levels for ${t} right now?`,
+  swing:        t => `Give me a swing trade setup for ${t} with entry, target, and stop-loss.`,
+  earnings:     t => `Preview the next earnings for ${t} — estimates, beat rate, and what to watch.`,
+  compare:      t => `Compare ${t} vs its closest peers on valuation, growth, and momentum.`,
+  market:       () => `Give me a market overview: what's driving markets today and where the opportunities are.`,
 };
+
+const SKILL_LABELS = {
+  fundamentals: 'Analyse',
+  timing:       'Analyse',
+  swing:        'Analyse',
+  earnings:     'Analyse',
+  compare:      'Compare',
+};
+
+let _activeSkill = null;
+
+const skillTickerRow   = document.getElementById('chSkillTickerRow');
+const skillTickerInput = document.getElementById('chSkillTickerInput');
+const skillTickerLabel = document.getElementById('chSkillTickerLabel');
+const skillTickerBtn   = document.getElementById('chSkillTickerBtn');
+
+function fireSkill() {
+  const ticker = skillTickerInput.value.trim().toUpperCase();
+  if (!ticker || !_activeSkill) return;
+  const fn = SKILL_TEMPLATES[_activeSkill];
+  if (!fn) return;
+  skillTickerRow.style.display = 'none';
+  document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
+  send(fn(ticker));
+}
+
+skillTickerBtn.addEventListener('click', fireSkill);
+skillTickerInput.addEventListener('keydown', e => { if (e.key === 'Enter') fireSkill(); });
 
 document.querySelectorAll('.ch-skill-card').forEach(card => {
   card.addEventListener('click', () => {
     const skill = card.dataset.skill;
-    const template = SKILL_TEMPLATES[skill];
-    if (!template) return;
-
-    // Highlight clicked card briefly
-    document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
-    card.classList.add('ch-skill-active');
+    if (!SKILL_TEMPLATES[skill]) return;
 
     if (skill === 'market') {
-      send(template);
+      send(SKILL_TEMPLATES.market());
       return;
     }
 
-    // Pre-fill main input and select "AAPL" so user can type their ticker
-    input.value = template;
-    input.focus();
-    const start = template.indexOf('AAPL');
-    if (start !== -1) input.setSelectionRange(start, start + 4);
+    document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
+    card.classList.add('ch-skill-active');
+    _activeSkill = skill;
 
-    // Show hint pointing to the input box
-    const hint = document.getElementById('chSkillHint');
-    const hintText = document.getElementById('chSkillHintText');
-    if (hint && hintText) {
-      hintText.textContent = '↓ Replace AAPL with your ticker in the box below, then press Enter';
-      hint.style.display = '';
-      setTimeout(() => { hint.style.display = 'none'; }, 4000);
-    }
+    skillTickerLabel.textContent = SKILL_LABELS[skill] || 'Analyse';
+    skillTickerInput.value = '';
+    skillTickerRow.style.display = 'flex';
+    skillTickerInput.focus();
   });
 });
 
