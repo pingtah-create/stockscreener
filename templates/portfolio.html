@@ -91,18 +91,17 @@
   </div>
 
   <div id="portAnalysis" style="display:none">
-    <div class="port-charts-row">
-      <div class="port-card">
-        <div class="port-card-label">Allocation</div>
-        <div class="port-donut-wrap">
-          <canvas id="donutChart" width="140" height="140"></canvas>
-          <div class="port-donut-legend" id="donutLegend"></div>
+    <div class="port-card">
+      <div class="port-analysis-top">
+        <div class="port-alloc-col">
+          <div class="port-card-label">Allocation</div>
+          <div id="allocTable"></div>
+        </div>
+        <div class="port-verdict-col">
+          <div class="port-card-label">AI Verdict</div>
+          <div class="port-analysis-body" id="analysisBody"></div>
         </div>
       </div>
-    </div>
-    <div class="port-card">
-      <div class="port-card-label">Portfolio Verdict</div>
-      <div class="port-analysis-body" id="analysisBody"></div>
     </div>
     <div id="stockAnalyses"></div>
   </div>

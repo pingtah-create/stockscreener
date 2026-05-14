@@ -7,7 +7,6 @@ const COLORS = ['#4f8cff','#00bcd4','#ff9800','#f44336','#ab47bc','#26c6da',
 let holdings       = [];
 let period         = '3mo';
 let lineInst       = null;
-let donutInst      = null;
 let tickerUniverse = [];
 
 // ── Init ──────────────────────────────────────────────────────────────────────
@@ -527,10 +526,20 @@ async function analyzePortfolio() {
 function renderAnalysis(data) {
   const { allocation, analysis, stock_analyses } = data;
   document.getElementById('portAnalysis').style.display = 'block';
-  renderDonut(allocation);
+  renderAllocTable(allocation);
   renderAIText(analysis);
   renderStockAnalyses(stock_analyses || {});
   document.getElementById('portAnalysis').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderAllocTable(allocation) {
+  const el = document.getElementById('allocTable');
+  el.innerHTML = allocation.map((a, i) => `
+    <div class="port-alloc-row">
+      <div class="port-alloc-dot" style="background:${COLORS[i % COLORS.length]}"></div>
+      <span class="port-alloc-ticker">${a.ticker}</span>
+      <span class="port-alloc-pct">${a.pct.toFixed(1)}%</span>
+    </div>`).join('');
 }
 
 function renderStockAnalyses(stockAnalyses) {
@@ -539,42 +548,24 @@ function renderStockAnalyses(stockAnalyses) {
   if (!tickers.length) { container.innerHTML = ''; return; }
   container.innerHTML = tickers.map(ticker => `
     <div class="port-card port-stock-analysis">
-      <div class="port-card-label">${ticker} — Deep Dive</div>
-      <div class="port-analysis-body">${renderMarkdown(stockAnalyses[ticker] || '*No analysis available*')}</div>
+      <div class="port-stock-hdr" onclick="toggleStockAnalysis(this)">
+        <div class="port-stock-hdr-left">
+          <span class="port-card-label" style="margin:0">${ticker}</span>
+          <span class="port-stock-ticker">Deep Dive</span>
+        </div>
+        <span class="port-stock-toggle">▾</span>
+      </div>
+      <div class="port-stock-body">
+        <div class="port-analysis-body">${renderMarkdown(stockAnalyses[ticker] || '*No analysis available*')}</div>
+      </div>
     </div>`).join('');
 }
 
-// ── Donut chart ───────────────────────────────────────────────────────────────
-
-function renderDonut(allocation) {
-  const ctx    = document.getElementById('donutChart').getContext('2d');
-  const colors = allocation.map((_, i) => COLORS[i % COLORS.length]);
-
-  if (donutInst) donutInst.destroy();
-  donutInst = new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: allocation.map(a => a.ticker),
-      datasets: [{ data: allocation.map(a => a.pct), backgroundColor: colors, borderColor: '#111', borderWidth: 2, hoverBorderWidth: 3 }],
-    },
-    options: {
-      responsive: false, cutout: '64%',
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: '#161616', borderColor: '#222', borderWidth: 1, bodyColor: '#ccc',
-          callbacks: { label: ctx => ` ${ctx.label}: ${ctx.parsed.toFixed(1)}%` },
-        },
-      },
-    },
-  });
-
-  document.getElementById('donutLegend').innerHTML = allocation.map((a, i) => `
-    <div class="port-legend-item">
-      <div class="port-legend-dot" style="background:${colors[i]}"></div>
-      <span class="port-legend-ticker">${a.ticker}</span>
-      <span class="port-legend-pct">${a.pct.toFixed(1)}%</span>
-    </div>`).join('');
+function toggleStockAnalysis(hdr) {
+  const body   = hdr.nextElementSibling;
+  const toggle = hdr.querySelector('.port-stock-toggle');
+  body.classList.toggle('open');
+  toggle.classList.toggle('open');
 }
 
 // ── AI text ───────────────────────────────────────────────────────────────────

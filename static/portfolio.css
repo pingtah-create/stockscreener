@@ -241,34 +241,29 @@
 .pos { color: var(--green); }
 .neg { color: var(--red); }
 
-/* ── Charts row ───────────────────────────────────────────────────── */
-.port-charts-row {
+/* ── Analysis top: allocation + verdict side by side ─────────────── */
+.port-analysis-top {
   display: grid;
-  grid-template-columns: 1.7fr 1fr;
-  gap: 16px;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  align-items: start;
 }
-.port-donut-wrap {
+.port-alloc-col { border-right: 1px solid var(--border); padding-right: 24px; }
+
+/* Allocation mini-table */
+.port-alloc-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-}
-.port-donut-wrap canvas { flex-shrink: 0; }
-.port-donut-legend { flex: 1; }
-.port-legend-item {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-bottom: 7px;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--bg3);
   font-size: 12px;
 }
-.port-legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-.port-legend-ticker {
-  font-weight: 600;
-  color: var(--text);
-  font-family: var(--mono);
-  font-size: 11px;
-}
-.port-legend-pct { margin-left: auto; color: var(--text2); font-size: 11px; }
+.port-alloc-row:last-child { border-bottom: none; }
+.port-alloc-dot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.port-alloc-ticker { font-weight: 600; color: var(--text); font-family: var(--mono); font-size: 11px; flex: 1; }
+.port-alloc-pct { color: var(--text2); font-size: 11px; }
 
 /* ── Holdings table ───────────────────────────────────────────────── */
 #holdingsTable { padding: 0 4px; }
@@ -310,7 +305,25 @@
 .port-analysis-body table td { padding: 7px 12px; border-bottom: 1px solid var(--bg3); color: var(--text2); }
 .port-analysis-body table tr:last-child td { border-bottom: none; }
 .port-verdict-strong  { color: var(--green) !important; }
-.port-stock-analysis { margin-top: 12px; }
+/* ── Per-stock deep dive (collapsible) ───────────────────────────── */
+.port-stock-analysis { margin-top: 8px; }
+.port-stock-hdr {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+  padding: 14px 20px;
+  margin: -18px -20px 0;
+  border-bottom: 1px solid var(--border);
+}
+.port-stock-hdr:hover { background: var(--bg3); }
+.port-stock-hdr-left { display: flex; align-items: center; gap: 10px; }
+.port-stock-ticker { font-weight: 700; color: var(--text); font-family: var(--mono); font-size: 13px; }
+.port-stock-toggle { font-size: 11px; color: var(--text3); transition: transform 0.2s; }
+.port-stock-toggle.open { transform: rotate(180deg); }
+.port-stock-body { display: none; padding-top: 16px; }
+.port-stock-body.open { display: block; }
 .port-verdict-balanced{ color: var(--accent) !important; }
 .port-verdict-weak    { color: var(--red)   !important; }
 
@@ -339,7 +352,8 @@
 
 /* ── Responsive ───────────────────────────────────────────────────── */
 @media (max-width: 720px) {
-  .port-charts-row  { grid-template-columns: 1fr; }
+  .port-analysis-top { grid-template-columns: 1fr; }
+  .port-alloc-col { border-right: none; border-bottom: 1px solid var(--border); padding-right: 0; padding-bottom: 16px; }
   .port-stats-row   { grid-template-columns: 1fr 1fr; }
   .port-perf-header { flex-direction: column; }
   .port-holdings-hdr { flex-wrap: wrap; }
