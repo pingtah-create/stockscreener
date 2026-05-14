@@ -203,7 +203,7 @@ def _refresh_live_prices():
             return
         import pandas as pd
         df = yf.download(
-            tickers, period="5d", interval="1d",
+            tickers, period="2d", interval="1d",
             progress=False, auto_adjust=True, threads=True
         )
         if df.empty:
