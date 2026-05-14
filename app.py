@@ -1080,6 +1080,7 @@ def api_chat():
     _ensure_stocks_loaded()
     body     = request.json or {}
     messages = body.get("messages") or []
+    skill    = body.get("skill", "")
     if not messages:
         return jsonify({"error": "no messages"}), 400
 
@@ -1112,7 +1113,7 @@ def api_chat():
         from agent import run_agent_stream
         full_text = ""
         try:
-            for event in run_agent_stream(messages, stock_snap, indices_snap, api_key):
+            for event in run_agent_stream(messages, stock_snap, indices_snap, api_key, skill=skill):
                 if event["type"] == "chunk":
                     full_text += event["text"]
                     yield f"data: {_json.dumps({'type': 'chunk', 'text': event['text']})}\n\n"

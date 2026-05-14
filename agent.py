@@ -943,7 +943,7 @@ def get_fmp_financials(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
 
 
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str,
-                        user_question: str = "", stream: bool = False):
+                        user_question: str = "", stream: bool = False, skill: str = ""):
     """Gather data then write an opinionated narrative. Returns dict or generator when stream=True."""
     ticker = ticker.upper().strip()
 
@@ -1033,34 +1033,158 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     data_brief = "\n".join(brief_lines)
 
     chg_sign = "+" if chg and chg > 0 else ""
-    question_line = f"\nThe user specifically asked: {user_question}" if user_question else ""
-    prompt = f"""You are a sharp analyst. Give a direct, no-fluff brief for {ticker} ({name}).{question_line}
+    header = f"## {ticker} — {name}\n**${fmt(price, 2)}** ({chg_sign}{fmt(chg, 2)}%) · {sector}\n"
 
-Use ONLY numbers from the DATA section. Never invent figures.
+    # ── Skill-specific prompts ────────────────────────────────────────────────
+    if skill == "timing":
+        prompt = f"""You are a technical analyst. Answer only: what are the best entry and exit levels for {ticker} right now?
 
 DATA:
 {data_brief}
 
----
+{header}
 
-Output EXACTLY this structure. No preamble — start immediately.
+Output EXACTLY this. No preamble.
 
-## {ticker} — {name}
-**${fmt(price, 2)}** ({chg_sign}{fmt(chg, 2)}%) · {sector}
+**[BUY / WAIT / AVOID]** — *One sentence on timing.*
+
+### Entry Zone
+- **Support**: $[level] — why this level matters
+- **Trigger**: what price action or condition confirms entry
+- **Risk/Reward**: entry $[x] → target $[y] → stop $[z] = [ratio]:1
+
+### Exit / Target
+- **Target 1**: $[level] — reason
+- **Target 2**: $[level] — reason (stretch)
+- **Stop-Loss**: $[level] — the level that invalidates the setup
+
+### Technical Read
+- **Trend**: [up/down/sideways] — [evidence from data]
+- **Momentum**: [RSI / MACD signal]
+- **Key level to watch**: $[price]
+
+Rules: specific prices only, no vague ranges, use DATA numbers."""
+
+    elif skill == "swing":
+        prompt = f"""You are a swing trader. Give a concrete 2–4 week swing trade setup for {ticker}.
+
+DATA:
+{data_brief}
+
+{header}
+
+Output EXACTLY this. No preamble.
+
+**[LONG / SHORT / NO SETUP]** — *One sentence: why this is a swing trade right now.*
+
+### Setup
+| | Price |
+|---|---|
+| Entry | $[price] |
+| Target | $[price] |
+| Stop | $[price] |
+| R/R | [x]:1 |
+| Timeframe | [2–4 weeks] |
+
+### Why Now
+- **Catalyst**: [specific trigger — earnings, breakout, pattern]
+- **Technical**: [key signal from data]
+- **Risk**: [main thing that kills this trade]
+
+### Management
+- Enter: [condition — e.g. "on break above $X with volume"]
+- Exit: [condition — e.g. "take 50% at $Y, trail rest"]
+
+Rules: give exact prices, be specific about entry condition, one clear reason per bullet."""
+
+    elif skill == "earnings":
+        prompt = f"""You are an earnings analyst. Preview the next earnings for {ticker}.
+
+DATA:
+{data_brief}
+
+{header}
+
+Output EXACTLY this. No preamble.
+
+### Next Earnings
+- **Date**: [date or TBD]
+- **EPS Estimate**: $[value]
+- **Revenue Estimate**: $[value]
+
+### Recent Beat Rate
+| Quarter | Est | Actual | Surprise |
+|---|---|---|---|
+| [date] | $[est] | $[actual] | [+/-]% |
+| [date] | $[est] | $[actual] | [+/-]% |
+| [date] | $[est] | $[actual] | [+/-]% |
+
+### What to Watch
+- **[metric 1]**: why the market is focused on this number
+- **[metric 2]**: the guidance or segment that will move the stock
+- **[risk]**: what could cause a sell-off even on a beat
+
+### Historical Reaction
+*One sentence: how has this stock typically moved the day after earnings.*
+
+Rules: use only DATA numbers, be specific about what matters this quarter."""
+
+    elif skill == "compare":
+        prompt = f"""You are a sector analyst. Compare {ticker} against its closest peers.
+
+DATA:
+{data_brief}
+
+{header}
+
+Output EXACTLY this. No preamble.
+
+### Peer Comparison
+| Ticker | P/E | Fwd P/E | Rev Growth | Gross Margin | Net Margin |
+|---|---|---|---|---|---|
+| **{ticker}** | [value] | [value] | [value]% | [value]% | [value]% |
+| [peer] | [value] | [value] | [value]% | [value]% | [value]% |
+| [peer] | [value] | [value] | [value]% | [value]% | [value]% |
+| [peer] | [value] | [value] | [value]% | [value]% | [value]% |
+
+### Where {ticker} Wins
+- **[metric]**: [specific number vs peers]
+- **[metric]**: [specific number vs peers]
+
+### Where {ticker} Loses
+- **[metric]**: [specific number vs peers]
+- **[metric]**: [specific number vs peers]
+
+### Verdict
+**[BEST IN CLASS / MID-PACK / LAGGARD]** — One sentence: buy {ticker} over peers or not, and why.
+
+Rules: fill every cell with real numbers from DATA, be direct about the ranking."""
+
+    else:
+        # Default: fundamentals / general "is this a good company" question
+        q_line = f"\nUser asked: {user_question}" if user_question else ""
+        prompt = f"""You are a sharp analyst. Is {ticker} worth owning?{q_line}
+
+DATA:
+{data_brief}
+
+{header}
+
+Output EXACTLY this. No preamble.
 
 **[BULLISH / BEARISH / NEUTRAL]** — *One sentence: the single most important thing about this stock right now.*
 
 ### Verdict
-2–3 sentences max. What is this company doing, is it working, and what does the market think. Numbers only where they add weight. No fluff.
+2–3 sentences. What does this company do, is the business working, and is the valuation fair. Hard numbers only.
 
 ### Bull Case
-- **[metric]**: one line, specific number, why it matters
-- **[metric]**: one line, specific number, why it matters
-- **[metric]**: one line, specific number, why it matters
+- **[metric]**: specific number + why it matters
+- **[metric]**: specific number + why it matters
+- **[metric]**: specific number + why it matters
 
 ### Bear Case
-- **[risk]**: one line, specific number, why it matters
-- **[risk]**: one line, specific number, why it matters
+- **[risk]**: specific number + why it matters
+- **[risk]**: specific number + why it matters
 
 ### Key Numbers
 | Metric | Value |
@@ -1072,24 +1196,10 @@ Output EXACTLY this structure. No preamble — start immediately.
 | Analyst Target | $[value] ([upside]% upside) |
 | 52W Position | [value]% of range |
 
-### Earnings
-| Quarter | Est | Actual | Surprise |
-|---|---|---|---|
-| [date] | $[est] | $[actual] | [+/-]% |
-| [date] | $[est] | $[actual] | [+/-]% |
-| Next | — | [date or TBD] | — |
-
-### Peers
-| Ticker | P/E | Rev Growth | Net Margin |
-|---|---|---|---|
-| **{ticker}** | [value] | [value]% | [value]% |
-| [peer] | [value] | [value]% | [value]% |
-| [peer] | [value] | [value]% | [value]% |
-
 ### What to Watch
-*One sentence: the specific number or event that would change this view.*
+*One sentence: the specific number or event that changes this view.*
 
-Rules: be decisive, use real numbers, no hedging, no filler sentences."""
+Rules: be decisive, real numbers only, no hedging."""
 
     _tools_used = [
         "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
@@ -1181,7 +1291,8 @@ def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: s
         return {"reply": reply, "tools_used": []}
 
 
-def run_agent_stream(messages: list, stock_cache: list, indices_cache: dict, api_key: str):
+def run_agent_stream(messages: list, stock_cache: list, indices_cache: dict, api_key: str,
+                     skill: str = ""):
     """
     Streaming version of run_agent. Yields dicts:
       {"type": "chunk", "text": str}   — one or more times
@@ -1198,7 +1309,7 @@ def run_agent_stream(messages: list, stock_cache: list, indices_cache: dict, api
     analysis_ticker = _detect_analysis_ticker(last_msg, stock_cache)
     if analysis_ticker:
         yield from run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key,
-                                       user_question=last_msg, stream=True)
+                                       user_question=last_msg, stream=True, skill=skill)
         return
 
     # General agent (PydanticAI tool-calling) — run sync, yield result as one chunk

@@ -75,7 +75,7 @@ document.addEventListener('keydown', e => {
   }
 });
 
-async function send(text) {
+async function send(text, skill = '') {
   text = (text || '').trim();
   if (!text || pending) return;
 
@@ -97,7 +97,7 @@ async function send(text) {
     const r = await fetch('/api/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messages: messages.slice(-MAX_HISTORY) }),
+      body: JSON.stringify({ messages: messages.slice(-MAX_HISTORY), skill }),
     });
     if (!r.ok) {
       const err = await r.json().catch(() => ({}));
@@ -585,7 +585,7 @@ document.querySelectorAll('.ch-skill-card').forEach(card => {
     if (!SKILL_TEMPLATES[skill]) return;
 
     if (skill === 'market') {
-      send(SKILL_TEMPLATES.market());
+      send(SKILL_TEMPLATES.market(), 'market');
       return;
     }
 
@@ -615,8 +615,9 @@ function fireSkill() {
   if (row) row.style.display = 'none';
   if (dd)  dd.classList.remove('open');
   document.querySelectorAll('.ch-skill-card').forEach(c => c.classList.remove('ch-skill-active'));
+  const skillToFire = _activeSkill;
   _activeSkill = null;
-  send(fn(ticker));
+  send(fn(ticker), skillToFire);
 }
 
 document.getElementById('chSkillTickerBtn')?.addEventListener('click', fireSkill);
