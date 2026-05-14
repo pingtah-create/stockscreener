@@ -310,6 +310,7 @@
 .port-analysis-body table td { padding: 7px 12px; border-bottom: 1px solid var(--bg3); color: var(--text2); }
 .port-analysis-body table tr:last-child td { border-bottom: none; }
 .port-verdict-strong  { color: var(--green) !important; }
+.port-stock-analysis { margin-top: 12px; }
 .port-verdict-balanced{ color: var(--accent) !important; }
 .port-verdict-weak    { color: var(--red)   !important; }
 

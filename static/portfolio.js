@@ -525,11 +525,23 @@ async function analyzePortfolio() {
 }
 
 function renderAnalysis(data) {
-  const { allocation, analysis } = data;
+  const { allocation, analysis, stock_analyses } = data;
   document.getElementById('portAnalysis').style.display = 'block';
   renderDonut(allocation);
   renderAIText(analysis);
+  renderStockAnalyses(stock_analyses || {});
   document.getElementById('portAnalysis').scrollIntoView({ behavior: 'smooth' });
+}
+
+function renderStockAnalyses(stockAnalyses) {
+  const container = document.getElementById('stockAnalyses');
+  const tickers = Object.keys(stockAnalyses);
+  if (!tickers.length) { container.innerHTML = ''; return; }
+  container.innerHTML = tickers.map(ticker => `
+    <div class="port-card port-stock-analysis">
+      <div class="port-card-label">${ticker} — Deep Dive</div>
+      <div class="port-analysis-body">${renderMarkdown(stockAnalyses[ticker] || '*No analysis available*')}</div>
+    </div>`).join('');
 }
 
 // ── Donut chart ───────────────────────────────────────────────────────────────

@@ -1579,66 +1579,19 @@ def api_portfolio_analysis():
             "sectors":               sectors,
         }
 
-        # ── Groq analysis ─────────────────────────────────────────────────────
-        analysis = ""
-        if (_os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY")) and allocation:
-            ret_map = {r["ticker"]: r["return_pct"] for r in ticker_returns}
-            def _holding_line(a):
-                line = (f"  {a['ticker']} ({a['name']}) — {a['pct']}% weight, ${a['value']:,.0f}, "
-                        f"sector: {a['sector']}, period return: {ret_map.get(a['ticker'], '?')}%")
-                if a.get("buyin") and a.get("unrealized_pnl") is not None:
-                    line += (f", avg cost ${a['buyin']:.2f}, "
-                             f"unrealized P&L ${a['unrealized_pnl']:+,.0f} ({a['unrealized_pnl_pct']:+.1f}%)")
-                return line
-            holdings_brief = "\n".join(
-                _holding_line(a) for a in sorted(allocation, key=lambda x: -x["pct"])
-            )
-            sector_brief = ", ".join(f"{k}: {v}%" for k, v in sectors.items())
-            num_sectors  = len(sectors)
-            prompt = f"""Analyse this investment portfolio and write a structured report.
-
-PORTFOLIO:
-- Total Value: ${total_value:,.2f} across {len(tickers)} stocks{f" | Cost Basis ${total_cost:,.2f} | Unrealized P&L ${total_pnl:+,.2f} ({total_pnl_pct:+.1f}%)" if has_cost else ""}
-- Period Return: {port_ret:+.1f}% vs SPY {bench_ret:+.1f}% (alpha: {port_ret - bench_ret:+.1f}%)
-- Sector Mix: {sector_brief}
-- Largest position: {top.get('ticker','')} at {top.get('pct',0):.1f}%
-
-HOLDINGS (by weight):
-{holdings_brief}
-
-Output EXACTLY this format — no preamble, start with the verdict line:
-
-**[STRONG / BALANCED / WEAK]** — *one sentence verdict.*
-
----
-
-### Strengths
-- **[metric]**: specific number + why it matters
-- **[metric]**: specific number + why it matters
-
-### Risks
-- **[risk]**: specific number + why it matters
-- **[risk]**: specific number + why it matters
-
----
-
-### Diversification
-| Metric | Assessment |
-|---|---|
-| Sectors | [{num_sectors} sector{'s' if num_sectors != 1 else ''} — comment on concentration] |
-| Largest Position | [{top.get('ticker','')} at {top.get('pct',0):.1f}% — concentrated/balanced] |
-| vs Benchmark | [{port_ret - bench_ret:+.1f}% alpha — outperforming/underperforming] |
-| Stock Count | [{len(tickers)} stocks — too few/adequate/well spread] |
-
----
-
-### Recommendation
-*One specific, actionable change to improve this portfolio.*
-
-Rules: use only numbers from the data above. Bold metric names in bullets. No hedging."""
-
+        # ── Parallel per-stock analysis + portfolio verdict ──────────────────
+        analysis        = ""
+        stock_analyses  = {}
+        api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+        if api_key and allocation:
             try:
-                analysis = _groq_complete(prompt, temperature=0.3, max_tokens=1024)
+                from portfolio_agent import analyze_portfolio
+                agent_result   = analyze_portfolio(
+                    holdings_in, allocation, metrics,
+                    _stock_cache, _indices_cache, api_key,
+                )
+                stock_analyses = agent_result.get("stock_analyses", {})
+                analysis       = agent_result.get("portfolio_verdict", "")
             except Exception as ex:
                 msg = str(ex)
                 if "429" in msg:
@@ -1647,11 +1600,12 @@ Rules: use only numbers from the data above. Bold metric names in bullets. No he
                 analysis = f"*Analysis unavailable: {ex}*"
 
         return jsonify({
-            "historical":     historical,
-            "allocation":     allocation,
-            "metrics":        metrics,
-            "ticker_returns": ticker_returns,
-            "analysis":       analysis,
+            "historical":      historical,
+            "allocation":      allocation,
+            "metrics":         metrics,
+            "ticker_returns":  ticker_returns,
+            "analysis":        analysis,
+            "stock_analyses":  stock_analyses,
         })
 
     except Exception as e:
