@@ -591,21 +591,19 @@ function saveCurrentSession() {
 }
 
 function renderHistory() {
-  const section = document.getElementById('chHistorySection');
-  const list    = document.getElementById('chHistoryList');
+  const sidebar  = document.getElementById('chSidebarHistory');
   const sessions = getSessions();
-  if (!section || !list) return;
-  if (!sessions.length) { section.style.display = 'none'; return; }
-  section.style.display = '';
-  list.innerHTML = sessions.map(s => {
+  if (!sidebar) return;
+  if (!sessions.length) {
+    sidebar.innerHTML = '<span style="font-size:11px;color:var(--text-faint);padding:4px 10px">No history yet</span>';
+    return;
+  }
+  sidebar.innerHTML = sessions.map(s => {
     const dateStr = new Date(s.ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    return `<div class="ch-history-item" data-id="${s.id}">
-      <span class="ch-history-title">${escHtml(s.title)}</span>
-      <span class="ch-history-date">${dateStr}</span>
-    </div>`;
+    return `<button class="ch-sidebar-session" data-id="${s.id}" title="${escHtml(s.title)} · ${dateStr}">${escHtml(s.title)}</button>`;
   }).join('');
-  list.querySelectorAll('.ch-history-item').forEach(item => {
-    item.addEventListener('click', () => loadSession(item.dataset.id));
+  sidebar.querySelectorAll('.ch-sidebar-session').forEach(btn => {
+    btn.addEventListener('click', () => loadSession(btn.dataset.id));
   });
 }
 
@@ -620,22 +618,3 @@ function loadSession(id) {
 function escHtml(s) {
   return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
-
-document.getElementById('historyBtn')?.addEventListener('click', () => {
-  if (!chatEl.hidden) {
-    saveCurrentSession();
-    messages = [];
-    saveHistory();
-    threadEl.innerHTML = '';
-    chatEl.hidden = true;
-    heroEl.hidden = false;
-    initHero();
-  } else {
-    const section = document.getElementById('chHistorySection');
-    if (section) {
-      const shown = section.style.display !== 'none';
-      if (!shown) renderHistory();
-      section.style.display = shown ? 'none' : '';
-    }
-  }
-});

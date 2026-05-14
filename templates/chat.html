@@ -11,8 +11,6 @@
 <header class="ch-nav">
   <a class="db-brand" href="/">◈ STOCKDASH</a>
   <nav class="ch-nav-links">
-    <button id="historyBtn" class="ch-link-btn" title="View history">History</button>
-    <button id="newChatBtn" class="ch-link-btn" title="Start a new conversation">New chat</button>
     <span class="btn btn-secondary sm db-nav-current">AI Research</span>
     <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
     <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
@@ -22,6 +20,16 @@
     {% endif %}
   </nav>
 </header>
+
+<div class="ch-layout">
+
+  <!-- Sidebar -->
+  <aside class="ch-sidebar">
+    <button class="ch-sidebar-btn" id="newChatBtn">✦ New chat</button>
+    <div class="ch-sidebar-divider"></div>
+    <div class="ch-sidebar-label">History</div>
+    <div class="ch-sidebar-history" id="chSidebarHistory"></div>
+  </aside>
 
 <main class="ch-main" id="chMain">
 
@@ -101,11 +109,6 @@
       </div>
     </div>
 
-    <!-- History -->
-    <div class="ch-section" id="chHistorySection" style="display:none">
-      <div class="ch-section-label">RECENT ANALYSES</div>
-      <div class="ch-history-list" id="chHistoryList"></div>
-    </div>
 
   </section>
 
@@ -123,6 +126,8 @@
   </form>
 
 </main>
+
+</div><!-- /.ch-layout -->
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="/static/chat.js"></script>
