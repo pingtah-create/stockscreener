@@ -784,10 +784,6 @@ def api_stockmap():
     """Per-stock treemap data: sector, market cap (USD), % change. Used by
     the dashboard stock-map panel (Finviz-style)."""
     _ensure_stocks_loaded()
-    # If prices have never been refreshed (e.g. fresh cold start with seed data),
-    # do a synchronous refresh so the first stockmap response has live prices.
-    if _prices_refreshed_at is None:
-        _refresh_live_prices()
     twd_usd = _twd_to_usd_rate()
     rows = []
     for s in _stock_cache:
@@ -1586,9 +1582,12 @@ def api_portfolio_analysis():
         if api_key and allocation:
             try:
                 from portfolio_agent import analyze_portfolio
+                # On Vercel (serverless) skip per-stock deep dives — too slow for 10s timeout
+                skip_deep = bool(_os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"))
                 agent_result   = analyze_portfolio(
                     holdings_in, allocation, metrics,
                     _stock_cache, _indices_cache, api_key,
+                    skip_stock_analyses=skip_deep,
                 )
                 stock_analyses = agent_result.get("stock_analyses", {})
                 analysis       = agent_result.get("portfolio_verdict", "")

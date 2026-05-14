@@ -9,7 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 def analyze_portfolio(holdings: list, allocation: list, metrics: dict,
-                      stock_cache: list, indices_cache: dict, api_key: str) -> dict:
+                      stock_cache: list, indices_cache: dict, api_key: str,
+                      skip_stock_analyses: bool = False) -> dict:
     """
     Run per-stock analysis in parallel, then synthesize a portfolio verdict.
 
@@ -31,25 +32,27 @@ def analyze_portfolio(holdings: list, allocation: list, metrics: dict,
 
     tickers = [h["ticker"].upper() for h in holdings]
 
-    # ── Step 1: per-stock analysis in parallel ────────────────────────────────
+    # ── Step 1: per-stock analysis in parallel (skipped on Vercel) ───────────
     stock_analyses: dict[str, str] = {}
-    max_workers = min(5, len(tickers))
 
-    def _analyze_one(ticker: str) -> tuple[str, str]:
-        try:
-            result = run_debate_analysis(
-                ticker, stock_cache, indices_cache, api_key,
-                user_question=f"Analyze {ticker} as part of a portfolio review.",
-            )
-            return ticker, result.get("reply", "")
-        except Exception as ex:
-            return ticker, f"*Analysis unavailable: {ex}*"
+    if not skip_stock_analyses:
+        max_workers = min(5, len(tickers))
 
-    with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futures = {ex.submit(_analyze_one, t): t for t in tickers}
-        for future in as_completed(futures):
-            ticker, analysis = future.result()
-            stock_analyses[ticker] = analysis
+        def _analyze_one(ticker: str) -> tuple[str, str]:
+            try:
+                result = run_debate_analysis(
+                    ticker, stock_cache, indices_cache, api_key,
+                    user_question=f"Analyze {ticker} as part of a portfolio review.",
+                )
+                return ticker, result.get("reply", "")
+            except Exception as ex:
+                return ticker, f"*Analysis unavailable: {ex}*"
+
+        with ThreadPoolExecutor(max_workers=max_workers) as ex:
+            futures = {ex.submit(_analyze_one, t): t for t in tickers}
+            for future in as_completed(futures):
+                ticker, analysis = future.result()
+                stock_analyses[ticker] = analysis
 
     # ── Step 2: portfolio-level verdict ──────────────────────────────────────
     portfolio_verdict = _synthesize_verdict(
