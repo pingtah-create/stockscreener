@@ -1034,36 +1034,33 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
 
     chg_sign = "+" if chg and chg > 0 else ""
     question_line = f"\nThe user specifically asked: {user_question}" if user_question else ""
-    prompt = f"""You are a financial analyst and storyteller. Write a rich, narrative investment brief for {ticker} ({name}).{question_line}
+    prompt = f"""You are a sharp analyst. Give a direct, no-fluff brief for {ticker} ({name}).{question_line}
 
-Use ONLY the numbers in the DATA section below — never invent figures.
+Use ONLY numbers from the DATA section. Never invent figures.
 
 DATA:
 {data_brief}
 
 ---
 
-Write the brief in EXACTLY this structure. No preamble — start with the ## header immediately.
+Output EXACTLY this structure. No preamble — start immediately.
 
 ## {ticker} — {name}
 **${fmt(price, 2)}** ({chg_sign}{fmt(chg, 2)}%) · {sector}
 
----
+**[BULLISH / BEARISH / NEUTRAL]** — *One sentence: the single most important thing about this stock right now.*
 
-**[BULLISH / BEARISH / NEUTRAL]** — *One punchy sentence: the single most important thing about this stock right now.*
-
----
-
-### The Story
-Write 2–3 paragraphs of flowing prose. This is the narrative heart of the brief. Tell the story of what's happening with this company: what has driven it to where it is today, what the market currently believes, and what the data reveals that investors might be underestimating or overestimating. Weave in specific numbers as evidence — don't just list them. Make it read like an opinion piece, not a data dump. Be opinionated.
+### Verdict
+2–3 sentences max. What is this company doing, is it working, and what does the market think. Numbers only where they add weight. No fluff.
 
 ### Bull Case
-Write 2–3 sentences of connected prose building the optimistic scenario. Then add 2–3 bullet points for the sharpest supporting data points, each starting with a bold metric name.
+- **[metric]**: one line, specific number, why it matters
+- **[metric]**: one line, specific number, why it matters
+- **[metric]**: one line, specific number, why it matters
 
 ### Bear Case
-Write 1–2 sentences framing the risk. Then add 2 bullet points for the most credible threats, each with a bold risk name and a specific number.
-
----
+- **[risk]**: one line, specific number, why it matters
+- **[risk]**: one line, specific number, why it matters
 
 ### Key Numbers
 | Metric | Value |
@@ -1075,17 +1072,12 @@ Write 1–2 sentences framing the risk. Then add 2 bullet points for the most cr
 | Analyst Target | $[value] ([upside]% upside) |
 | 52W Position | [value]% of range |
 
----
-
 ### Earnings
 | Quarter | Est | Actual | Surprise |
 |---|---|---|---|
-| [date] | $[est] | $[actual] | [+/-pct]% |
-| [date] | $[est] | $[actual] | [+/-pct]% |
-| [date] | $[est] | $[actual] | [+/-pct]% |
-| Next | — | [next date or TBD] | — |
-
----
+| [date] | $[est] | $[actual] | [+/-]% |
+| [date] | $[est] | $[actual] | [+/-]% |
+| Next | — | [date or TBD] | — |
 
 ### Peers
 | Ticker | P/E | Rev Growth | Net Margin |
@@ -1093,14 +1085,11 @@ Write 1–2 sentences framing the risk. Then add 2 bullet points for the most cr
 | **{ticker}** | [value] | [value]% | [value]% |
 | [peer] | [value] | [value]% | [value]% |
 | [peer] | [value] | [value]% | [value]% |
-| [peer] | [value] | [value]% | [value]% |
 
----
+### What to Watch
+*One sentence: the specific number or event that would change this view.*
 
-### The Moment of Truth
-*One or two sentences: what specific catalyst, data release, or price level would change this view entirely — and why.*
-
-Rules: all numbers must come from DATA. Prose sections should feel like Bloomberg Opinion, not a research checklist. Bold metric names in bullet points."""
+Rules: be decisive, use real numbers, no hedging, no filler sentences."""
 
     _tools_used = [
         "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
@@ -1111,7 +1100,7 @@ Rules: all numbers must come from DATA. Prose sections should feel like Bloomber
     if stream:
         def _gen():
             try:
-                for chunk in _groq_stream(api_key, msgs, temperature=0.55, max_tokens=3000):
+                for chunk in _groq_stream(api_key, msgs, temperature=0.4, max_tokens=1800):
                     yield {"type": "chunk", "text": chunk}
             except Exception as ex:
                 yield {"type": "chunk", "text": f"\n\n*Analysis unavailable: {ex}*"}
@@ -1119,7 +1108,7 @@ Rules: all numbers must come from DATA. Prose sections should feel like Bloomber
         return _gen()
 
     try:
-        reply = _groq_post(api_key, msgs, temperature=0.55, max_tokens=3000)
+        reply = _groq_post(api_key, msgs, temperature=0.4, max_tokens=1800)
     except Exception as ex:
         reply = f"*Analysis unavailable: {ex}*"
     return {"reply": reply, "tools_used": _tools_used, "tickers": [ticker]}
