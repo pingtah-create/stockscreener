@@ -1446,127 +1446,73 @@ def api_portfolio_perf():
 @app.route("/api/portfolio-analysis", methods=["POST"])
 @auth.require_login_api
 def api_portfolio_analysis():
-    import pandas as pd
     _ensure_stocks_loaded()
     body        = request.json or {}
     holdings_in = body.get("holdings") or []
-    period      = body.get("period", "3mo")
 
     if not holdings_in:
         return jsonify({"error": "No holdings provided"}), 400
 
-    tickers      = [h["ticker"].upper() for h in holdings_in]
-    shares_map   = {h["ticker"].upper(): float(h.get("shares", 1)) for h in holdings_in}
-    buyin_map    = {h["ticker"].upper(): float(h["buyin"]) for h in holdings_in if h.get("buyin")}
-    need_spy     = "SPY" not in tickers
-    dl_list      = tickers + (["SPY"] if need_spy else [])
+    tickers    = [h["ticker"].upper() for h in holdings_in]
+    shares_map = {h["ticker"].upper(): float(h.get("shares", 1)) for h in holdings_in}
+    buyin_map  = {h["ticker"].upper(): float(h["buyin"]) for h in holdings_in if h.get("buyin")}
 
     try:
-        raw = yf.download(dl_list, period=period, interval="1d",
-                          auto_adjust=True, progress=False)
-        if raw.empty:
-            return jsonify({"error": "No price data found — check ticker symbols"}), 400
-
-        # Normalise to flat DataFrame of close prices
-        if len(dl_list) == 1:
-            close = pd.DataFrame({dl_list[0]: raw["Close"]})
-        else:
-            close = raw["Close"].copy()
-
-        close = close.dropna(how="all").ffill()
-
-        current_prices = close.iloc[-1].to_dict()
-
-        # ── Allocation ────────────────────────────────────────────────────────
-        allocation   = []
-        total_value  = 0.0
-        total_cost   = 0.0
+        # ── Allocation from in-memory cache (no yf.download needed) ──────────
+        allocation  = []
+        total_value = 0.0
+        total_cost  = 0.0
         for t in tickers:
-            price  = float(current_prices.get(t) or 0)
+            sd     = next((s for s in _stock_cache if s.get("symbol") == t), {})
+            price  = float(sd.get("currentPrice") or sd.get("regularMarketPrice") or 0)
             shares = shares_map[t]
             buyin  = buyin_map.get(t)
             value  = price * shares
             total_value += value
-            cost_basis       = round(buyin * shares, 2) if buyin else None
-            unrealized_pnl   = round(value - cost_basis, 2) if cost_basis else None
+            cost_basis         = round(buyin * shares, 2) if buyin else None
+            unrealized_pnl     = round(value - cost_basis, 2) if cost_basis else None
             unrealized_pnl_pct = round((price - buyin) / buyin * 100, 2) if buyin and buyin > 0 else None
             if cost_basis:
                 total_cost += cost_basis
-            sd = next((s for s in _stock_cache if s.get("symbol") == t), {})
             allocation.append({
-                "ticker":            t,
-                "name":              sd.get("shortName") or sd.get("longName") or t,
-                "shares":            shares,
-                "buyin":             buyin,
-                "price":             round(price, 2),
-                "value":             round(value, 2),
-                "cost_basis":        cost_basis,
-                "unrealized_pnl":    unrealized_pnl,
+                "ticker":             t,
+                "name":               sd.get("shortName") or sd.get("longName") or t,
+                "shares":             shares,
+                "buyin":              buyin,
+                "price":              round(price, 2),
+                "value":              round(value, 2),
+                "cost_basis":         cost_basis,
+                "unrealized_pnl":     unrealized_pnl,
                 "unrealized_pnl_pct": unrealized_pnl_pct,
-                "sector":            sd.get("sector") or "Unknown",
+                "sector":             sd.get("sector") or "Unknown",
+                "return_pct":         round(sd.get("regularMarketChangePercent", 0) or 0, 2),
             })
         for a in allocation:
             a["pct"] = round(a["value"] / total_value * 100, 1) if total_value else 0
 
-        # ── Historical normalised to 100 ──────────────────────────────────────
-        historical   = []
-        port_vals    = []
-        bench_vals   = []
-        date_strs    = []
+        # ── Per-ticker returns from cache ─────────────────────────────────────
+        ticker_returns = sorted(
+            [{"ticker": a["ticker"], "return_pct": a["return_pct"]} for a in allocation],
+            key=lambda x: x["return_pct"]
+        )
 
-        for dt in close.index:
-            pv = 0.0
-            ok = True
-            for t in tickers:
-                if t not in close.columns or pd.isna(close.loc[dt, t]):
-                    ok = False; break
-                pv += float(close.loc[dt, t]) * shares_map[t]
-            if not ok:
-                continue
-            port_vals.append(pv)
-            date_strs.append(str(dt.date()))
-            bv = close.loc[dt, "SPY"] if "SPY" in close.columns else None
-            bench_vals.append(float(bv) if bv is not None and not pd.isna(bv) else None)
-
-        if port_vals:
-            p0 = port_vals[0]
-            b0 = next((v for v in bench_vals if v is not None), None)
-            for i, d in enumerate(date_strs):
-                entry = {"date": d, "portfolio": round(port_vals[i] / p0 * 100, 2)}
-                if b0 and bench_vals[i] is not None:
-                    entry["benchmark"] = round(bench_vals[i] / b0 * 100, 2)
-                historical.append(entry)
-
-        # ── Per-ticker returns ────────────────────────────────────────────────
-        ticker_returns = []
-        for t in tickers:
-            if t in close.columns:
-                tc = close[t].dropna()
-                if len(tc) >= 2:
-                    ret = round((float(tc.iloc[-1]) / float(tc.iloc[0]) - 1) * 100, 2)
-                    ticker_returns.append({"ticker": t, "return_pct": ret})
-        ticker_returns.sort(key=lambda x: x["return_pct"])
-
-        port_ret  = round(historical[-1]["portfolio"] - 100, 2) if historical else 0
-        bench_ret = round(historical[-1].get("benchmark", 100) - 100, 2) if historical else 0
-
-        sectors   = {}
+        sectors = {}
         for a in allocation:
             sectors[a["sector"]] = round(sectors.get(a["sector"], 0) + a["pct"], 1)
         sectors = dict(sorted(sectors.items(), key=lambda x: -x[1]))
 
-        top        = max(allocation, key=lambda a: a["pct"]) if allocation else {}
-        has_cost   = total_cost > 0
-        total_pnl  = round(total_value - total_cost, 2) if has_cost else None
+        top           = max(allocation, key=lambda a: a["pct"]) if allocation else {}
+        has_cost      = total_cost > 0
+        total_pnl     = round(total_value - total_cost, 2) if has_cost else None
         total_pnl_pct = round((total_value - total_cost) / total_cost * 100, 2) if has_cost and total_cost > 0 else None
         metrics = {
             "total_value":           round(total_value, 2),
             "total_cost":            round(total_cost, 2) if has_cost else None,
             "total_pnl":             total_pnl,
             "total_pnl_pct":         total_pnl_pct,
-            "portfolio_return_pct":  port_ret,
-            "benchmark_return_pct":  bench_ret,
-            "alpha":                 round(port_ret - bench_ret, 2),
+            "portfolio_return_pct":  0,
+            "benchmark_return_pct":  0,
+            "alpha":                 0,
             "num_stocks":            len(tickers),
             "top_stock":             top.get("ticker", ""),
             "top_concentration_pct": top.get("pct", 0),
@@ -1575,16 +1521,15 @@ def api_portfolio_analysis():
             "sectors":               sectors,
         }
 
-        # ── Parallel per-stock analysis + portfolio verdict ──────────────────
-        analysis        = ""
-        stock_analyses  = {}
+        # ── AI portfolio verdict ──────────────────────────────────────────────
+        analysis       = ""
+        stock_analyses = {}
         api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
         if api_key and allocation:
             try:
                 from portfolio_agent import analyze_portfolio
-                # On Vercel (serverless) skip per-stock deep dives — too slow for 10s timeout
-                skip_deep = bool(_os.environ.get("VERCEL") or _os.environ.get("VERCEL_ENV"))
-                agent_result   = analyze_portfolio(
+                skip_deep    = not body.get("deep", False)
+                agent_result = analyze_portfolio(
                     holdings_in, allocation, metrics,
                     _stock_cache, _indices_cache, api_key,
                     skip_stock_analyses=skip_deep,
@@ -1599,12 +1544,11 @@ def api_portfolio_analysis():
                 analysis = f"*Analysis unavailable: {ex}*"
 
         return jsonify({
-            "historical":      historical,
-            "allocation":      allocation,
-            "metrics":         metrics,
-            "ticker_returns":  ticker_returns,
-            "analysis":        analysis,
-            "stock_analyses":  stock_analyses,
+            "allocation":     allocation,
+            "metrics":        metrics,
+            "ticker_returns": ticker_returns,
+            "analysis":       analysis,
+            "stock_analyses": stock_analyses,
         })
 
     except Exception as e:

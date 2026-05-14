@@ -85,8 +85,11 @@
 
   <!-- ④ AI analysis -->
   <div class="port-ai-row" id="portAiRow" style="display:none">
-    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio()">
+    <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio(false)">
       ✦ AI Portfolio Analysis →
+    </button>
+    <button class="btn btn-secondary" id="analyzeDeepBtn" onclick="analyzePortfolio(true)" title="Includes full deep-dive per stock — slower">
+      Deep Analysis
     </button>
   </div>
 

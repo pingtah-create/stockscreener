@@ -103,15 +103,19 @@ def _synthesize_verdict(tickers: list, allocation: list, metrics: dict,
             first_line = text.strip().split("\n")[0][:200]
             excerpts.append(f"  {t}: {first_line}")
 
-    prompt = f"""You are a portfolio strategist. Based on the individual stock analyses and portfolio data below, write a concise portfolio verdict.
+    perf_line = ""
+    if port_ret != 0 or bench_ret != 0:
+        perf_line = f"\n- Period Return: {port_ret:+.1f}% vs SPY {bench_ret:+.1f}% (alpha: {alpha:+.1f}%)"
+
+    best_line  = f"\n- Today's top gainer: {best.get('ticker','')} ({best.get('return_pct',0):+.1f}%)" if best.get('ticker') else ""
+    worst_line = f"\n- Today's top loser: {worst.get('ticker','')} ({worst.get('return_pct',0):+.1f}%)" if worst.get('ticker') else ""
+
+    prompt = f"""You are a portfolio strategist. Based on the portfolio data below, write a concise portfolio verdict.
 
 PORTFOLIO SUMMARY:
-- Total Value: ${total_value:,.2f} across {len(tickers)} stocks{pnl_line}
-- Period Return: {port_ret:+.1f}% vs SPY {bench_ret:+.1f}% (alpha: {alpha:+.1f}%)
+- Total Value: ${total_value:,.2f} across {len(tickers)} stocks{pnl_line}{perf_line}
 - Sectors: {sector_str}
-- Largest position: {top_stock} at {top_conc:.1f}%
-- Best performer: {best.get('ticker','')} ({best.get('return_pct',0):+.1f}%)
-- Worst performer: {worst.get('ticker','')} ({worst.get('return_pct',0):+.1f}%)
+- Largest position: {top_stock} at {top_conc:.1f}%{best_line}{worst_line}
 
 HOLDINGS:
 {chr(10).join(holding_lines)}

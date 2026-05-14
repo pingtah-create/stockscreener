@@ -491,18 +491,20 @@ function renderTable(allocation) {
 
 // ── Full analysis ─────────────────────────────────────────────────────────────
 
-async function analyzePortfolio() {
+async function analyzePortfolio(deep = false) {
   if (!holdings.length) return;
-  const btn     = document.getElementById('analyzeBtn');
-  const loading = document.getElementById('portLoading');
-  btn.disabled  = true;
+  const btn      = document.getElementById('analyzeBtn');
+  const deepBtn  = document.getElementById('analyzeDeepBtn');
+  const loading  = document.getElementById('portLoading');
+  btn.disabled      = true;
+  if (deepBtn) deepBtn.disabled = true;
   loading.style.display = 'flex';
   document.getElementById('portAnalysis').style.display = 'none';
   try {
     const r    = await fetch('/api/portfolio-analysis', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ holdings, period }),
+      body: JSON.stringify({ holdings, deep }),
     });
     const data = await r.json();
     if (r.status === 429) {
@@ -519,6 +521,7 @@ async function analyzePortfolio() {
       `<p style="color:var(--red);font-size:13px">Analysis failed: ${err.message}. Check your holdings and try again.</p>`;
   } finally {
     btn.disabled = false;
+    if (deepBtn) deepBtn.disabled = false;
     loading.style.display = 'none';
   }
 }
