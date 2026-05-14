@@ -571,9 +571,9 @@ function _skillDropdownOpen(q) {
   dd.querySelectorAll('.search-result-item').forEach(el => {
     el.addEventListener('mousedown', e => {
       e.preventDefault();
-      document.getElementById('chSkillTickerInput').value = el.dataset.symbol;
+      const tickerEl = document.getElementById('chSkillTickerInput');
+      if (tickerEl) { tickerEl.value = el.dataset.symbol; tickerEl.focus(); }
       dd.classList.remove('open');
-      fireSkill();
     });
   });
   dd.classList.add('open');
