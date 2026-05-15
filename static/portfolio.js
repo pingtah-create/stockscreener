@@ -363,12 +363,15 @@ function removeHolding(ticker) {
     fetchSummary();
     fetchPerf(period);
   } else {
-    document.getElementById('holdingsTable').innerHTML = '';
-    document.getElementById('portStats').style.display = 'none';
+    document.getElementById('holdingsTable').innerHTML =
+      '<div class="port-empty">No holdings yet — click + to add one</div>';
     document.getElementById('portAiRow').style.display = 'none';
     document.getElementById('portAnalysis').style.display = 'none';
     document.getElementById('portTotalValue').textContent = '—';
     document.getElementById('portPeriodChg').textContent = '';
+    // Reset hero stat tiles to placeholders
+    document.querySelectorAll('#portStats .port-stat-tile-value').forEach(el => { el.textContent = '—'; el.className = 'port-stat-tile-value'; });
+    document.querySelectorAll('#portStats .port-stat-tile-sub').forEach(el => { el.textContent = ''; el.className = 'port-stat-tile-sub'; });
     const empty = document.getElementById('portChartEmpty');
     if (empty) empty.style.display = 'flex';
     if (lineInst) { lineInst.destroy(); lineInst = null; }
@@ -411,29 +414,47 @@ function renderStats(m) {
   const fv  = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) + '%' : '—';
   const fmv = v => v != null ? '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
   const hasCost = m.total_cost != null;
+  const best = m.best_performer, worst = m.worst_performer;
 
-  document.getElementById('portStats').innerHTML = `
-    <div class="port-stat">
-      <div class="port-stat-label">Total Value</div>
-      <div class="port-stat-value">${fmv(m.total_value)}</div>
-      <div class="port-stat-sub">${hasCost ? 'Cost ' + fmv(m.total_cost) : m.num_stocks + ' position' + (m.num_stocks !== 1 ? 's' : '')}</div>
-    </div>
-    ${hasCost ? `
-    <div class="port-stat">
-      <div class="port-stat-label">Unrealized P&L</div>
-      <div class="port-stat-value ${m.total_pnl >= 0 ? 'pos' : 'neg'}">${fmv(m.total_pnl)}</div>
-      <div class="port-stat-sub ${m.total_pnl_pct >= 0 ? 'pos' : 'neg'}">${fv(m.total_pnl_pct)} all time</div>
-    </div>` : `
-    <div class="port-stat">
-      <div class="port-stat-label">Positions</div>
-      <div class="port-stat-value" style="font-size:26px">${m.num_stocks}</div>
-      <div class="port-stat-sub">stocks tracked</div>
-    </div>`}
-    <div class="port-stat">
-      <div class="port-stat-label">Largest Position</div>
-      <div class="port-stat-value" style="font-size:20px">${m.top_stock || '—'}</div>
-      <div class="port-stat-sub">${m.top_concentration_pct != null ? m.top_concentration_pct.toFixed(1) + '% of portfolio' : ''}</div>
-    </div>`;
+  const tiles = document.getElementById('portStats').querySelectorAll('.port-stat-tile');
+
+  // P&L tile
+  const pnl = tiles[0];
+  pnl.querySelector('.port-stat-tile-label').textContent = hasCost ? 'Unrealized P&L' : 'Cost Basis';
+  if (hasCost) {
+    const v   = pnl.querySelector('.port-stat-tile-value');
+    const sub = pnl.querySelector('.port-stat-tile-sub');
+    v.textContent = fmv(m.total_pnl);
+    v.className = `port-stat-tile-value ${m.total_pnl >= 0 ? 'pos' : 'neg'}`;
+    sub.textContent = fv(m.total_pnl_pct) + ' all time';
+    sub.className = `port-stat-tile-sub ${m.total_pnl_pct >= 0 ? 'pos' : 'neg'}`;
+  } else {
+    pnl.querySelector('.port-stat-tile-value').textContent = '—';
+    pnl.querySelector('.port-stat-tile-sub').textContent = 'Add avg cost to track';
+  }
+
+  // Positions tile
+  const pos = tiles[1];
+  pos.querySelector('.port-stat-tile-value').textContent = m.num_stocks;
+  pos.querySelector('.port-stat-tile-sub').textContent = 'stocks tracked';
+
+  // Top concentration tile
+  const top = tiles[2];
+  top.querySelector('.port-stat-tile-value').textContent = m.top_stock || '—';
+  top.querySelector('.port-stat-tile-sub').textContent =
+    m.top_concentration_pct != null ? m.top_concentration_pct.toFixed(1) + '% of portfolio' : '';
+
+  // Best performer tile
+  const bestTile = tiles[3];
+  if (best) {
+    bestTile.querySelector('.port-stat-tile-value').textContent = best.ticker;
+    const sub = bestTile.querySelector('.port-stat-tile-sub');
+    sub.textContent = fv(best.return_pct) + ' today';
+    sub.className = `port-stat-tile-sub ${best.return_pct >= 0 ? 'pos' : 'neg'}`;
+  } else {
+    bestTile.querySelector('.port-stat-tile-value').textContent = '—';
+    bestTile.querySelector('.port-stat-tile-sub').textContent = '';
+  }
 
   document.getElementById('portStats').style.display = 'grid';
   document.getElementById('portAiRow').style.display = 'flex';
@@ -442,48 +463,41 @@ function renderStats(m) {
 // ── Holdings table (live) ─────────────────────────────────────────────────────
 
 function renderTable(allocation) {
-  const hasCost = allocation.some(a => a.cost_basis != null);
-
-  const fmtChg = c => {
-    if (c == null) return '—';
-    return `<span class="${c >= 0 ? 'pos' : 'neg'}">${c >= 0 ? '+' : ''}${c.toFixed(2)}%</span>`;
-  };
-  const fmtPnl = (v, pct) => {
-    if (v == null) return '—';
-    const s = v >= 0 ? '+' : '';
-    return `<span class="${v >= 0 ? 'pos' : 'neg'}">${s}$${Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2})} (${s}${pct.toFixed(1)}%)</span>`;
-  };
   const fmtV = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
   const tableEl = document.getElementById('holdingsTable');
-  tableEl.innerHTML = `
-    <table class="port-table">
-      <thead>
-        <tr>
-          <th>Ticker</th><th>Shares</th>
-          ${hasCost ? '<th>Avg Cost</th>' : ''}
-          <th>Price</th><th>Today</th><th>Value</th>
-          ${hasCost ? '<th>Cost Basis</th><th>Unrealized P&L</th>' : ''}
-          <th>Weight</th><th>Sector</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        ${allocation.map(a => `
-          <tr>
-            <td class="col-ticker"><a href="/stock/${a.ticker}">${a.ticker}</a></td>
-            <td>${a.shares}</td>
-            ${hasCost ? `<td>${a.buyin != null ? '$' + a.buyin.toFixed(2) : '—'}</td>` : ''}
-            <td>$${a.price.toFixed(2)}</td>
-            <td>${fmtChg(a.change_pct)}</td>
-            <td>${fmtV(a.value)}</td>
-            ${hasCost ? `<td>${a.cost_basis != null ? fmtV(a.cost_basis) : '—'}</td><td>${fmtPnl(a.unrealized_pnl, a.unrealized_pnl_pct)}</td>` : ''}
-            <td>${a.pct.toFixed(1)}%</td>
-            <td style="color:var(--text3)">${a.sector !== 'Unknown' ? a.sector : '—'}</td>
-            <td><button class="port-pill-rm" data-ticker="${a.ticker}" title="Remove">×</button></td>
-          </tr>`).join('')}
-      </tbody>
-    </table>`;
+
+  if (!allocation.length) {
+    tableEl.innerHTML = '<div class="port-empty">No holdings yet — click + to add one</div>';
+    return;
+  }
+
+  tableEl.innerHTML = allocation.map(a => {
+    const dayClass = a.return_pct >= 0 ? 'pos' : 'neg';
+    const daySign  = a.return_pct >= 0 ? '+' : '';
+    const pnlClass = a.unrealized_pnl != null ? (a.unrealized_pnl >= 0 ? 'pos' : 'neg') : '';
+    const pnlSign  = a.unrealized_pnl != null && a.unrealized_pnl >= 0 ? '+' : '';
+    return `
+      <div class="port-row">
+        <div class="port-row-left">
+          <a class="port-row-ticker" href="/stock/${a.ticker}">${a.ticker}</a>
+          <div class="port-row-meta">
+            <span>${a.shares} sh</span>
+            ${a.buyin != null ? `<span class="port-row-dot">·</span><span>@ $${a.buyin.toFixed(2)}</span>` : ''}
+            <span class="port-row-dot">·</span><span>${a.pct.toFixed(1)}%</span>
+          </div>
+        </div>
+        <div class="port-row-right">
+          <div class="port-row-value">${fmtV(a.value)}</div>
+          <div class="port-row-chg ${pnlClass || dayClass}">
+            ${a.unrealized_pnl != null
+              ? `${pnlSign}$${Math.abs(a.unrealized_pnl).toLocaleString('en-US',{maximumFractionDigits:0})} (${pnlSign}${a.unrealized_pnl_pct.toFixed(1)}%)`
+              : `${daySign}${a.return_pct.toFixed(2)}% today`}
+          </div>
+        </div>
+        <button class="port-row-rm" data-ticker="${a.ticker}" title="Remove">×</button>
+      </div>`;
+  }).join('');
+
   tableEl.querySelectorAll('button[data-ticker]').forEach(btn => {
     btn.addEventListener('click', () => removeHolding(btn.dataset.ticker));
   });
@@ -537,11 +551,16 @@ function renderAnalysis(data) {
 
 function renderAllocTable(allocation) {
   const el = document.getElementById('allocTable');
-  el.innerHTML = allocation.map((a, i) => `
-    <div class="port-alloc-row">
-      <div class="port-alloc-dot" style="background:${COLORS[i % COLORS.length]}"></div>
-      <span class="port-alloc-ticker">${a.ticker}</span>
-      <span class="port-alloc-pct">${a.pct.toFixed(1)}%</span>
+  const sorted = [...allocation].sort((a, b) => b.pct - a.pct);
+  el.innerHTML = sorted.map((a, i) => `
+    <div class="alloc-bar">
+      <div class="alloc-label">
+        <strong>${a.ticker}</strong>
+        <span>${a.pct.toFixed(1)}%</span>
+      </div>
+      <div class="alloc-track">
+        <div class="alloc-fill" style="width:${a.pct}%;background:${COLORS[i % COLORS.length]}"></div>
+      </div>
     </div>`).join('');
 }
 

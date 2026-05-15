@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Portfolio · Stockdash</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="stylesheet" href="/static/portfolio.css" />
+  <link rel="stylesheet" href="/static/portfolio.css?v=2" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -13,14 +13,19 @@
 </head>
 <body>
 
-<nav class="db-nav">
-  <a class="db-brand" href="/">◈ STOCKDASH</a>
-  <div class="db-nav-right">
-    <button id="tourHelpBtn" class="tour-help-btn" title="Start guided tour">?</button>
-    <a href="/" class="btn btn-secondary sm">AI Research</a>
-    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
-    <span class="btn btn-secondary sm db-nav-current">Portfolio</span>
-    <a href="/journal" class="btn btn-secondary sm">Journal</a>
+<header class="ch-nav">
+  <a class="ch-brand-link" href="/">
+    <span class="ch-brand-mark">◈</span>
+    <span class="ch-brand-text">stockdash</span>
+  </a>
+  <nav class="ch-nav-pills">
+    <a href="/" class="ch-nav-pill">AI Research</a>
+    <a href="/dashboard" class="ch-nav-pill">Dashboard</a>
+    <a href="/portfolio" class="ch-nav-pill is-active">Portfolio</a>
+    <a href="/journal" class="ch-nav-pill">Journal</a>
+  </nav>
+  <div class="ch-nav-right">
+    <button id="tourHelpBtn" class="ch-icon-btn" title="Start guided tour" aria-label="Help">?</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">
         <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
@@ -33,96 +38,126 @@
       </div>
     {% endif %}
   </div>
-</nav>
+</header>
 
-<div class="port-layout">
+<main class="port-page">
 
-  <!-- ① Performance chart -->
-  <div class="port-perf-card">
-    <div class="port-perf-header">
-      <div class="port-perf-meta">
-        <div class="port-perf-value" id="portTotalValue">—</div>
-        <div class="port-perf-chg"   id="portPeriodChg"></div>
+  <!-- ── HERO: total value + stat tiles ── -->
+  <section class="port-hero">
+    <div class="port-hero-main">
+      <div class="port-hero-label">Total Portfolio Value</div>
+      <div class="port-hero-value" id="portTotalValue">—</div>
+      <div class="port-hero-chg" id="portPeriodChg"></div>
+    </div>
+    <div class="port-hero-stats" id="portStats">
+      <div class="port-stat-tile" data-tile="pnl">
+        <div class="port-stat-tile-label">Unrealized P&L</div>
+        <div class="port-stat-tile-value">—</div>
+        <div class="port-stat-tile-sub"></div>
       </div>
-      <div class="port-period-btns" id="portPeriodBtns">
-        <button class="port-period-btn"        data-period="1d">1D</button>
-        <button class="port-period-btn"        data-period="5d">5D</button>
-        <button class="port-period-btn"        data-period="1mo">1M</button>
-        <button class="port-period-btn active" data-period="3mo">3M</button>
-        <button class="port-period-btn"        data-period="6mo">6M</button>
-        <button class="port-period-btn"        data-period="1y">1Y</button>
+      <div class="port-stat-tile" data-tile="positions">
+        <div class="port-stat-tile-label">Positions</div>
+        <div class="port-stat-tile-value">0</div>
+        <div class="port-stat-tile-sub">stocks tracked</div>
+      </div>
+      <div class="port-stat-tile" data-tile="top">
+        <div class="port-stat-tile-label">Largest Position</div>
+        <div class="port-stat-tile-value">—</div>
+        <div class="port-stat-tile-sub"></div>
+      </div>
+      <div class="port-stat-tile" data-tile="best">
+        <div class="port-stat-tile-label">Best Performer</div>
+        <div class="port-stat-tile-value">—</div>
+        <div class="port-stat-tile-sub"></div>
       </div>
     </div>
-    <div class="port-chart-area">
-      <canvas id="lineChart"></canvas>
-      <div class="port-chart-empty" id="portChartEmpty">Add holdings below to track your portfolio</div>
-    </div>
-  </div>
+  </section>
 
-  <!-- ② Stats -->
-  <div class="port-stats-row" id="portStats" style="display:none"></div>
+  <!-- ── MAIN: chart left, holdings right ── -->
+  <section class="port-grid">
 
-  <!-- ③ Holdings card -->
-  <div class="port-holdings-card">
-    <div class="port-holdings-hdr">
-      <div class="port-holdings-left">
-        <span class="port-holdings-title">Holdings</span>
-        <span class="port-price-stamp" id="priceStamp"></span>
-      </div>
-      <div class="port-holdings-btns">
-        <button class="btn btn-secondary sm" id="addToggleBtn" onclick="toggleAddForm()">+ Add</button>
-        <button class="btn btn-secondary sm" onclick="document.getElementById('importFile').click()">↑ Import</button>
-        <input type="file" id="importFile" accept=".csv,.json" style="display:none" />
-      </div>
-    </div>
-
-    <!-- Collapsible add form -->
-    <div class="port-add-form" id="portAddForm" style="display:none">
-      <div class="port-add-row">
-        <div class="port-ticker-wrap">
-          <input class="port-input port-ticker-input" id="tickerInput"
-                 placeholder="Ticker (e.g. AAPL)" autocomplete="off" />
-          <div class="search-dropdown" id="tickerDropdown"></div>
+    <!-- Chart panel -->
+    <div class="port-panel port-chart-panel">
+      <div class="port-panel-hdr">
+        <span class="port-panel-title">Performance</span>
+        <div class="port-period-btns" id="portPeriodBtns">
+          <button class="port-period-btn"        data-period="1d">1D</button>
+          <button class="port-period-btn"        data-period="5d">5D</button>
+          <button class="port-period-btn"        data-period="1mo">1M</button>
+          <button class="port-period-btn active" data-period="3mo">3M</button>
+          <button class="port-period-btn"        data-period="6mo">6M</button>
+          <button class="port-period-btn"        data-period="1y">1Y</button>
         </div>
-        <input class="port-input port-shares-input" id="sharesInput"
-               type="number" placeholder="Shares" min="0.001" step="any" />
-        <input class="port-input port-buyin-input" id="buyinInput"
-               type="number" placeholder="Avg cost" min="0" step="any" />
-        <button class="btn btn-primary sm" onclick="addHolding()">Add</button>
       </div>
-      <div id="importMsg" style="font-size:12px;margin-top:4px;display:none"></div>
+      <div class="port-chart-area">
+        <canvas id="lineChart"></canvas>
+        <div class="port-chart-empty" id="portChartEmpty">Add holdings to track performance</div>
+      </div>
     </div>
 
-    <div id="holdingsTable"></div>
-  </div>
+    <!-- Holdings panel -->
+    <div class="port-panel port-holdings-panel">
+      <div class="port-panel-hdr">
+        <div class="port-panel-hdr-left">
+          <span class="port-panel-title">Holdings</span>
+          <span class="port-price-stamp" id="priceStamp"></span>
+        </div>
+        <div class="port-panel-hdr-btns">
+          <button class="port-icon-btn" id="addToggleBtn" onclick="toggleAddForm()" title="Add holding">+</button>
+          <button class="port-icon-btn" onclick="document.getElementById('importFile').click()" title="Import CSV">↑</button>
+          <input type="file" id="importFile" accept=".csv,.json" style="display:none" />
+        </div>
+      </div>
 
-  <!-- ④ AI analysis -->
-  <div class="port-ai-row" id="portAiRow" style="display:none">
+      <!-- Collapsible add form -->
+      <div class="port-add-form" id="portAddForm" style="display:none">
+        <div class="port-add-row">
+          <div class="port-ticker-wrap">
+            <input class="port-input port-ticker-input" id="tickerInput"
+                   placeholder="Ticker" autocomplete="off" />
+            <div class="search-dropdown" id="tickerDropdown"></div>
+          </div>
+          <input class="port-input port-shares-input" id="sharesInput"
+                 type="number" placeholder="Shares" min="0.001" step="any" />
+          <input class="port-input port-buyin-input" id="buyinInput"
+                 type="number" placeholder="Cost" min="0" step="any" />
+          <button class="btn btn-primary sm" onclick="addHolding()">Add</button>
+        </div>
+        <div id="importMsg" style="font-size:12px;margin-top:6px;display:none"></div>
+      </div>
+
+      <div id="holdingsTable" class="port-holdings-list"></div>
+    </div>
+  </section>
+
+  <!-- ── AI ANALYSIS action row ── -->
+  <section class="port-ai-row" id="portAiRow" style="display:none">
     <button class="btn btn-primary" id="analyzeBtn" onclick="analyzePortfolio(false)">
-      ✦ AI Portfolio Analysis →
+      ✦ AI Portfolio Analysis
     </button>
-    <button class="btn btn-secondary" id="analyzeDeepBtn" onclick="analyzePortfolio(true)" title="Includes full deep-dive per stock — slower">
+    <button class="btn btn-secondary" id="analyzeDeepBtn" onclick="analyzePortfolio(true)" title="Deep-dive per stock — slower">
       Deep Analysis
     </button>
-  </div>
+  </section>
 
-  <div id="portAnalysis" style="display:none">
-    <div class="port-card">
-      <div class="port-analysis-top">
+  <!-- ── AI ANALYSIS results ── -->
+  <section id="portAnalysis" style="display:none">
+    <div class="port-panel">
+      <div class="port-analysis-grid">
         <div class="port-alloc-col">
-          <div class="port-card-label">Allocation</div>
+          <div class="port-panel-title">Allocation</div>
           <div id="allocTable"></div>
         </div>
         <div class="port-verdict-col">
-          <div class="port-card-label">AI Verdict</div>
+          <div class="port-panel-title">AI Verdict</div>
           <div class="port-analysis-body" id="analysisBody"></div>
         </div>
       </div>
     </div>
     <div id="stockAnalyses"></div>
-  </div>
+  </section>
 
-</div>
+</main>
 
 <div class="port-loading" id="portLoading" style="display:none">
   <div class="port-spinner"></div>
@@ -136,7 +171,7 @@
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="/static/portfolio.js"></script>
+<script src="/static/portfolio.js?v=2"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=3"></script>
 </body>
