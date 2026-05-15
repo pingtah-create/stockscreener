@@ -193,7 +193,10 @@ _prices_refreshed_at: datetime | None = None
 
 
 def _refresh_live_prices():
-    """Fast bulk price refresh via yf.download() — single HTTP call for all tickers."""
+    """Fast bulk price refresh via yf.download() — single HTTP call for all tickers.
+    Runs INLINE in the request thread (Vercel kills background threads), so a 5-min
+    throttle keeps most requests cheap. yf.download has built-in retry; we wrap it
+    in a try/except so a slow Yahoo response can't break a request."""
     global _stock_cache, _prices_refreshed_at
     if not _stock_cache:
         return
@@ -242,13 +245,18 @@ def _refresh_live_prices():
 
 
 def _ensure_stocks_loaded():
+    """Load seed + per-ticker cache on first hit, then refresh live prices.
+
+    On Vercel (serverless) background threads are killed when the request
+    returns, so the price refresh runs INLINE. The 5-min throttle inside
+    `_refresh_live_prices` makes most requests cheap (instant no-op).
+    """
     global _stock_cache
     if not _stock_cache:
         with _stock_cache_lock:
-            if not _stock_cache:  # double-checked — only one thread loads
+            if not _stock_cache:
                 _stock_cache = _load_all_from_cache()
-    # Always keep live prices warm — background thread is a no-op if throttle hasn't expired
-    threading.Thread(target=_refresh_live_prices, daemon=True).start()
+    _refresh_live_prices()
 
 
 @app.route("/login", methods=["GET", "POST"])
