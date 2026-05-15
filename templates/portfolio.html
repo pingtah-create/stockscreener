@@ -6,12 +6,17 @@
   <title>Portfolio · Stockdash</title>
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/portfolio.css" />
+  <link rel="stylesheet" href="/static/legal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
+  <link rel="stylesheet" href="/static/onboarding.css?v=2" />
+  {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
 <body>
 
 <nav class="db-nav">
   <a class="db-brand" href="/">◈ STOCKDASH</a>
   <div class="db-nav-right">
+    <button id="tourHelpBtn" class="tour-help-btn" title="Start guided tour">?</button>
     <a href="/" class="btn btn-secondary sm">AI Research</a>
     <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
     <span class="btn btn-secondary sm db-nav-current">Portfolio</span>
@@ -117,8 +122,15 @@
   <span>Running AI analysis…</span>
 </div>
 
+<div class="disclaimer-badge">
+  <span class="data-delay" title="US quotes via Yahoo Finance are delayed at least 15 min">⏱ Data delayed 15m</span>
+  Not advice · <a href="/disclaimer">Disclaimer</a> · <a href="/about">About</a>
+</div>
+
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <script src="/static/portfolio.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
+<script src="/static/onboarding.js?v=3"></script>
 </body>
 </html>

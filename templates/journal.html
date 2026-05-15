@@ -6,6 +6,8 @@
   <title>Journal · Stockdash</title>
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/journal.css" />
+  <link rel="stylesheet" href="/static/legal.css" />
+  {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
 <body>
 
@@ -145,6 +147,11 @@
       <button class="btn btn-primary" id="jnlSaveBtn" onclick="saveEntry()">Save</button>
     </div>
   </div>
+</div>
+
+<div class="disclaimer-badge">
+  <span class="data-delay" title="US quotes via Yahoo Finance are delayed at least 15 min">⏱ Data delayed 15m</span>
+  Not advice · <a href="/disclaimer">Disclaimer</a> · <a href="/about">About</a>
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>

@@ -6,6 +6,7 @@
   <title>{{ 'Sign in' if mode == 'login' else 'Create account' }} · Stockdash</title>
   <link rel="stylesheet" href="/static/style.css" />
   <link rel="stylesheet" href="/static/login.css" />
+  {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
 <body class="auth-body">
 
@@ -49,6 +50,10 @@
       <input class="auth-input" id="confirm" name="confirm" type="password"
              autocomplete="new-password" required minlength="6" />
 
+      <label class="auth-label" for="email">Email <span style="color:var(--text3);font-weight:400">(optional · for price alerts)</span></label>
+      <input class="auth-input" id="email" name="email" type="email"
+             autocomplete="email" placeholder="you@example.com" />
+
       {% if signup_code_required %}
       <label class="auth-label" for="invite_code">Invite code</label>
       <input class="auth-input" id="invite_code" name="invite_code" type="text"
@@ -67,6 +72,10 @@
     {% else %}
       Already have an account? <a href="/login">Sign in</a>
     {% endif %}
+  </div>
+  <div class="login-legal">
+    <a href="/about">About</a> · <a href="/disclaimer">Disclaimer</a>
+    <div class="login-legal-fine">Research only. Not investment advice. Data delayed 15+ minutes.</div>
   </div>
 </div>
 

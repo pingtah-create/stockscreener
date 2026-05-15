@@ -115,3 +115,18 @@
 }
 .auth-foot a { color: var(--accent); text-decoration: none; }
 .auth-foot a:hover { text-decoration: underline; }
+
+.login-legal {
+  margin-top: 22px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text3, #666);
+  letter-spacing: 0.03em;
+}
+.login-legal a { color: var(--text3, #888); text-decoration: none; }
+.login-legal a:hover { color: var(--accent); }
+.login-legal-fine {
+  margin-top: 6px;
+  font-size: 10px;
+  color: #555;
+}

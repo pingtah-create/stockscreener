@@ -25,7 +25,10 @@ auth.init_app(app)
 
 @app.context_processor
 def _inject_user():
-    return {"current_user": auth.current_user()}
+    return {
+        "current_user": auth.current_user(),
+        "plausible_domain": _os_top.environ.get("PLAUSIBLE_DOMAIN", ""),
+    }
 
 _stock_cache: list[dict] = []
 _tickers: list[str] = []
@@ -280,10 +283,11 @@ def signup_page():
         password    = request.form.get("password")    or ""
         confirm     = request.form.get("confirm")     or ""
         invite_code = request.form.get("invite_code") or ""
+        email       = (request.form.get("email")      or "").strip()
         if password != confirm:
             error = "Passwords do not match."
         else:
-            ok, msg = auth.create_user(username, password, invite_code)
+            ok, msg = auth.create_user(username, password, invite_code, email=email)
             if ok:
                 auth.login_session(username)
                 return redirect(url_for("index"))
@@ -309,6 +313,16 @@ def index():
 @auth.require_login
 def dashboard():
     return render_template("dashboard.html")
+
+
+@app.route("/about")
+def about():
+    return render_template("about.html")
+
+
+@app.route("/disclaimer")
+def disclaimer():
+    return render_template("disclaimer.html")
 
 
 @app.route("/api/status")
@@ -1283,6 +1297,212 @@ def api_watchlist_save():
         return jsonify({"error": "expected list"}), 400
     _sb_save(user, watchlist=watchlist)
     return jsonify({"ok": True})
+
+
+# ── Account email (needed for alert delivery) ────────────────────
+@app.route("/api/account/email", methods=["GET", "POST"])
+@auth.require_login_api
+def api_account_email():
+    user = auth.current_user()
+    if request.method == "GET":
+        return jsonify({"email": auth.get_user_email(user) or ""})
+    email = (request.json or {}).get("email", "")
+    ok = auth.set_user_email(user, email)
+    if not ok:
+        return jsonify({"error": "invalid email"}), 400
+    return jsonify({"ok": True})
+
+
+# ── Price alerts (Supabase-backed) ──────────────────────────────
+@app.route("/api/alerts", methods=["GET"])
+@auth.require_login_api
+def api_alerts_get():
+    """Return this user's saved alerts. Falls back to empty list."""
+    user = auth.current_user()
+    data = _sb_load(user, "alerts")
+    return jsonify(data or [])
+
+
+@app.route("/api/alerts", methods=["POST"])
+@auth.require_login_api
+def api_alerts_save():
+    """Replace the user's alert list. Body: list of
+    {id, ticker, direction:'above'|'below', target:float, created_at?}."""
+    user = auth.current_user()
+    alerts = request.json
+    if not isinstance(alerts, list):
+        return jsonify({"error": "expected list"}), 400
+    # Validate + normalise
+    clean = []
+    seen_ids = set()
+    for a in alerts[:50]:  # cap at 50 per user
+        if not isinstance(a, dict):
+            continue
+        t = _clean_ticker(a.get("ticker"))
+        try:
+            tgt = float(a.get("target"))
+        except Exception:
+            continue
+        d = (a.get("direction") or "").lower()
+        if not t or d not in ("above", "below") or tgt <= 0:
+            continue
+        aid = str(a.get("id") or f"{t}-{d}-{tgt}")
+        if aid in seen_ids:
+            continue
+        seen_ids.add(aid)
+        clean.append({
+            "id": aid,
+            "ticker": t,
+            "direction": d,
+            "target": tgt,
+            "created_at": a.get("created_at") or datetime.now(timezone.utc).isoformat(),
+            "triggered_at": a.get("triggered_at"),
+        })
+    _sb_save(user, alerts=clean)
+    return jsonify({"ok": True, "count": len(clean)})
+
+
+def _resend_send(to_email: str, subject: str, html_body: str) -> bool:
+    """Send transactional email via Resend. Returns True on 2xx."""
+    api_key = _os_top.environ.get("RESEND_API_KEY", "")
+    from_addr = _os_top.environ.get("RESEND_FROM", "alerts@stockdash.app")
+    if not api_key or not to_email:
+        return False
+    import requests as _req
+    try:
+        r = _req.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {api_key}",
+                     "Content-Type": "application/json"},
+            json={"from": from_addr, "to": [to_email],
+                  "subject": subject, "html": html_body},
+            timeout=8,
+        )
+        return r.status_code < 300
+    except Exception:
+        return False
+
+
+def _check_user_alerts(email: str, alerts: list, quote_cache: dict) -> tuple[list, int]:
+    """Return (updated_alerts_list, emails_sent). Removes triggered one-shot alerts."""
+    if not alerts:
+        return [], 0
+
+    sent = 0
+    out = []
+    for a in alerts:
+        t = a.get("ticker")
+        if not t:
+            continue
+        if t not in quote_cache:
+            try:
+                tk = yf.Ticker(t)
+                fi = getattr(tk, "fast_info", None)
+                price = (getattr(fi, "last_price", None) if fi else None) or \
+                        tk.info.get("currentPrice") or tk.info.get("regularMarketPrice")
+                quote_cache[t] = float(price) if price else None
+            except Exception:
+                quote_cache[t] = None
+        price = quote_cache.get(t)
+        if price is None:
+            out.append(a)
+            continue
+
+        direction = a.get("direction")
+        target    = float(a.get("target") or 0)
+        triggered = (direction == "above" and price >= target) or \
+                    (direction == "below" and price <= target)
+
+        if triggered and not a.get("triggered_at"):
+            arrow = "▲" if direction == "above" else "▼"
+            subject = f"{arrow} {t} hit ${price:.2f} (target ${target:.2f}) · Stockdash"
+            html = f"""
+            <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:480px;padding:24px;color:#111">
+              <h2 style="margin:0 0 8px;font-size:20px">{arrow} {t} {'above' if direction=='above' else 'below'} ${target:.2f}</h2>
+              <p style="margin:0 0 12px;font-size:14px;color:#555">
+                Current price: <strong style="color:#000">${price:.2f}</strong>
+              </p>
+              <p style="margin:0 0 16px;font-size:13px;color:#666">
+                Alert triggered at {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}.
+              </p>
+              <a href="https://stockdash.app/stock/{t}" style="display:inline-block;background:#4f8cff;color:#fff;padding:10px 18px;border-radius:6px;text-decoration:none;font-size:13px;font-weight:600">View {t} →</a>
+              <p style="margin:24px 0 0;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px">
+                Stockdash · Not financial advice · <a href="https://stockdash.app/disclaimer" style="color:#999">Disclaimer</a>
+              </p>
+            </div>
+            """
+            if _resend_send(email, subject, html):
+                sent += 1
+                # one-shot: drop the alert after firing
+                continue
+            else:
+                # delivery failed — mark triggered so we don't spam, but keep it visible
+                a["triggered_at"] = datetime.now(timezone.utc).isoformat()
+                out.append(a)
+        else:
+            out.append(a)
+    return out, sent
+
+
+@app.route("/api/cron/alerts", methods=["GET", "POST"])
+def api_cron_alerts():
+    """Endpoint hit by Vercel cron every 15 min. Iterates all users with
+    alerts, fetches live prices, fires emails for triggered ones, and
+    removes them. Protected by X-Cron-Secret header (CRON_SECRET env var)."""
+    expected = _os_top.environ.get("CRON_SECRET", "")
+    provided = request.headers.get("X-Cron-Secret", "") or request.args.get("secret", "")
+    if expected and provided != expected:
+        return jsonify({"error": "unauthorized"}), 401
+
+    if not _SB_URL or not _SB_KEY:
+        return jsonify({"error": "supabase not configured"}), 503
+
+    import requests as _req
+    try:
+        # Fetch every row that has a non-null alerts column
+        r = _req.get(
+            f"{_SB_URL}/rest/v1/portfolios",
+            headers={**_sb_headers(), "Accept": "application/json"},
+            params={"select": "username,alerts", "alerts": "not.is.null"},
+            timeout=10,
+        )
+        rows = r.json() if r.status_code < 300 else []
+    except Exception as e:
+        return jsonify({"error": f"sb fetch: {e}"}), 500
+
+    # Pull each user's email from users table
+    user_emails: dict = {}
+    try:
+        r2 = _req.get(
+            f"{_SB_URL}/rest/v1/users",
+            headers={**_sb_headers(), "Accept": "application/json"},
+            params={"select": "username,email"},
+            timeout=10,
+        )
+        if r2.status_code < 300:
+            for u in r2.json():
+                if u.get("email"):
+                    user_emails[u["username"]] = u["email"]
+    except Exception:
+        pass
+
+    total_sent = 0
+    quote_cache: dict = {}
+    for row in rows:
+        user   = row.get("username")
+        alerts = row.get("alerts") or []
+        email  = user_emails.get(user, "")
+        if not alerts:
+            continue
+        if not email:
+            # Still tick through — but we can't email, so we won't drop anything.
+            continue
+        new_alerts, sent = _check_user_alerts(email, alerts, quote_cache)
+        total_sent += sent
+        if new_alerts != alerts:
+            _sb_save(user, alerts=new_alerts)
+
+    return jsonify({"ok": True, "users_checked": len(rows), "emails_sent": total_sent})
 
 
 @app.route("/api/portfolio/summary", methods=["GET", "POST"])

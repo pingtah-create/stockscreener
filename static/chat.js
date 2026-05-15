@@ -555,7 +555,7 @@ const SKILL_LABELS = {
 let _activeSkill = null;
 
 function _skillDropdownOpen(q) {
-  const dd = document.getElementById('chSkillDropdown');
+  let dd = document.getElementById('chSkillDropdown');
   if (!dd) return;
   if (!q) { dd.classList.remove('open'); return; }
   const found = _skillUniverse.filter(s =>
@@ -563,6 +563,23 @@ function _skillDropdownOpen(q) {
     (s.shortName || '').toUpperCase().includes(q)
   ).slice(0, 8);
   if (!found.length) { dd.classList.remove('open'); return; }
+
+  // Move dropdown to body to escape any overflow/stacking context
+  if (dd.parentElement !== document.body) {
+    document.body.appendChild(dd);
+    dd = document.getElementById('chSkillDropdown');
+  }
+  const inp = document.getElementById('chSkillTickerInput');
+  if (inp) {
+    const r = inp.getBoundingClientRect();
+    dd.style.position = 'fixed';
+    dd.style.top  = (r.bottom + 4) + 'px';
+    dd.style.left = r.left + 'px';
+    dd.style.width = 'max-content';
+    dd.style.minWidth = '220px';
+    dd.style.zIndex = '9999';
+  }
+
   dd.innerHTML = found.map(s => `
     <div class="search-result-item" data-symbol="${s.symbol}">
       <span class="search-ticker">${s.symbol}</span>

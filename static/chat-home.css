@@ -633,6 +633,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-skill-ticker-wrap .search-dropdown {
   min-width: 220px;
   width: max-content;
+  z-index: 1000;
 }
 .ch-skill-ticker-wrap .search-result-item {
   padding: 5px 10px;

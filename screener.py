@@ -370,19 +370,30 @@ def compute_scores(stock: dict) -> dict:
         if v is None: return 0.0
         return max(0.0, min(1.0, (hi - v) / (hi - lo) if hi != lo else 0.0))
 
-    pe   = stock.get("trailingPE")
-    pb   = stock.get("priceToBook")
-    ev   = stock.get("enterpriseToEbitda")
-    roe  = stock.get("returnOnEquity")
-    de   = stock.get("debtToEquity")
-    opm  = stock.get("operatingMargins")
-    rg   = stock.get("revenueGrowth")
-    eg   = stock.get("earningsGrowth")
-    peg  = stock.get("pegRatio")
-    dy   = stock.get("dividendYield")
-    chg  = stock.get("regularMarketChangePercent")
-    pr   = stock.get("payoutRatio")
-    cr   = stock.get("currentRatio")
+    def _f(v):
+        """Coerce to float — yfinance occasionally returns strings like 'Infinity'."""
+        if v is None or isinstance(v, bool):
+            return None
+        if isinstance(v, (int, float)):
+            return float(v)
+        try:
+            return float(v)
+        except (TypeError, ValueError):
+            return None
+
+    pe   = _f(stock.get("trailingPE"))
+    pb   = _f(stock.get("priceToBook"))
+    ev   = _f(stock.get("enterpriseToEbitda"))
+    roe  = _f(stock.get("returnOnEquity"))
+    de   = _f(stock.get("debtToEquity"))
+    opm  = _f(stock.get("operatingMargins"))
+    rg   = _f(stock.get("revenueGrowth"))
+    eg   = _f(stock.get("earningsGrowth"))
+    peg  = _f(stock.get("pegRatio"))
+    dy   = _f(stock.get("dividendYield"))
+    chg  = _f(stock.get("regularMarketChangePercent"))
+    pr   = _f(stock.get("payoutRatio"))
+    cr   = _f(stock.get("currentRatio"))
     a50  = stock.get("above50dma")
     a200 = stock.get("above200dma")
 

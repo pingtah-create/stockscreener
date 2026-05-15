@@ -497,38 +497,45 @@ def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
 
 def _groq_stream(api_key: str, messages: list, temperature: float = 0.5,
                  max_tokens: int = 3000):
-    """Yields text chunks from a streaming Groq completion. Retries on 429."""
+    """Yields text chunks from a streaming Groq completion. Falls back to 8B on daily limit."""
     import requests as _req, time as _time, json as _json
-    for attempt in range(5):
-        r = _req.post(
-            f"{_GROQ_BASE_URL}/chat/completions",
-            headers={"Authorization": f"Bearer {api_key}"},
-            json={"model": _GROQ_CHAT_MODEL, "messages": messages,
-                  "temperature": temperature, "max_tokens": max_tokens,
-                  "stream": True},
-            stream=True, timeout=60,
-        )
-        if r.status_code == 429:
-            wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
-            _time.sleep(wait)
-            continue
-        r.raise_for_status()
-        for line in r.iter_lines():
-            if not line:
+    models = [_GROQ_CHAT_MODEL, _GROQ_FALLBACK_MODEL]
+    for model in models:
+        for attempt in range(5):
+            r = _req.post(
+                f"{_GROQ_BASE_URL}/chat/completions",
+                headers={"Authorization": f"Bearer {api_key}"},
+                json={"model": model, "messages": messages,
+                      "temperature": temperature, "max_tokens": max_tokens,
+                      "stream": True},
+                stream=True, timeout=60,
+            )
+            if r.status_code == 429:
+                err = {}
+                try: err = r.json().get("error", {})
+                except Exception: pass
+                if "tokens per day" in err.get("message", ""):
+                    break  # try fallback model
+                wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
+                _time.sleep(wait)
                 continue
-            line = line.decode() if isinstance(line, bytes) else line
-            if not line.startswith("data: "):
-                continue
-            payload = line[6:]
-            if payload == "[DONE]":
-                return
-            try:
-                text = _json.loads(payload)["choices"][0]["delta"].get("content", "")
-                if text:
-                    yield text
-            except Exception:
-                pass
-        return
+            r.raise_for_status()
+            for line in r.iter_lines():
+                if not line:
+                    continue
+                line = line.decode() if isinstance(line, bytes) else line
+                if not line.startswith("data: "):
+                    continue
+                payload = line[6:]
+                if payload == "[DONE]":
+                    return
+                try:
+                    text = _json.loads(payload)["choices"][0]["delta"].get("content", "")
+                    if text:
+                        yield text
+                except Exception:
+                    pass
+            return
     r.raise_for_status()
 
 

@@ -56,7 +56,7 @@ def _sb_get_user(username: str) -> dict | None:
         r = _req.get(
             f"{_SB_URL}/rest/v1/users",
             headers={**_sb_auth_headers(), "Accept": "application/json"},
-            params={"username": f"eq.{username}", "select": "username,password_hash"},
+            params={"username": f"eq.{username}", "select": "username,password_hash,email"},
             timeout=5,
         )
         data = r.json()
@@ -67,23 +67,65 @@ def _sb_get_user(username: str) -> dict | None:
     return None
 
 
-def _sb_create_user(username: str, password_hash: str) -> bool:
+def _sb_create_user(username: str, password_hash: str, email: str = "") -> bool:
     if not _sb_available():
         return False
     try:
+        body = {
+            "username": username,
+            "password_hash": password_hash,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }
+        if email:
+            body["email"] = email
         r = _req.post(
             f"{_SB_URL}/rest/v1/users",
             headers={**_sb_auth_headers(), "Prefer": "return=minimal"},
-            json={
-                "username": username,
-                "password_hash": password_hash,
-                "created_at": datetime.utcnow().isoformat() + "Z",
-            },
+            json=body,
             timeout=5,
         )
         return r.status_code in (200, 201)
     except Exception:
         return False
+
+
+def _sb_update_email(username: str, email: str) -> bool:
+    if not _sb_available():
+        return False
+    try:
+        r = _req.patch(
+            f"{_SB_URL}/rest/v1/users",
+            headers={**_sb_auth_headers(), "Prefer": "return=minimal"},
+            params={"username": f"eq.{username}"},
+            json={"email": email},
+            timeout=5,
+        )
+        return r.status_code < 300
+    except Exception:
+        return False
+
+
+def get_user_email(username: str) -> str:
+    if _sb_available():
+        rec = _sb_get_user(username) or {}
+        return rec.get("email") or ""
+    users = _load()
+    return (users.get(username) or {}).get("email", "")
+
+
+def set_user_email(username: str, email: str) -> bool:
+    email = (email or "").strip()
+    # Basic shape check
+    if email and ("@" not in email or "." not in email.split("@", 1)[-1]):
+        return False
+    if _sb_available():
+        return _sb_update_email(username, email)
+    users = _load()
+    if username in users:
+        users[username]["email"] = email
+        _save(users)
+        return True
+    return False
 
 
 def _sb_username_taken(username: str) -> bool:
@@ -152,12 +194,16 @@ def user_count() -> int:
     return len(_load()) + len(_ENV_USERS)
 
 
-def create_user(username: str, password: str, invite_code: str = "") -> tuple[bool, str]:
+def create_user(username: str, password: str, invite_code: str = "",
+                email: str = "") -> tuple[bool, str]:
     username = (username or "").strip().lower()
+    email    = (email or "").strip()
     if not USERNAME_RE.match(username):
         return False, "Username must be 3–32 chars, letters/numbers/._- only."
     if not password or len(password) < MIN_PASSWORD_LEN:
         return False, f"Password must be at least {MIN_PASSWORD_LEN} characters."
+    if email and ("@" not in email or "." not in email.split("@", 1)[-1]):
+        return False, "Email looks invalid."
 
     # Invite code check
     code = _signup_code()
@@ -170,7 +216,7 @@ def create_user(username: str, password: str, invite_code: str = "") -> tuple[bo
     if _sb_available():
         if _sb_username_taken(username):
             return False, "Username already taken."
-        ok = _sb_create_user(username, password_hash)
+        ok = _sb_create_user(username, password_hash, email)
         if not ok:
             return False, "Could not create account — please try again."
         return True, "Account created."
@@ -181,7 +227,8 @@ def create_user(username: str, password: str, invite_code: str = "") -> tuple[bo
         return False, "Username already taken."
     users[username] = {
         "password_hash": password_hash,
-        "created_at": datetime.utcnow().isoformat() + "Z",
+        "email":         email,
+        "created_at":    datetime.utcnow().isoformat() + "Z",
     }
     _save(users)
     return True, "Account created."

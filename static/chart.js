@@ -105,6 +105,8 @@ window.addEventListener('DOMContentLoaded', () => {
   setupPeriodBtns();
   setupDrawingCanvas();
   setupPriceAlerts();
+  setupTradeButton();
+  loadAlertsFromServer();
   updateWatchStarUI();
   setupCompare();
   loadTickerNote();
@@ -417,6 +419,51 @@ function setAlerts(ticker, list) {
   if (list.length) all[ticker] = list;
   else delete all[ticker];
   saveAllAlerts(all);
+  syncAlertsToServer();
+}
+
+// Flatten the per-ticker map to the server schema and POST.
+function syncAlertsToServer() {
+  const all = getAllAlerts();
+  const flat = [];
+  for (const [t, list] of Object.entries(all)) {
+    for (const a of list) {
+      flat.push({
+        id:        `${t}-${a.dir}-${a.price}`,
+        ticker:    t,
+        direction: a.dir,
+        target:    Number(a.price),
+        created_at: a.created ? new Date(a.created).toISOString() : null,
+      });
+    }
+  }
+  fetch('/api/alerts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(flat),
+  }).catch(() => {});
+}
+
+// Pull server alerts on page load and merge into localStorage.
+async function loadAlertsFromServer() {
+  try {
+    const r = await fetch('/api/alerts');
+    if (!r.ok) return;
+    const list = await r.json();
+    if (!Array.isArray(list)) return;
+    const grouped = {};
+    for (const a of list) {
+      if (!a.ticker || !a.target) continue;
+      (grouped[a.ticker] ||= []).push({
+        price:   Number(a.target),
+        dir:     a.direction,
+        created: a.created_at ? Date.parse(a.created_at) : Date.now(),
+      });
+    }
+    saveAllAlerts(grouped);
+    renderAlertPopup();
+    updateAlertBadge();
+  } catch {}
 }
 
 function addAlertFromInput(dir) {
@@ -501,7 +548,7 @@ function setupPriceAlerts() {
     e.stopPropagation();
     const open = pop.style.display !== 'none';
     pop.style.display = open ? 'none' : 'block';
-    if (!open) { renderAlertPopup(); inp?.focus(); }
+    if (!open) { renderAlertPopup(); inp?.focus(); refreshAlertEmailUI(); }
   });
   document.addEventListener('click', e => {
     if (!pop.contains(e.target) && !bell.contains(e.target)) pop.style.display = 'none';
@@ -511,6 +558,60 @@ function setupPriceAlerts() {
     if (e.key === 'Escape') pop.style.display = 'none';
   });
   updateAlertBadge();
+}
+
+async function refreshAlertEmailUI() {
+  const wrap = document.getElementById('alertPopupEmailWrap');
+  const inp  = document.getElementById('alertPopupEmail');
+  if (!wrap || !inp) return;
+  try {
+    const r = await fetch('/api/account/email');
+    if (!r.ok) return;
+    const d = await r.json();
+    inp.value = d.email || '';
+    // Show the email setter only if user has alerts but no email saved
+    const hasAlerts = getAlerts(TICKER).length > 0;
+    wrap.style.display = (hasAlerts && !d.email) ? 'flex' : (d.email ? 'none' : 'flex');
+  } catch {}
+}
+
+async function saveAlertEmail() {
+  const inp = document.getElementById('alertPopupEmail');
+  if (!inp) return;
+  const email = inp.value.trim();
+  if (!email) return;
+  try {
+    const r = await fetch('/api/account/email', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    if (r.ok) {
+      const wrap = document.getElementById('alertPopupEmailWrap');
+      if (wrap) wrap.style.display = 'none';
+      showAlertToast('Email saved · alerts will be sent here');
+    } else {
+      showAlertToast('Invalid email');
+    }
+  } catch { showAlertToast('Could not save email'); }
+}
+
+function setupTradeButton() {
+  const btn = document.getElementById('tradeBtn');
+  const pop = document.getElementById('tradePopup');
+  if (!btn || !pop) return;
+  btn.addEventListener('click', e => {
+    e.stopPropagation();
+    pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
+  });
+  document.addEventListener('click', e => {
+    if (!pop.contains(e.target) && !btn.contains(e.target)) pop.style.display = 'none';
+  });
+  pop.querySelectorAll('.trade-broker').forEach(a => {
+    a.addEventListener('click', () => {
+      if (window.plausible) window.plausible('Broker Click', { props: { broker: a.querySelector('.trade-broker-name')?.textContent || 'unknown', ticker: TICKER } });
+    });
+  });
 }
 
 // Check current price against saved alerts. Fires browser notification +

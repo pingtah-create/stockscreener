@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Disclaimer · Stockdash</title>
+  <link rel="stylesheet" href="/static/chat-home.css" />
+  <link rel="stylesheet" href="/static/legal.css" />
+  {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
+</head>
+<body>
+
+<header class="ch-nav">
+  <a class="db-brand" href="/">◈ STOCKDASH</a>
+  <nav class="ch-nav-links">
+    <a href="/" class="btn btn-secondary sm">AI Research</a>
+    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
+    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
+    <a href="/journal" class="btn btn-secondary sm">Journal</a>
+    {% if current_user %}
+      <span class="nav-user">{{ current_user }}</span>
+      <a href="/logout" class="btn btn-secondary sm">Logout</a>
+    {% else %}
+      <a href="/login" class="btn btn-secondary sm">Login</a>
+    {% endif %}
+  </nav>
+</header>
+
+<main class="legal-wrap">
+  <h1 class="legal-h1">Disclaimer</h1>
+  <p class="legal-lead">Stockdash is a research and educational tool. Nothing on this site is financial, investment, legal, or tax advice. By using Stockdash you agree to everything below.</p>
+
+  <section class="legal-section">
+    <h2>1. Not financial advice</h2>
+    <p>All content — AI-generated summaries, swing trade signals, fundamentals scores, peer comparisons, news selection, and chart annotations — is for informational and educational purposes only. It is not a recommendation to buy, sell, or hold any security, and it is not personalised investment advice. We are not registered investment advisers or broker-dealers in any jurisdiction.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>2. AI can be wrong</h2>
+    <p>The AI assistant relies on large language models which hallucinate, misread numbers, miss context, and confabulate confident-sounding answers. Always verify every figure, date, and claim against a primary source (the company's SEC filings, IR page, or your broker) before acting on it.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>3. Data is delayed and may be wrong</h2>
+    <p>US equity prices and quotes shown on Stockdash come from Yahoo Finance and are delayed at least 15 minutes. Fundamentals, ratios, and company info are sourced from third parties and may be stale, incomplete, or incorrect. Do not place trades based on Stockdash prices — use your broker's real-time data.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>4. No guarantees of any kind</h2>
+    <p>Stockdash is provided "as is" without warranty of any kind, express or implied, including merchantability, fitness for a particular purpose, accuracy, completeness, or non-infringement. Past performance of any signal, score, or strategy is not indicative of future results.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>5. You bear all risk</h2>
+    <p>Trading and investing in securities carries substantial risk of loss, including loss of principal. You may lose more than your initial investment when using leverage, margin, options, or derivatives. You are solely responsible for every trade you place. Consult a licensed financial adviser, accountant, and lawyer before making investment decisions, especially across borders or in instruments you do not fully understand.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>6. No liability</h2>
+    <p>Under no circumstances shall Stockdash, its operators, contributors, or affiliates be liable for any direct, indirect, incidental, consequential, or punitive damages arising from your use of the site, including but not limited to trading losses, missed opportunities, data errors, downtime, or reliance on AI output.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>7. Affiliate disclosure</h2>
+    <p>Some outbound links to brokers and partners may be affiliate links — Stockdash may receive a referral commission if you open an account through them at no additional cost to you. This does not influence the analysis, screening, or AI output you see on the site.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>8. Privacy</h2>
+    <p>We store your username, password hash, watchlist, portfolio holdings, and journal entries to provide the service. We do not sell user data. Anonymous page-view analytics may be collected via Plausible (cookieless). If you wish to delete your account, email <a href="mailto:pingtah@gmail.com">pingtah@gmail.com</a>.</p>
+  </section>
+
+  <section class="legal-section">
+    <h2>9. Jurisdiction</h2>
+    <p>This service is operated as a personal project by a Taiwan-based developer. It is not directed at, nor intended for, users in jurisdictions where such use would violate local law. You are responsible for ensuring your use of Stockdash complies with the laws of your jurisdiction.</p>
+  </section>
+
+  <p class="legal-fine">Last updated: 2026-05-15.</p>
+</main>
+
+<footer class="legal-footer">
+  <span>© Stockdash · Research only · Not investment advice</span>
+  <span class="legal-footer-links">
+    <a href="/about">About</a> ·
+    <a href="/disclaimer">Disclaimer</a> ·
+    <a href="mailto:pingtah@gmail.com">Contact</a>
+  </span>
+</footer>
+
+</body>
+</html>
