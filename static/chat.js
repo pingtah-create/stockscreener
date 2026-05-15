@@ -415,15 +415,23 @@ function renderMarkdown(s) {
     const lines = block.trim().split('\n').filter(l => l.trim().startsWith('|'));
     if (lines.length < 2) return block;
     const isSep = l => /^\|[-| :]+\|$/.test(l.trim());
+    const hasSep = lines.some(isSep);
     let html = '<div class="ch-table-wrap"><table class="ch-table">';
     let inBody = false;
+    let headerOpened = false;
     for (const line of lines) {
-      if (isSep(line)) { html += '<tbody>'; inBody = true; continue; }
-      const tag  = inBody ? 'td' : 'th';
+      if (isSep(line)) {
+        if (headerOpened) html += '</thead>';
+        html += '<tbody>';
+        inBody = true;
+        continue;
+      }
+      const tag = inBody ? 'td' : 'th';
+      if (!inBody && !headerOpened && hasSep) { html += '<thead>'; headerOpened = true; }
       const cells = line.split('|').slice(1, -1).map(c => c.trim());
       html += '<tr>' + cells.map(c => `<${tag}>${c}</${tag}>`).join('') + '</tr>';
-      if (!inBody && lines.some(isSep)) { html += '</thead>'; }
     }
+    if (inBody) html += '</tbody>';
     html += '</table></div>';
     return html;
   });

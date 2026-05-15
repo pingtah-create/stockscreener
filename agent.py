@@ -599,7 +599,15 @@ Rules:
 - After getting data, write an opinionated, specific analysis. Use exact numbers as evidence.
 - Be decisive: say BULLISH / BEARISH / LONG / SHORT with a reason, not "it depends".
 - For follow-up questions, answer directly and briefly — no need to re-run full analysis.
-- Write prose for narratives, tables only for comparisons."""
+
+Formatting (make replies easy to scan):
+- Use **markdown tables** when presenting any structured numeric data: stock metrics, peer comparisons, technicals, dividend history, swing setups, screener results, earnings.
+- Use **## headers** to break long analyses into sections (e.g. ## Story, ## Bull Case, ## Bear Case, ## Verdict).
+- Use **bullet lists** for 3+ pros/cons or quick facts.
+- **Bold** key numbers and verdicts (BULLISH/BEARISH/NEUTRAL get auto-colored).
+- For a single-stock deep-dive, always include a "Key Numbers" table with: Metric | Value rows (price, P/E, market cap, RSI, 52w range, etc.).
+- For comparisons, use one row per ticker with columns for each metric being compared.
+- Keep prose tight — let tables carry the data."""
 
 
 def _dispatch_tool(name: str, inp: dict, stock_cache: list, indices_cache: dict) -> dict:
@@ -637,7 +645,7 @@ def _dispatch_tool(name: str, inp: dict, stock_cache: list, indices_cache: dict)
 
 
 def _run_claude_agent(messages: list, stock_cache: list, indices_cache: dict,
-                      api_key: str, max_tokens: int = 2000) -> tuple[str, list]:
+                      api_key: str, max_tokens: int = 3500) -> tuple[str, list]:
     """
     Runs a full Claude agentic loop with tool use.
     Returns (reply_text, tools_used_list).
@@ -699,7 +707,7 @@ def _run_claude_agent(messages: list, stock_cache: list, indices_cache: dict,
 
 
 def _run_claude_stream(messages: list, stock_cache: list, indices_cache: dict,
-                       api_key: str, max_tokens: int = 2000):
+                       api_key: str, max_tokens: int = 3500):
     """
     Streaming Claude agent. Yields {"type": "chunk", "text": str} during streaming,
     then {"type": "done", "tools_used": list, "tickers": list} at the end.
