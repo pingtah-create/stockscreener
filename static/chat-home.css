@@ -1,14 +1,12 @@
-/* chat-home.css — minimal chat UI */
+/* chat-home.css — minimal chat UI
+   Loads AFTER style.css. Reuses the same design tokens (bg, text2, border2, accent, etc.)
+   Locally aliases text-dim/text-faint for backwards compat. */
 
 :root {
-  --bg: #0d0d0d;
-  --text: #e8e8e8;
-  --text-dim: #888;
-  --text-faint: #555;
-  --border: #222;
-  --accent: #4f8cff;
-  --accent-glow: rgba(79,140,255,0.15);
-  --user-bg: #1a1a1a;
+  --text-dim: var(--text2, #888);
+  --text-faint: var(--text3, #555);
+  --user-bg: var(--bg4, #1a1a1a);
+  --accent-glow: var(--blue-bg, rgba(79,140,255,0.15));
   --sidebar-w: 200px;
 }
 
