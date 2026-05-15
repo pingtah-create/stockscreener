@@ -85,14 +85,6 @@
     <div class="chart-search-dropdown" id="chartSearchDropdown"></div>
   </div>
 
-  <div class="period-btns">
-    <button class="period-btn" data-period="5d">1W</button>
-    <button class="period-btn" data-period="1mo">1M</button>
-    <button class="period-btn active" data-period="3mo">3M</button>
-    <button class="period-btn" data-period="6mo">6M</button>
-    <button class="period-btn" data-period="1y">1Y</button>
-    <button class="period-btn" data-period="2y">2Y</button>
-  </div>
   <div class="topbar-user-nav">
     <a href="/" class="btn btn-secondary sm">AI Research</a>
     <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
@@ -113,6 +105,17 @@
 
     <!-- Indicator controls -->
     <div class="chart-controls">
+      <div class="period-btns">
+        <button class="period-btn" data-period="5d">1W</button>
+        <button class="period-btn" data-period="1mo">1M</button>
+        <button class="period-btn active" data-period="3mo">3M</button>
+        <button class="period-btn" data-period="6mo">6M</button>
+        <button class="period-btn" data-period="1y">1Y</button>
+        <button class="period-btn" data-period="2y">2Y</button>
+      </div>
+
+      <div class="ctrl-sep"></div>
+
       <div class="chart-type-btns">
         <button class="ct-btn active" id="btnCandle" onclick="setChartType('candle')">Candle</button>
         <button class="ct-btn" id="btnLine"   onclick="setChartType('line')">Line</button>
