@@ -247,16 +247,27 @@ def _refresh_live_prices():
 def _ensure_stocks_loaded():
     """Load seed + per-ticker cache on first hit, then refresh live prices.
 
-    On Vercel (serverless) background threads are killed when the request
-    returns, so the price refresh runs INLINE. The 5-min throttle inside
-    `_refresh_live_prices` makes most requests cheap (instant no-op).
+    Strategy:
+      - Local dev: spawn a background thread (survives the request, refreshes
+        live prices in parallel without slowing the response).
+      - Vercel: background threads get killed when the request returns, so
+        background work never completes. Only refresh INLINE on the very first
+        cold-start request (when prices have never been fetched in this warm
+        instance). Subsequent requests use the now-warm cache instantly.
     """
     global _stock_cache
     if not _stock_cache:
         with _stock_cache_lock:
             if not _stock_cache:
                 _stock_cache = _load_all_from_cache()
-    _refresh_live_prices()
+    if _IS_SERVERLESS:
+        # Inline refresh only on first cold-start request, then never again
+        # in this warm instance. Keeps every subsequent request fast.
+        if _prices_refreshed_at is None:
+            _refresh_live_prices()
+    else:
+        # Local dev: background thread refreshes without blocking the response.
+        threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
 @app.route("/login", methods=["GET", "POST"])
