@@ -454,266 +454,278 @@ def tool_get_macro_indicators() -> dict:
     return result
 
 
-# ── PYDANTIC-AI AGENT ─────────────────────────────────────────────────────────
+# ── CLAUDE HAIKU AGENT ────────────────────────────────────────────────────────
 
-from pydantic_ai import Agent, RunContext
-from pydantic_ai.models.openai import OpenAIModel
-from pydantic_ai.providers.openai import OpenAIProvider
+_CLAUDE_MODEL = "claude-haiku-4-5"
 
-_GROQ_CHAT_MODEL = "llama-3.3-70b-versatile"
-_GROQ_BASE_URL   = "https://api.groq.com/openai/v1"
+# ── CLAUDE TOOL DEFINITIONS ───────────────────────────────────────────────────
 
+CLAUDE_TOOLS = [
+    {
+        "name": "get_stock_fundamentals",
+        "description": "Get valuation ratios, growth metrics, margins, moving averages, analyst target for a stock. Use this first for any single-stock question.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_technical_signals",
+        "description": "Get RSI, 50/200-day MA position, golden/death cross signals. Use for timing, entry/exit, or chart-based questions.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_recent_news",
+        "description": "Get recent news headlines for a ticker. Use for news, catalysts, or 'what happened' questions.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}, "count": {"type": "integer", "default": 5}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_analyst_consensus",
+        "description": "Get analyst price targets, buy/hold/sell distribution, and recent upgrades/downgrades.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_peer_comparison",
+        "description": "Compare a stock vs industry peers on P/E, growth, margins. Use for 'vs peers' or 'is it cheap' questions.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_earnings_info",
+        "description": "Get next earnings date and last 4 quarters of EPS beat/miss history.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_insider_activity",
+        "description": "Get recent insider buying/selling. Use only when asked specifically about insider transactions.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_dividend_info",
+        "description": "Get dividend yield, payout ratio, and history. Use only for dividend or income questions.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "get_options_chain",
+        "description": "Get options chain data. Use only when asked about options, calls/puts, or implied volatility.",
+        "input_schema": {"type": "object", "properties": {"ticker": {"type": "string"}}, "required": ["ticker"]},
+    },
+    {
+        "name": "screen_stocks",
+        "description": "Find top stocks by sector and/or strategy. Use for 'best value stocks', 'top growth stocks', screening questions.",
+        "input_schema": {"type": "object", "properties": {
+            "sector":   {"type": "string", "description": "Sector name or empty for all"},
+            "strategy": {"type": "string", "enum": ["value", "growth", "momentum", "dividend", "quality", "deepvalue", ""]},
+            "limit":    {"type": "integer", "default": 10}
+        }},
+    },
+    {
+        "name": "compare_stocks",
+        "description": "Side-by-side comparison of multiple tickers. Use for 'AAPL vs MSFT' or 'compare X and Y' questions.",
+        "input_schema": {"type": "object", "properties": {"tickers": {"type": "array", "items": {"type": "string"}}}, "required": ["tickers"]},
+    },
+    {
+        "name": "get_market_overview",
+        "description": "Get market indices and sector performance. Use for broad market or macro questions.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+    {
+        "name": "get_macro_indicators",
+        "description": "Get treasury yields, VIX, USD, gold, oil, bitcoin, GDP, inflation. Use for macro/economy questions.",
+        "input_schema": {"type": "object", "properties": {}},
+    },
+]
 
-_GROQ_FALLBACK_MODEL = "llama-3.1-8b-instant"
+SYSTEM_PROMPT = f"""You are FinBot — a sharp financial analyst. Today: {datetime.utcnow().strftime('%Y-%m-%d')}.
 
-def _groq_post(api_key: str, messages: list, temperature: float = 0.5,
-               max_tokens: int = 3000) -> str:
-    """POST to Groq. Falls back to 8B instant model if 70B hits daily rate limit."""
-    import requests as _req, time as _time
-    models = [_GROQ_CHAT_MODEL, _GROQ_FALLBACK_MODEL]
-    for model in models:
-        for attempt in range(3):
-            r = _req.post(
-                f"{_GROQ_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": model, "messages": messages,
-                      "temperature": temperature, "max_tokens": max_tokens},
-                timeout=30,
-            )
-            if r.status_code == 429:
-                err = r.json().get("error", {})
-                # Daily token limit exhausted — try fallback model immediately
-                if "tokens per day" in err.get("message", ""):
-                    break
-                # Per-minute rate limit — short wait then retry
-                wait = min(float(r.headers.get("retry-after", 2 ** (attempt + 1))), 10)
-                _time.sleep(wait)
-                continue
-            r.raise_for_status()
-            return r.json()["choices"][0]["message"]["content"].strip()
-    r.raise_for_status()
-    return ""
+You have tools to fetch real market data. Use them — never invent numbers.
 
-
-def _groq_stream(api_key: str, messages: list, temperature: float = 0.5,
-                 max_tokens: int = 3000):
-    """Yields text chunks from a streaming Groq completion. Falls back to 8B on daily limit."""
-    import requests as _req, time as _time, json as _json
-    models = [_GROQ_CHAT_MODEL, _GROQ_FALLBACK_MODEL]
-    for model in models:
-        for attempt in range(5):
-            r = _req.post(
-                f"{_GROQ_BASE_URL}/chat/completions",
-                headers={"Authorization": f"Bearer {api_key}"},
-                json={"model": model, "messages": messages,
-                      "temperature": temperature, "max_tokens": max_tokens,
-                      "stream": True},
-                stream=True, timeout=60,
-            )
-            if r.status_code == 429:
-                err = {}
-                try: err = r.json().get("error", {})
-                except Exception: pass
-                if "tokens per day" in err.get("message", ""):
-                    break  # try fallback model
-                wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
-                _time.sleep(wait)
-                continue
-            r.raise_for_status()
-            for line in r.iter_lines():
-                if not line:
-                    continue
-                line = line.decode() if isinstance(line, bytes) else line
-                if not line.startswith("data: "):
-                    continue
-                payload = line[6:]
-                if payload == "[DONE]":
-                    return
-                try:
-                    text = _json.loads(payload)["choices"][0]["delta"].get("content", "")
-                    if text:
-                        yield text
-                except Exception:
-                    pass
-            return
-    r.raise_for_status()
-
-
-@dataclass
-class FinBotDeps:
-    stock_cache: list
-    indices_cache: dict
-
-
-SYSTEM_PROMPT = """You are FinBot — a financial analyst who writes like a great storyteller. You have access to real market data and you turn it into compelling, opinionated narratives that help investors understand what's really going on with a stock or market.
-
-You have tools to look up fundamentals, technicals, news, peer comparisons, earnings, insider activity, analyst ratings, dividends, stock screening, options chains, and macro indicators.
-
-How to write:
-- Tell the story BEHIND the numbers. Don't just list metrics — explain what they mean together, what narrative they're building, what the market believes vs. what the data actually shows.
-- Lead with the most interesting tension or insight, not the most obvious fact.
-- Use specific numbers as evidence for a point, not as the point itself. "Revenue growing 40% while margins are expanding — that's the rarest combination in tech" beats listing both numbers separately.
-- Be decisive and opinionated. If data clearly favors one side, argue that side with conviction.
-- Write in flowing prose for the narrative sections. Reserve bullet points and tables only for dense comparison data.
-- For stock analysis: open with the central tension or story arc, then build the bull case, then the bear case, then what to watch.
-- For comparisons: tell the story of how these companies diverged, then show the table.
-- For screening: explain the theme, then show results.
-- For specific questions: answer directly with context and color, not just numbers.
-- Remember conversation context — follow-up questions continue the same story."""
+Rules:
+- ONLY use numbers that come from tool results. If a number is not in a tool result, write "data unavailable" — never guess.
+- Call only the tools you actually need. A swing trade question needs fundamentals + technicals. A dividend question needs dividend_info. Don't call all tools every time.
+- After getting data, write an opinionated, specific analysis. Use exact numbers as evidence.
+- Be decisive: say BULLISH / BEARISH / LONG / SHORT with a reason, not "it depends".
+- For follow-up questions, answer directly and briefly — no need to re-run full analysis.
+- Write prose for narratives, tables only for comparisons."""
 
 
-finbot: Agent[FinBotDeps, str] = Agent(
-    system_prompt=SYSTEM_PROMPT,
-    deps_type=FinBotDeps,
-    retries=3,
-)
-
-
-@finbot.system_prompt
-def _add_date() -> str:
-    return f"Today: {datetime.utcnow().strftime('%Y-%m-%d')}."
-
-
-# ── Tools that need stock_cache / indices_cache (use RunContext) ──────────────
-
-@finbot.tool
-def get_stock_fundamentals(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Get fundamental financial data for a stock: valuation ratios (P/E, P/B, EV/EBITDA), growth metrics, margins, moving averages, beta, analyst target."""
+def _dispatch_tool(name: str, inp: dict, stock_cache: list, indices_cache: dict) -> dict:
+    """Execute a tool call by name and return the result."""
     try:
-        return tool_get_stock_fundamentals(ticker, ctx.deps.stock_cache)
+        if name == "get_stock_fundamentals":
+            return tool_get_stock_fundamentals(inp["ticker"], stock_cache)
+        if name == "get_technical_signals":
+            return tool_get_technical_signals(inp["ticker"], stock_cache)
+        if name == "get_recent_news":
+            return tool_get_recent_news(inp["ticker"], inp.get("count", 5))
+        if name == "get_analyst_consensus":
+            return tool_get_analyst_consensus(inp["ticker"], stock_cache)
+        if name == "get_peer_comparison":
+            return tool_get_peer_comparison(inp["ticker"], stock_cache)
+        if name == "get_earnings_info":
+            return tool_get_earnings_info(inp["ticker"])
+        if name == "get_insider_activity":
+            return tool_get_insider_activity(inp["ticker"])
+        if name == "get_dividend_info":
+            return tool_get_dividend_info(inp["ticker"])
+        if name == "get_options_chain":
+            return tool_get_options_chain(inp["ticker"])
+        if name == "screen_stocks":
+            return tool_screen_stocks(stock_cache, inp.get("sector"), inp.get("strategy"), inp.get("limit", 10))
+        if name == "compare_stocks":
+            return tool_compare_stocks(inp["tickers"], stock_cache)
+        if name == "get_market_overview":
+            return tool_get_market_overview(indices_cache, stock_cache)
+        if name == "get_macro_indicators":
+            return tool_get_macro_indicators()
+        return {"error": f"Unknown tool: {name}"}
     except Exception as e:
-        return {"error": str(e), "ticker": ticker}
+        return {"error": str(e)}
 
 
-@finbot.tool
-def get_technical_signals(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Get technical analysis for a stock: RSI, 50/200-day moving average position, golden/death cross, trend signals."""
-    try:
-        return tool_get_technical_signals(ticker, ctx.deps.stock_cache)
-    except Exception as e:
-        return {"error": str(e), "ticker": ticker}
+def _run_claude_agent(messages: list, stock_cache: list, indices_cache: dict,
+                      api_key: str, max_tokens: int = 2000) -> tuple[str, list]:
+    """
+    Runs a full Claude agentic loop with tool use.
+    Returns (reply_text, tools_used_list).
+    Claude decides which tools to call — we just execute them and feed results back.
+    """
+    import anthropic
+    client = anthropic.Anthropic(api_key=api_key)
 
+    claude_messages = []
+    for m in messages:
+        role    = m.get("role")
+        content = (m.get("content") or "").strip()
+        if content and role in ("user", "assistant"):
+            claude_messages.append({"role": role, "content": content})
 
-@finbot.tool
-def get_peer_comparison(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Find industry peers for a stock and compare P/E, growth, margins, and returns side by side."""
-    try:
-        return tool_get_peer_comparison(ticker, ctx.deps.stock_cache)
-    except Exception as e:
-        return {"error": str(e), "ticker": ticker}
+    tools_used = []
 
-
-@finbot.tool
-def screen_stocks(ctx: RunContext[FinBotDeps],
-                  sector: str = "",
-                  strategy: str = "",
-                  limit: int = 10) -> dict:
-    """Screen stocks by sector and/or investment strategy to find top candidates. Strategies: value, growth, momentum, dividend, quality, deepvalue."""
-    try:
-        return tool_screen_stocks(
-            ctx.deps.stock_cache,
-            sector=sector or None,
-            strategy=strategy or None,
-            limit=limit,
+    for _ in range(8):  # max 8 agentic turns
+        resp = client.messages.create(
+            model=_CLAUDE_MODEL,
+            max_tokens=max_tokens,
+            system=SYSTEM_PROMPT,
+            tools=CLAUDE_TOOLS,
+            messages=claude_messages,
         )
-    except Exception as e:
-        return {"error": str(e)}
+
+        # Collect any text and tool calls from this response
+        text_parts = []
+        tool_calls = []
+        for block in resp.content:
+            if block.type == "text":
+                text_parts.append(block.text)
+            elif block.type == "tool_use":
+                tool_calls.append(block)
+
+        if resp.stop_reason == "end_turn" or not tool_calls:
+            return "".join(text_parts), tools_used
+
+        # Execute all tool calls in parallel, feed results back
+        from concurrent.futures import ThreadPoolExecutor
+        def _exec(tc):
+            return tc.id, tc.name, _dispatch_tool(tc.name, tc.input, stock_cache, indices_cache)
+
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            results = list(ex.map(_exec, tool_calls))
+
+        for _, name, _ in results:
+            if name not in tools_used:
+                tools_used.append(name)
+
+        # Append assistant turn with tool calls, then user turn with tool results
+        claude_messages.append({"role": "assistant", "content": resp.content})
+        claude_messages.append({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": tc_id, "content": json.dumps(result)}
+            for tc_id, _, result in results
+        ]})
+
+    return "Analysis incomplete — too many tool calls.", tools_used
 
 
-@finbot.tool
-def get_market_overview(ctx: RunContext[FinBotDeps]) -> dict:
-    """Get current market indices (S&P 500, NASDAQ, DOW, VIX) and sector performance. Use for macro or market-wide questions."""
-    try:
-        return tool_get_market_overview(ctx.deps.indices_cache, ctx.deps.stock_cache)
-    except Exception as e:
-        return {"error": str(e), "indices": {}, "sector_performance": {}}
+def _run_claude_stream(messages: list, stock_cache: list, indices_cache: dict,
+                       api_key: str, max_tokens: int = 2000):
+    """
+    Streaming Claude agent. Yields {"type": "chunk", "text": str} during streaming,
+    then {"type": "done", "tools_used": list, "tickers": list} at the end.
+    Tool calls are executed silently; only the final text response is streamed.
+    """
+    import anthropic, re as _re
+    client = anthropic.Anthropic(api_key=api_key)
+
+    claude_messages = []
+    for m in messages:
+        role    = m.get("role")
+        content = (m.get("content") or "").strip()
+        if content and role in ("user", "assistant"):
+            claude_messages.append({"role": role, "content": content})
+
+    tools_used = []
+
+    for turn in range(8):
+        # Non-streaming turns for tool calls; streaming only on the final text turn
+        if turn == 0:
+            # First turn: try streaming — if tool_use comes back, switch to non-streaming
+            with client.messages.stream(
+                model=_CLAUDE_MODEL,
+                max_tokens=max_tokens,
+                system=SYSTEM_PROMPT,
+                tools=CLAUDE_TOOLS,
+                messages=claude_messages,
+            ) as stream:
+                final = stream.get_final_message()
+
+            tool_calls = [b for b in final.content if b.type == "tool_use"]
+            if not tool_calls:
+                # Pure text response — stream it out word by word from the collected text
+                text = "".join(b.text for b in final.content if b.type == "text")
+                for word in text.split(" "):
+                    yield {"type": "chunk", "text": word + " "}
+                tickers = list({t for t in _re.findall(r'\b[A-Z]{1,5}\b', text)
+                                if any(s.get("symbol") == t for s in stock_cache)})
+                yield {"type": "done", "tools_used": tools_used, "tickers": tickers}
+                return
+        else:
+            resp = client.messages.create(
+                model=_CLAUDE_MODEL,
+                max_tokens=max_tokens,
+                system=SYSTEM_PROMPT,
+                tools=CLAUDE_TOOLS,
+                messages=claude_messages,
+            )
+            final = resp
+            tool_calls = [b for b in final.content if b.type == "tool_use"]
+
+            if not tool_calls or final.stop_reason == "end_turn":
+                # Final answer — stream it out
+                text = "".join(b.text for b in final.content if b.type == "text")
+                for word in text.split(" "):
+                    yield {"type": "chunk", "text": word + " "}
+                tickers = list({t for t in _re.findall(r'\b[A-Z]{1,5}\b', text)
+                                if any(s.get("symbol") == t for s in stock_cache)})
+                yield {"type": "done", "tools_used": tools_used, "tickers": tickers}
+                return
+
+        # Execute tool calls
+        from concurrent.futures import ThreadPoolExecutor
+        def _exec(tc):
+            return tc.id, tc.name, _dispatch_tool(tc.name, tc.input, stock_cache, indices_cache)
+        with ThreadPoolExecutor(max_workers=4) as ex:
+            results = list(ex.map(_exec, tool_calls))
+
+        for _, name, _ in results:
+            if name not in tools_used:
+                tools_used.append(name)
+
+        claude_messages.append({"role": "assistant", "content": final.content})
+        claude_messages.append({"role": "user", "content": [
+            {"type": "tool_result", "tool_use_id": tc_id, "content": json.dumps(result)}
+            for tc_id, _, result in results
+        ]})
+
+    yield {"type": "chunk", "text": "Analysis incomplete."}
+    yield {"type": "done", "tools_used": tools_used, "tickers": []}
 
 
-@finbot.tool
-def compare_stocks(ctx: RunContext[FinBotDeps], tickers: list[str]) -> dict:
-    """Side-by-side comparison of multiple stocks on valuation, growth, margins, and analyst ratings (max 6 tickers)."""
-    try:
-        return tool_compare_stocks(tickers, ctx.deps.stock_cache)
-    except Exception as e:
-        return {"error": str(e), "comparison": []}
-
-
-@finbot.tool
-def get_analyst_consensus(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Get analyst price target, upside/downside potential, consensus rating, and recent rating changes from brokerages."""
-    try:
-        return tool_get_analyst_consensus(ticker, ctx.deps.stock_cache)
-    except Exception as e:
-        return {"error": str(e), "ticker": ticker}
-
-
-@finbot.tool
-def get_watchlist_analysis(ctx: RunContext[FinBotDeps], tickers: list[str]) -> dict:
-    """Analyse a list of tickers — scores, ratings, best strategy fit, and which look strongest."""
-    try:
-        return tool_get_watchlist_analysis(tickers, ctx.deps.stock_cache)
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# ── Tools that don't need deps (tool_plain) ───────────────────────────────────
-
-@finbot.tool_plain
-def get_recent_news(ticker: str, count: int = 5) -> dict:
-    """Get recent news headlines for a stock or the market. Use SPY for general market news."""
-    try:
-        return tool_get_recent_news(ticker, count)
-    except Exception as e:
-        return {"error": str(e), "headlines": []}
-
-
-@finbot.tool_plain
-def get_earnings_info(ticker: str) -> dict:
-    """Get next earnings date and last 4 quarters of EPS estimates vs actuals (beat/miss history)."""
-    try:
-        return tool_get_earnings_info(ticker)
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@finbot.tool_plain
-def get_insider_activity(ticker: str) -> dict:
-    """Get recent insider buying and selling transactions (names, titles, share counts, values)."""
-    try:
-        return tool_get_insider_activity(ticker)
-    except Exception as e:
-        return {"error": str(e), "transactions": []}
-
-
-@finbot.tool_plain
-def get_dividend_info(ticker: str) -> dict:
-    """Get dividend yield, annual dividend rate, payout ratio, and recent payment history."""
-    try:
-        return tool_get_dividend_info(ticker)
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@finbot.tool_plain
-def get_options_chain(ticker: str) -> dict:
-    """Get the nearest-expiry options chain (calls + puts) with strikes, bid/ask, volume, open interest, implied volatility, and put/call ratio."""
-    try:
-        return tool_get_options_chain(ticker)
-    except Exception as e:
-        return {"error": str(e)}
-
-
-@finbot.tool_plain
-def get_macro_indicators() -> dict:
-    """Get key macro indicators: 10Y/2Y treasury yields, VIX, USD index, gold, oil, bitcoin, plus US GDP growth, inflation, and unemployment."""
-    try:
-        return tool_get_macro_indicators()
-    except Exception as e:
-        return {"error": str(e)}
-
-
-# ── DEBATE AGENTS (Bull / Bear / Verdict) ────────────────────────────────────
-
+# ── DEAD CODE — kept for reference only ──────────────────────────────────────
 
 def _UNUSED_format_stock_sections(data: dict) -> str:  # dead code — kept for reference
     f  = data.get("fundamentals", {})
@@ -917,40 +929,37 @@ def _detect_analysis_ticker(text: str, stock_cache: list) -> str | None:
     return valid[0] if any(w in text_lower for w in analysis_words) else None
 
 
-# ── External data tools ───────────────────────────────────────────────────────
-
-@finbot.tool
-def get_sec_filings(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Get recent SEC filings (10-K, 10-Q, 8-K) for a ticker from EDGAR. Use when asked about regulatory filings, annual/quarterly reports, or material events."""
-    from tools_external import fetch_sec_filings
-    return fetch_sec_filings(ticker)
-
-
-@finbot.tool
-def get_finnhub_data(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Get real-time Finnhub data: live quote, recent news headlines, insider transactions, earnings history. More current than yfinance data."""
-    from tools_external import fetch_finnhub_quote, fetch_finnhub_news, fetch_finnhub_insider, fetch_finnhub_earnings
-    return {
-        "quote":   fetch_finnhub_quote(ticker),
-        "news":    fetch_finnhub_news(ticker),
-        "insider": fetch_finnhub_insider(ticker),
-        "earnings": fetch_finnhub_earnings(ticker),
-    }
+def _detect_any_ticker(text: str, stock_cache: list) -> str | None:
+    """Return the first valid ticker found in text, regardless of intent."""
+    import re
+    ticker_universe = {s.get("symbol", "") for s in stock_cache}
+    found = re.findall(r'\b([A-Z]{1,5}(?:\.[A-Z]{1,2})?)\b', text.upper())
+    valid = [t for t in found if t in ticker_universe]
+    return valid[0] if valid else None
 
 
-@finbot.tool
-def get_fmp_financials(ctx: RunContext[FinBotDeps], ticker: str) -> dict:
-    """Get Financial Modeling Prep data: income statements (last 4 quarters), TTM financial ratios (P/E, P/B, ROE, margins, etc.), and company profile."""
-    from tools_external import fetch_fmp_income, fetch_fmp_ratios, fetch_fmp_profile
-    return {
-        "income_statements": fetch_fmp_income(ticker),
-        "ratios":            fetch_fmp_ratios(ticker),
-        "profile":           fetch_fmp_profile(ticker),
-    }
+def _is_followup(question: str) -> bool:
+    """True when the user is asking a focused follow-up, not requesting a full analysis."""
+    q = question.lower().strip()
+    followup_words = [
+        "what about", "how about", "and the", "what's the", "whats the",
+        "tell me more", "more about", "explain", "why is", "why did",
+        "what does", "what do", "what happened", "any news", "recent news",
+        "what's happening", "whats happening", "debt", "margins", "growth",
+        "revenue", "earnings", "dividend", "options", "insider",
+        "compared to", "vs ", "versus", "better than", "worse than",
+        "too expensive", "cheap", "overvalued", "undervalued", "risky",
+    ]
+    # Short direct questions are almost always follow-ups
+    words = q.split()
+    if len(words) <= 5 and not any(w in q for w in ["analyze", "analysis", "overview", "research"]):
+        return True
+    return any(w in q for w in followup_words)
 
 
 def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api_key: str,
-                        user_question: str = "", stream: bool = False, skill: str = ""):
+                        user_question: str = "", stream: bool = False, skill: str = "",
+                        message_history: list = None):
     """Gather data then write an opinionated narrative. Returns dict or generator when stream=True."""
     ticker = ticker.upper().strip()
 
@@ -980,8 +989,11 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     chg    = f.get("change_pct")
     sector = f.get("sector") or ""
 
-    # Compact data brief for Gemini — token-efficient, no raw JSON
-    brief_lines = [
+    # Compact data brief — token-efficient, no raw JSON
+    brief_lines = []
+    if user_question:
+        brief_lines += [f"USER QUESTION: {user_question}", ""]
+    brief_lines += [
         f"Stock: {ticker} ({name}) | Sector: {sector} | Industry: {f.get('industry') or ''}",
         f"Price: ${fmt(price, 2)} ({'+' if chg and chg>0 else ''}{fmt(chg, 2)}%)",
         "",
@@ -1212,12 +1224,38 @@ Rules: be decisive, real numbers only, no hedging."""
         "get_stock_fundamentals", "get_technical_signals", "get_recent_news",
         "get_analyst_consensus", "get_peer_comparison", "get_earnings_info",
     ]
-    msgs = [{"role": "user", "content": prompt}]
+
+    # Follow-up questions skip the full template — answer directly with data context
+    is_followup = bool(skill == "" and user_question and _is_followup(user_question)
+                       and message_history)
+    if is_followup:
+        prompt = f"""You are a sharp financial analyst in a conversation about {ticker}.
+The user has already seen a full analysis. They are asking a follow-up question.
+
+STOCK DATA:
+{data_brief}
+
+Answer ONLY the question asked. Be direct, use specific numbers from the data, 2–5 sentences max.
+No headers, no template, no preamble. Just answer the question.
+
+Question: {user_question}"""
+
+    # Build message list: include conversation history so the AI remembers context
+    history_msgs = []
+    if message_history:
+        for m in message_history[:-1]:  # exclude the current question (already in prompt)
+            role    = m.get("role")
+            content = (m.get("content") or "").strip()
+            if content and role in ("user", "assistant"):
+                history_msgs.append({"role": role, "content": content})
+
+    msgs = history_msgs + [{"role": "user", "content": prompt}]
+    max_tok = 800 if is_followup else 1800
 
     if stream:
         def _gen():
             try:
-                for chunk in _groq_stream(api_key, msgs, temperature=0.4, max_tokens=1800):
+                for chunk in _groq_stream(api_key, msgs, temperature=0.4, max_tokens=max_tok):
                     yield {"type": "chunk", "text": chunk}
             except Exception as ex:
                 yield {"type": "chunk", "text": f"\n\n*Analysis unavailable: {ex}*"}
@@ -1225,101 +1263,38 @@ Rules: be decisive, real numbers only, no hedging."""
         return _gen()
 
     try:
-        reply = _groq_post(api_key, msgs, temperature=0.4, max_tokens=1800)
+        reply = _groq_post(api_key, msgs, temperature=0.4, max_tokens=max_tok)
     except Exception as ex:
         reply = f"*Analysis unavailable: {ex}*"
     return {"reply": reply, "tools_used": _tools_used, "tickers": [ticker]}
 
 
-# ── Entry point ───────────────────────────────────────────────────────────────
+# ── Entry points ──────────────────────────────────────────────────────────────
 
 def run_agent(messages: list, stock_cache: list, indices_cache: dict, api_key: str) -> dict:
-    """
-    Called by /api/chat. Routes stock analysis queries to the bull/bear/verdict
-    debate pipeline; all other queries go to the standard finbot agent.
-    Returns {"reply": str, "tools_used": [str]}.
-    """
-    from pydantic_ai.messages import (
-        ModelRequest, ModelResponse,
-        UserPromptPart, TextPart, ToolCallPart,
-    )
-    from pydantic_ai.settings import ModelSettings
-
+    """Called by /api/chat (non-streaming). Returns {"reply": str, "tools_used": [str]}."""
     if not messages:
         return {"reply": "No message provided.", "tools_used": []}
-
-    last_msg = (messages[-1].get("content") or "").strip()
-    if not last_msg:
-        return {"reply": "No message provided.", "tools_used": []}
-
-    # Route single-stock analysis to the debate pipeline
-    analysis_ticker = _detect_analysis_ticker(last_msg, stock_cache)
-    if analysis_ticker:
-        return run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key,
-                                   user_question=last_msg)
-
-    # Standard finbot agent for everything else
-    history = []
-    for m in messages[:-1]:
-        role    = m.get("role")
-        content = (m.get("content") or "").strip()
-        if not content:
-            continue
-        if role == "user":
-            history.append(ModelRequest(parts=[UserPromptPart(content=content)]))
-        elif role == "assistant":
-            history.append(ModelResponse(parts=[TextPart(content=content)]))
-
-    model = OpenAIModel(_GROQ_CHAT_MODEL,
-                        provider=OpenAIProvider(base_url=_GROQ_BASE_URL, api_key=api_key))
-    deps  = FinBotDeps(stock_cache=stock_cache, indices_cache=indices_cache)
-
     try:
-        result = finbot.run_sync(
-            last_msg,
-            model=model,
-            deps=deps,
-            message_history=history,
-            model_settings=ModelSettings(temperature=0.5, max_tokens=4096),
-        )
-        tools_used = [
-            part.tool_name
-            for msg in result.all_messages()
-            for part in getattr(msg, "parts", [])
-            if isinstance(part, ToolCallPart)
-        ]
-        return {"reply": result.output, "tools_used": tools_used}
-
-    except Exception:
-        # Tool-calling loop failed — fall back to a plain Groq call
-        msgs = [{"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": last_msg}]
-        reply = _groq_post(api_key, msgs, temperature=0.5, max_tokens=2048)
-        return {"reply": reply, "tools_used": []}
+        reply, tools_used = _run_claude_agent(messages, stock_cache, indices_cache, api_key)
+        return {"reply": reply, "tools_used": tools_used}
+    except Exception as ex:
+        return {"reply": f"Error: {ex}", "tools_used": []}
 
 
 def run_agent_stream(messages: list, stock_cache: list, indices_cache: dict, api_key: str,
                      skill: str = ""):
     """
-    Streaming version of run_agent. Yields dicts:
-      {"type": "chunk", "text": str}   — one or more times
+    Streaming entry point. Yields:
+      {"type": "chunk", "text": str}  — one or more times
       {"type": "done",  "tools_used": list, "tickers": list}  — once, last
     """
     if not messages:
         yield {"type": "chunk", "text": "No message provided."}
         yield {"type": "done", "tools_used": [], "tickers": []}
         return
-
-    last_msg = (messages[-1].get("content") or "").strip()
-
-    # Single-stock analysis → true Groq streaming
-    analysis_ticker = _detect_analysis_ticker(last_msg, stock_cache)
-    if analysis_ticker:
-        yield from run_debate_analysis(analysis_ticker, stock_cache, indices_cache, api_key,
-                                       user_question=last_msg, stream=True, skill=skill)
-        return
-
-    # General agent (PydanticAI tool-calling) — run sync, yield result as one chunk
-    result = run_agent(messages, stock_cache, indices_cache, api_key)
-    yield {"type": "chunk", "text": result["reply"]}
-    yield {"type": "done", "tools_used": result.get("tools_used", []), "tickers": []}
+    try:
+        yield from _run_claude_stream(messages, stock_cache, indices_cache, api_key)
+    except Exception as ex:
+        yield {"type": "chunk", "text": f"Error: {ex}"}
+        yield {"type": "done", "tools_used": [], "tickers": []}

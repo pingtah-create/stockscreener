@@ -24,14 +24,28 @@ html, body {
 }
 
 body { display: flex; flex-direction: column; min-height: 100vh; }
+body::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 200px;
+  width: 1px;
+  height: 100vh;
+  background: var(--border);
+  z-index: 10;
+  pointer-events: none;
+}
 
 /* ── Nav ──────────────────────────────────────────── */
-.ch-nav {
+header.ch-nav {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 14px 24px;
   flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+  width: 100vw;
+  box-sizing: border-box;
 }
 .ch-brand { display: flex; align-items: center; gap: 8px; }
 .ch-logo  { font-size: 18px; color: var(--text-faint); }
@@ -48,6 +62,57 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   font-size: 11px; font-weight: 600; color: var(--text-faint);
   letter-spacing: 0.04em; border-radius: 5px;
 }
+
+/* ── Avatar with hover dropdown ─────────────── */
+.nav-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.nav-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--accent);
+  color: #fff;
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.nav-avatar-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  padding-top: 8px;
+  min-width: 150px;
+  z-index: 500;
+}
+.nav-avatar-dropdown-inner {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.nav-avatar-wrap:hover .nav-avatar-dropdown { display: block; }
+.nav-avatar-name {
+  padding: 10px 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.nav-avatar-item {
+  display: block;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text-faint);
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-avatar-item:hover { background: var(--bg4); color: var(--text); }
 
 .ch-nav-links { display: flex; gap: 4px; align-items: center; }
 .ch-nav-links a, .ch-link-btn {
@@ -73,14 +138,14 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-layout {
   flex: 1;
   display: flex;
-  min-height: 0;
+  align-items: stretch;
+  min-height: calc(100vh - 57px);
 }
 
 /* ── Sidebar ──────────────────────────────────────── */
 .ch-sidebar {
   width: 200px;
   flex-shrink: 0;
-  border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
@@ -149,7 +214,7 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   margin-top: 6vh;
   width: 100%;
   text-align: left;
-  padding-bottom: 100px;
+  padding-bottom: 120px;
 }
 .ch-hero-title {
   font-size: 32px;
@@ -484,10 +549,17 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 .ch-table td.ch-cell-pos { color: #3d9e6e; }
 .ch-table td.ch-cell-neg { color: #b84444; }
 
-/* Single bottom input — always pinned */
+/* Single bottom input — fixed to viewport bottom */
 .ch-input-wrap-bottom {
-  margin: 10px 0 20px;
-  flex-shrink: 0;
+  position: fixed;
+  bottom: 0;
+  left: 200px; /* sidebar width */
+  right: 0;
+  padding: 12px 24px 20px;
+  background: var(--bg);
+  border-top: 1px solid var(--border);
+  box-sizing: border-box;
+  z-index: 100;
 }
 
 /* ── Section labels ──────────────────────────────── */
@@ -628,28 +700,17 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
 }
 .ch-skill-ticker-wrap {
   position: relative;
-  width: 120px;
+  flex: 0 0 auto;
 }
-.ch-skill-ticker-wrap .search-dropdown {
-  min-width: 220px;
-  width: max-content;
-  z-index: 1000;
-}
-.ch-skill-ticker-wrap .search-result-item {
-  padding: 5px 10px;
-  font-size: 12px;
-}
-.ch-skill-ticker-wrap .search-ticker { font-size: 12px; width: 50px; }
-.ch-skill-ticker-wrap .search-name   { font-size: 11px; }
 .ch-skill-ticker-input {
-  width: 100%;
+  width: 120px;
   box-sizing: border-box;
   background: #111;
   border: 1px solid var(--accent);
   border-radius: 6px;
   color: var(--text);
-  font-size: 12px;
-  padding: 4px 8px;
+  font-size: 13px;
+  padding: 6px 10px;
   outline: none;
   font-family: var(--mono, monospace);
   text-transform: uppercase;
@@ -660,13 +721,34 @@ body { display: flex; flex-direction: column; min-height: 100vh; }
   border: none;
   border-radius: 6px;
   color: #fff;
-  font-size: 11px;
-  padding: 4px 8px;
+  font-size: 13px;
+  padding: 6px 14px;
   cursor: pointer;
   transition: opacity 0.15s;
   white-space: nowrap;
 }
 .ch-skill-ticker-btn:hover { opacity: 0.85; }
+
+/* Skill ticker dropdown — sits below the input, inside the wrap */
+#chSkillDropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  width: 260px;
+  max-height: 220px;
+  overflow-y: auto;
+  z-index: 9999;
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+}
+#chSkillDropdown .search-result-item {
+  padding: 8px 14px;
+  font-size: 13px;
+}
+#chSkillDropdown .search-ticker { font-size: 13px; width: 56px; }
+#chSkillDropdown .search-name   { font-size: 12px; }
 
 /* ── Trending ────────────────────────────────────── */
 .ch-trending-list { display: flex; flex-direction: column; gap: 1px; }

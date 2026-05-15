@@ -22,8 +22,15 @@
     <span class="btn btn-secondary sm db-nav-current">Portfolio</span>
     <a href="/journal" class="btn btn-secondary sm">Journal</a>
     {% if current_user %}
-      <span class="nav-user">{{ current_user }}</span>
-      <a href="/logout" class="btn btn-secondary sm">Logout</a>
+      <div class="nav-avatar-wrap">
+        <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
+        <div class="nav-avatar-dropdown">
+          <div class="nav-avatar-dropdown-inner">
+            <div class="nav-avatar-name">{{ current_user }}</div>
+            <a href="/logout" class="nav-avatar-item">Logout</a>
+          </div>
+        </div>
+      </div>
     {% endif %}
   </div>
 </nav>

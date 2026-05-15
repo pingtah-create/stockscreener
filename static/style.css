@@ -170,6 +170,58 @@ body {
   margin-left: 8px;
 }
 
+/* ── Avatar with hover dropdown ─────────────── */
+.nav-avatar-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  margin-left: 4px;
+}
+.nav-avatar {
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  font-size: 13px; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+}
+.nav-avatar-dropdown {
+  display: none;
+  position: absolute;
+  top: 100%;
+  right: 0;
+  padding-top: 8px;
+  min-width: 150px;
+  z-index: 500;
+}
+.nav-avatar-dropdown-inner {
+  background: var(--bg3);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+.nav-avatar-wrap:hover .nav-avatar-dropdown { display: block; }
+.nav-avatar-name {
+  padding: 10px 14px 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.nav-avatar-item {
+  display: block;
+  padding: 8px 14px;
+  font-size: 13px;
+  color: var(--text2);
+  text-decoration: none;
+  transition: background 0.12s, color 0.12s;
+}
+.nav-avatar-item:hover { background: var(--bg4); color: var(--text); }
+
 /* ── MODAL ────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0;

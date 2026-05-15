@@ -1098,9 +1098,9 @@ def api_chat():
     if not messages:
         return jsonify({"error": "no messages"}), 400
 
-    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+    api_key = _os.environ.get("ANTHROPIC_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "GROQ_API_KEY not set on server"}), 503
+        return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 503
 
     import json as _json
     stock_snap   = _stock_cache[:]

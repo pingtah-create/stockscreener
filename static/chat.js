@@ -553,8 +553,10 @@ const SKILL_LABELS = {
 };
 
 let _activeSkill = null;
+let _suppressDropdown = false;
 
 function _skillDropdownOpen(q) {
+  if (_suppressDropdown) return;
   let dd = document.getElementById('chSkillDropdown');
   if (!dd) return;
   if (!q) { dd.classList.remove('open'); return; }
@@ -564,21 +566,6 @@ function _skillDropdownOpen(q) {
   ).slice(0, 8);
   if (!found.length) { dd.classList.remove('open'); return; }
 
-  // Move dropdown to body to escape any overflow/stacking context
-  if (dd.parentElement !== document.body) {
-    document.body.appendChild(dd);
-    dd = document.getElementById('chSkillDropdown');
-  }
-  const inp = document.getElementById('chSkillTickerInput');
-  if (inp) {
-    const r = inp.getBoundingClientRect();
-    dd.style.position = 'fixed';
-    dd.style.top  = (r.bottom + 4) + 'px';
-    dd.style.left = r.left + 'px';
-    dd.style.width = 'max-content';
-    dd.style.minWidth = '220px';
-    dd.style.zIndex = '9999';
-  }
 
   dd.innerHTML = found.map(s => `
     <div class="search-result-item" data-symbol="${s.symbol}">
@@ -588,8 +575,14 @@ function _skillDropdownOpen(q) {
   dd.querySelectorAll('.search-result-item').forEach(el => {
     el.addEventListener('mousedown', e => {
       e.preventDefault();
+      e.stopPropagation();
       const tickerEl = document.getElementById('chSkillTickerInput');
-      if (tickerEl) { tickerEl.value = el.dataset.symbol; tickerEl.focus(); }
+      if (tickerEl) {
+        _suppressDropdown = true;
+        tickerEl.value = el.dataset.symbol;
+        tickerEl.focus();
+        setTimeout(() => { _suppressDropdown = false; }, 200);
+      }
       dd.classList.remove('open');
     });
   });
@@ -647,9 +640,10 @@ document.getElementById('chSkillTickerInput')?.addEventListener('keydown', e => 
   if (e.key === 'Escape') { document.getElementById('chSkillDropdown')?.classList.remove('open'); }
 });
 document.addEventListener('click', e => {
-  const wrap = document.getElementById('chSkillTickerRow');
-  if (wrap && !wrap.contains(e.target)) {
-    document.getElementById('chSkillDropdown')?.classList.remove('open');
+  const row = document.getElementById('chSkillTickerRow');
+  const dd  = document.getElementById('chSkillDropdown');
+  if (row && !row.contains(e.target) && dd && !dd.contains(e.target)) {
+    dd.classList.remove('open');
   }
 });
 
