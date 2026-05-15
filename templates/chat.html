@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stockdash · AI Research</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="stylesheet" href="/static/chat-home.css?v=13" />
+  <link rel="stylesheet" href="/static/chat-home.css?v=14" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -14,13 +14,18 @@
 <body>
 
 <header class="ch-nav">
-  <a class="db-brand" href="/">◈ STOCKDASH</a>
-  <nav class="ch-nav-links">
-    <button id="tourHelpBtn" class="tour-help-btn" title="Start guided tour">?</button>
-    <span class="btn btn-secondary sm db-nav-current">AI Research</span>
-    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
-    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
-    <a href="/journal" class="btn btn-secondary sm">Journal</a>
+  <a class="ch-brand-link" href="/" id="chBrandLink">
+    <span class="ch-brand-mark">◈</span>
+    <span class="ch-brand-text">stockdash</span>
+  </a>
+  <nav class="ch-nav-pills">
+    <a href="/" class="ch-nav-pill is-active">AI Research</a>
+    <a href="/dashboard" class="ch-nav-pill">Dashboard</a>
+    <a href="/portfolio" class="ch-nav-pill">Portfolio</a>
+    <a href="/journal" class="ch-nav-pill">Journal</a>
+  </nav>
+  <div class="ch-nav-right">
+    <button id="tourHelpBtn" class="ch-icon-btn" title="Start guided tour" aria-label="Help">?</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">
         <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
@@ -32,7 +37,7 @@
         </div>
       </div>
     {% endif %}
-  </nav>
+  </div>
 </header>
 
 <div class="ch-layout">
@@ -155,7 +160,7 @@
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
-<script src="/static/chat.js?v=12"></script>
+<script src="/static/chat.js?v=14"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=3"></script>
 

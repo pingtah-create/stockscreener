@@ -50,8 +50,8 @@ if (messages.length) {
 }
 
 form.addEventListener('submit', e => { e.preventDefault(); send(input.value); });
-newChatBtn.addEventListener('click', () => {
-  if (messages.length && !confirm('Start a new chat? Current conversation will be cleared.')) return;
+
+function resetToHero() {
   saveCurrentSession();
   messages = [];
   saveHistory();
@@ -62,7 +62,22 @@ newChatBtn.addEventListener('click', () => {
   input.value = '';
   input.focus();
   initHero();
+}
+
+newChatBtn.addEventListener('click', () => {
+  if (messages.length && !confirm('Start a new chat? Current conversation will be cleared.')) return;
+  resetToHero();
 });
+
+// Click brand → return to hero (no full page reload if we're already on /)
+const brandLink = document.getElementById('chBrandLink');
+if (brandLink) {
+  brandLink.addEventListener('click', e => {
+    e.preventDefault();
+    if (messages.length && !confirm('Return to home? Current conversation will be cleared.')) return;
+    resetToHero();
+  });
+}
 
 document.querySelectorAll('.ch-chip').forEach(b => {
   b.addEventListener('click', () => send(b.dataset.q));
