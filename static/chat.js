@@ -75,6 +75,39 @@ document.addEventListener('keydown', e => {
   }
 });
 
+// ── Sidebar drag-to-resize ────────────────────────────────────────────────────
+(function initSidebarResize() {
+  const SIDEBAR_KEY = `stockdash_sidebar_w_${window.CURRENT_USER || 'default'}`;
+  const MIN_W = 140;
+  const MAX_W = 480;
+  const saved = parseInt(localStorage.getItem(SIDEBAR_KEY) || '', 10);
+  if (saved && saved >= MIN_W && saved <= MAX_W) {
+    document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
+  }
+  const resizer = document.getElementById('chSidebarResizer');
+  if (!resizer) return;
+  let dragging = false;
+  resizer.addEventListener('mousedown', e => {
+    dragging = true;
+    resizer.classList.add('dragging');
+    document.body.classList.add('resizing-sidebar');
+    e.preventDefault();
+  });
+  document.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const w = Math.max(MIN_W, Math.min(MAX_W, e.clientX));
+    document.documentElement.style.setProperty('--sidebar-w', w + 'px');
+  });
+  document.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    resizer.classList.remove('dragging');
+    document.body.classList.remove('resizing-sidebar');
+    const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10);
+    if (w) localStorage.setItem(SIDEBAR_KEY, String(w));
+  });
+})();
+
 async function send(text, skill = '') {
   text = (text || '').trim();
   if (!text || pending) return;

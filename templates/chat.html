@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stockdash · AI Research</title>
-  <link rel="stylesheet" href="/static/chat-home.css?v=11" />
+  <link rel="stylesheet" href="/static/chat-home.css?v=12" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -37,11 +37,12 @@
 <div class="ch-layout">
 
   <!-- Sidebar -->
-  <aside class="ch-sidebar">
+  <aside class="ch-sidebar" id="chSidebar">
     <button class="ch-sidebar-btn" id="newChatBtn">✦ New chat</button>
     <div class="ch-sidebar-divider"></div>
     <div class="ch-sidebar-label">History</div>
     <div class="ch-sidebar-history" id="chSidebarHistory"></div>
+    <div class="ch-sidebar-resizer" id="chSidebarResizer" title="Drag to resize"></div>
   </aside>
 
 <main class="ch-main" id="chMain">
@@ -153,7 +154,7 @@
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
-<script src="/static/chat.js?v=11"></script>
+<script src="/static/chat.js?v=12"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=3"></script>
 

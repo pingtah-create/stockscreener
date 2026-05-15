@@ -9,6 +9,7 @@
   --accent: #4f8cff;
   --accent-glow: rgba(79,140,255,0.15);
   --user-bg: #1a1a1a;
+  --sidebar-w: 200px;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -28,7 +29,7 @@ body::before {
   content: '';
   position: fixed;
   top: 0;
-  left: 200px;
+  left: var(--sidebar-w);
   width: 1px;
   height: 100vh;
   background: var(--border);
@@ -144,13 +145,28 @@ header.ch-nav {
 
 /* ── Sidebar ──────────────────────────────────────── */
 .ch-sidebar {
-  width: 200px;
+  width: var(--sidebar-w);
   flex-shrink: 0;
   display: flex;
   flex-direction: column;
   padding: 16px 12px;
   gap: 4px;
+  position: relative;
 }
+.ch-sidebar-resizer {
+  position: absolute;
+  top: 0;
+  right: -3px;
+  width: 6px;
+  height: 100%;
+  cursor: col-resize;
+  z-index: 250;
+  background: transparent;
+  transition: background 0.15s;
+}
+.ch-sidebar-resizer:hover,
+.ch-sidebar-resizer.dragging { background: var(--accent); opacity: 0.5; }
+body.resizing-sidebar { cursor: col-resize; user-select: none; }
 .ch-sidebar-btn {
   display: flex;
   align-items: center;
@@ -301,7 +317,7 @@ header.ch-nav {
 .ch-thread {
   flex: 1;
   overflow-y: auto;
-  padding-bottom: 12px;
+  padding-bottom: 100px;
   scroll-behavior: smooth;
 }
 .ch-thread::-webkit-scrollbar { width: 4px; }
@@ -561,7 +577,7 @@ header.ch-nav {
 .ch-input-wrap-bottom {
   position: fixed;
   bottom: 0;
-  left: 200px; /* sidebar width */
+  left: var(--sidebar-w);
   right: 0;
   padding: 12px 24px 20px;
   background: var(--bg);
