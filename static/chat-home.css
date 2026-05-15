@@ -90,8 +90,8 @@ header.ch-nav {
   z-index: 500;
 }
 .nav-avatar-dropdown-inner {
-  background: var(--bg3);
-  border: 1px solid var(--border2);
+  background: #161616;
+  border: 1px solid #2a2a2a;
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   overflow: hidden;
@@ -112,7 +112,7 @@ header.ch-nav {
   text-decoration: none;
   transition: background 0.12s, color 0.12s;
 }
-.nav-avatar-item:hover { background: var(--bg4); color: var(--text); }
+.nav-avatar-item:hover { background: #1e1e1e; color: var(--text); }
 
 .ch-nav-links { display: flex; gap: 4px; align-items: center; }
 .ch-nav-links a, .ch-link-btn {
@@ -731,6 +731,7 @@ header.ch-nav {
 
 /* Skill ticker dropdown — fixed to viewport so it never gets clipped */
 #chSkillDropdown {
+  display: none;
   position: fixed;
   width: 260px;
   max-height: 220px;
@@ -741,6 +742,7 @@ header.ch-nav {
   border-radius: 8px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.6);
 }
+#chSkillDropdown.open { display: block; }
 #chSkillDropdown .search-result-item {
   padding: 8px 14px;
   font-size: 13px;
