@@ -11,6 +11,63 @@ from datetime import datetime
 import yfinance as yf
 
 
+_GROQ_URL   = "https://api.groq.com/openai/v1/chat/completions"
+_GROQ_MODEL = "llama-3.3-70b-versatile"
+
+
+def _groq_post(api_key: str, messages: list, *, temperature: float = 0.4,
+               max_tokens: int = 1500) -> str:
+    """Non-streaming Groq call with 429 retry. Returns assistant text."""
+    import requests as _req, time as _time
+    for attempt in range(5):
+        r = _req.post(
+            _GROQ_URL,
+            headers={"Authorization": f"Bearer {api_key}"},
+            json={"model": _GROQ_MODEL, "messages": messages,
+                  "temperature": temperature, "max_tokens": max_tokens},
+            timeout=60,
+        )
+        if r.status_code == 429:
+            wait = float(r.headers.get("retry-after", 2 ** (attempt + 1)))
+            _time.sleep(wait)
+            continue
+        r.raise_for_status()
+        return r.json()["choices"][0]["message"]["content"].strip()
+    r.raise_for_status()
+    return ""
+
+
+def _groq_stream(api_key: str, messages: list, *, temperature: float = 0.4,
+                 max_tokens: int = 1500):
+    """Streaming Groq call — yields text chunks."""
+    import requests as _req, json as _json
+    r = _req.post(
+        _GROQ_URL,
+        headers={"Authorization": f"Bearer {api_key}"},
+        json={"model": _GROQ_MODEL, "messages": messages,
+              "temperature": temperature, "max_tokens": max_tokens, "stream": True},
+        timeout=60,
+        stream=True,
+    )
+    r.raise_for_status()
+    for raw in r.iter_lines():
+        if not raw:
+            continue
+        line = raw.decode("utf-8", errors="replace")
+        if not line.startswith("data: "):
+            continue
+        payload = line[6:]
+        if payload == "[DONE]":
+            break
+        try:
+            obj = _json.loads(payload)
+            delta = obj["choices"][0].get("delta", {}).get("content", "")
+            if delta:
+                yield delta
+        except Exception:
+            continue
+
+
 # ── TOOL IMPLEMENTATIONS ──────────────────────────────────────────────────────
 
 def tool_get_stock_fundamentals(ticker: str, stock_cache: list) -> dict:
