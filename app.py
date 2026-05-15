@@ -2143,6 +2143,11 @@ def api_market_snapshot():
     return jsonify(result)
 
 
+@app.route("/api/deploycheck")
+def api_deploycheck():
+    return jsonify({"deploy": "v3-cssfix-2026-05-15"})
+
+
 @app.route("/api/trending")
 @auth.require_login_api
 def api_trending():
