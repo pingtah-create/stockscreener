@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Stockdash · AI Research</title>
   <link rel="stylesheet" href="/static/style.css" />
-  <link rel="stylesheet" href="/static/chat-home.css?v=14" />
+  <link rel="stylesheet" href="/static/chat-home.css?v=15" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -25,7 +25,9 @@
     <a href="/journal" class="ch-nav-pill">Journal</a>
   </nav>
   <div class="ch-nav-right">
-    <button id="tourHelpBtn" class="ch-icon-btn" title="Start guided tour" aria-label="Help">?</button>
+    <button class="ch-icon-btn" id="historyBtn" title="History" aria-label="History">⏱</button>
+    <button class="ch-icon-btn" id="newChatBtn" title="New chat" aria-label="New chat">✦</button>
+    <button class="ch-icon-btn" id="tourHelpBtn" title="Guided tour" aria-label="Help">?</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">
         <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
@@ -40,100 +42,132 @@
   </div>
 </header>
 
-<div class="ch-layout">
-
-  <!-- Sidebar -->
-  <aside class="ch-sidebar" id="chSidebar">
-    <button class="ch-sidebar-btn" id="newChatBtn">✦ New chat</button>
-    <div class="ch-sidebar-divider"></div>
-    <div class="ch-sidebar-label">History</div>
-    <div class="ch-sidebar-history" id="chSidebarHistory"></div>
-    <div class="ch-sidebar-resizer" id="chSidebarResizer" title="Drag to resize"></div>
-  </aside>
-
 <main class="ch-main" id="chMain">
 
-  <!-- HERO state: only shown before any messages -->
+  <!-- HERO state: greeting + big input + suggestions + sections -->
   <section class="ch-hero" id="chHero">
 
-    <!-- Market Snapshot -->
-    <div class="ch-snapshot-card" id="chSnapshot">
-      <div class="ch-snapshot-hdr">
-        <span class="ch-snapshot-label">MARKET SNAPSHOT</span>
-        <span class="ch-snapshot-time" id="snapshotTime"></span>
-      </div>
-      <div id="snapshotBody" class="ch-snapshot-loading-wrap">
-        <span class="ch-snapshot-loading-text">Loading market data…</span>
-      </div>
+    <div class="ch-hero-greet">
+      <h1 class="ch-greet-title" id="chGreetTitle">Hello</h1>
+      <p class="ch-greet-sub" id="chGreetSub">What's on your mind today?</p>
     </div>
 
-    <!-- Skills -->
-    <div class="ch-section">
-      <div class="ch-section-label">POPULAR SKILLS</div>
-      <div class="ch-skills-grid">
-        <div class="ch-skill-card" data-skill="fundamentals">
-          <div class="ch-skill-icon">$</div>
-          <div class="ch-skill-info">
-            <div class="ch-skill-title">Is This a Great Company</div>
-            <div class="ch-skill-desc">Judge if a company is worth owning long-term</div>
-          </div>
-        </div>
-        <div class="ch-skill-card" data-skill="timing">
-          <div class="ch-skill-icon">⌖</div>
-          <div class="ch-skill-info">
-            <div class="ch-skill-title">When to Buy and Sell</div>
-            <div class="ch-skill-desc">Find smartest entry and exit levels</div>
-          </div>
-        </div>
-        <div class="ch-skill-card" data-skill="swing">
-          <div class="ch-skill-icon">↗</div>
-          <div class="ch-skill-info">
-            <div class="ch-skill-title">Swing Trade Setup</div>
-            <div class="ch-skill-desc">2–4 week setup with entry, target, stop-loss</div>
-          </div>
-        </div>
-        <div class="ch-skill-card" data-skill="earnings">
-          <div class="ch-skill-icon">◎</div>
-          <div class="ch-skill-info">
-            <div class="ch-skill-title">Earnings Preview</div>
-            <div class="ch-skill-desc">Estimates, beat rate, and what to watch</div>
-          </div>
-        </div>
-        <div class="ch-skill-card" data-skill="compare">
-          <div class="ch-skill-icon">⇄</div>
-          <div class="ch-skill-info">
-            <div class="ch-skill-title">Compare vs Peers</div>
-            <div class="ch-skill-desc">Who wins on valuation, growth, and momentum</div>
-          </div>
-        </div>
-        <div class="ch-skill-card" data-skill="market">
-          <div class="ch-skill-icon">◈</div>
-          <div class="ch-skill-info">
-            <div class="ch-skill-title">Market Overview</div>
-            <div class="ch-skill-desc">What's driving markets and where to look</div>
-          </div>
-        </div>
-      </div>
+    <!-- Top input (hero-anchored — replaces fixed bottom on hero state) -->
+    <form class="ch-input-wrap ch-input-wrap-hero" id="chFormHero">
+      <input class="ch-input" id="chInputHero" type="text"
+             placeholder="Ask anything about a stock or the market…"
+             autocomplete="off" />
+      <button class="ch-send" type="submit" title="Send (Enter)">→</button>
+    </form>
 
-      <!-- Skill hint: appears below grid after a card click via JS -->
-      <div class="ch-skill-ticker-row" id="chSkillTickerRow" style="display:none">
-        <span class="ch-skill-ticker-label" id="chSkillTickerLabel"></span>
-        <div class="ch-skill-ticker-wrap">
-          <input class="ch-skill-ticker-input" id="chSkillTickerInput" placeholder="e.g. TSLA" autocomplete="off" maxlength="10" />
-          <div class="search-dropdown" id="chSkillDropdown"></div>
-        </div>
-        <button class="ch-skill-ticker-btn" id="chSkillTickerBtn">Go</button>
-      </div>
+    <!-- Suggestion cards -->
+    <div class="ch-suggest-row" id="chSuggestRow">
+      <button class="ch-suggest-card" data-q="Is NVDA overvalued?">
+        <span class="ch-suggest-icon">$</span>
+        <span class="ch-suggest-text">Is NVDA overvalued?</span>
+      </button>
+      <button class="ch-suggest-card" data-q="Compare AAPL vs MSFT">
+        <span class="ch-suggest-icon">⇄</span>
+        <span class="ch-suggest-text">Compare AAPL vs MSFT</span>
+      </button>
+      <button class="ch-suggest-card" data-q="Swing trade setup for TSLA">
+        <span class="ch-suggest-icon">↗</span>
+        <span class="ch-suggest-text">Swing trade setup for TSLA</span>
+      </button>
+      <button class="ch-suggest-card" data-q="What's driving markets today?">
+        <span class="ch-suggest-icon">◈</span>
+        <span class="ch-suggest-text">What's driving markets today?</span>
+      </button>
     </div>
 
-    <!-- Trending -->
-    <div class="ch-section">
-      <div class="ch-section-label">TRENDING</div>
-      <div class="ch-trending-list" id="chTrending">
-        <span style="color:var(--text-faint);font-size:12px">Loading…</span>
-      </div>
-    </div>
+    <!-- Sections below the fold -->
+    <div class="ch-sections">
 
+      <!-- Market Snapshot -->
+      <div class="ch-section">
+        <div class="ch-section-hdr">
+          <span class="ch-section-label">Market Snapshot</span>
+          <span class="ch-snapshot-time" id="snapshotTime"></span>
+        </div>
+        <div class="ch-snapshot-card" id="chSnapshot">
+          <div id="snapshotBody" class="ch-snapshot-loading-wrap">
+            <span class="ch-snapshot-loading-text">Loading market data…</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Skills -->
+      <div class="ch-section">
+        <div class="ch-section-hdr">
+          <span class="ch-section-label">Popular Skills</span>
+        </div>
+        <div class="ch-skills-grid">
+          <div class="ch-skill-card" data-skill="fundamentals">
+            <div class="ch-skill-icon">$</div>
+            <div class="ch-skill-info">
+              <div class="ch-skill-title">Is This a Great Company</div>
+              <div class="ch-skill-desc">Judge if a company is worth owning long-term</div>
+            </div>
+          </div>
+          <div class="ch-skill-card" data-skill="timing">
+            <div class="ch-skill-icon">⌖</div>
+            <div class="ch-skill-info">
+              <div class="ch-skill-title">When to Buy and Sell</div>
+              <div class="ch-skill-desc">Find smartest entry and exit levels</div>
+            </div>
+          </div>
+          <div class="ch-skill-card" data-skill="swing">
+            <div class="ch-skill-icon">↗</div>
+            <div class="ch-skill-info">
+              <div class="ch-skill-title">Swing Trade Setup</div>
+              <div class="ch-skill-desc">2–4 week setup with entry, target, stop-loss</div>
+            </div>
+          </div>
+          <div class="ch-skill-card" data-skill="earnings">
+            <div class="ch-skill-icon">◎</div>
+            <div class="ch-skill-info">
+              <div class="ch-skill-title">Earnings Preview</div>
+              <div class="ch-skill-desc">Estimates, beat rate, and what to watch</div>
+            </div>
+          </div>
+          <div class="ch-skill-card" data-skill="compare">
+            <div class="ch-skill-icon">⇄</div>
+            <div class="ch-skill-info">
+              <div class="ch-skill-title">Compare vs Peers</div>
+              <div class="ch-skill-desc">Who wins on valuation, growth, and momentum</div>
+            </div>
+          </div>
+          <div class="ch-skill-card" data-skill="market">
+            <div class="ch-skill-icon">◈</div>
+            <div class="ch-skill-info">
+              <div class="ch-skill-title">Market Overview</div>
+              <div class="ch-skill-desc">What's driving markets and where to look</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Skill hint -->
+        <div class="ch-skill-ticker-row" id="chSkillTickerRow" style="display:none">
+          <span class="ch-skill-ticker-label" id="chSkillTickerLabel"></span>
+          <div class="ch-skill-ticker-wrap">
+            <input class="ch-skill-ticker-input" id="chSkillTickerInput" placeholder="e.g. TSLA" autocomplete="off" maxlength="10" />
+            <div class="search-dropdown" id="chSkillDropdown"></div>
+          </div>
+          <button class="ch-skill-ticker-btn" id="chSkillTickerBtn">Go</button>
+        </div>
+      </div>
+
+      <!-- Trending -->
+      <div class="ch-section">
+        <div class="ch-section-hdr">
+          <span class="ch-section-label">Trending</span>
+        </div>
+        <div class="ch-trending-list" id="chTrending">
+          <span style="color:var(--text3);font-size:12px">Loading…</span>
+        </div>
+      </div>
+
+    </div><!-- /.ch-sections -->
 
   </section>
 
@@ -142,17 +176,25 @@
     <div class="ch-thread" id="chThread"></div>
   </section>
 
-  <!-- Single input — always visible at the bottom -->
+  <!-- Bottom input — only visible during chat state -->
   <form class="ch-input-wrap ch-input-wrap-bottom" id="chForm">
     <input class="ch-input" id="chInput" type="text"
-           placeholder="Ask about a stock — e.g. Is NVDA overvalued?"
-           autocomplete="off" autofocus />
+           placeholder="Ask a follow-up…"
+           autocomplete="off" />
     <button class="ch-send" type="submit" title="Send (Enter)">→</button>
   </form>
 
 </main>
 
-</div><!-- /.ch-layout -->
+<!-- History drawer (slides in from right) -->
+<aside class="ch-drawer" id="chHistoryDrawer" hidden>
+  <div class="ch-drawer-hdr">
+    <span class="ch-drawer-title">History</span>
+    <button class="ch-drawer-close" id="chDrawerClose" aria-label="Close">×</button>
+  </div>
+  <div class="ch-drawer-body" id="chSidebarHistory"></div>
+</aside>
+<div class="ch-drawer-scrim" id="chDrawerScrim" hidden></div>
 
 <div class="disclaimer-badge">
   <span class="data-delay" title="US quotes via Yahoo Finance are delayed at least 15 min">⏱ Data delayed 15m</span>
@@ -160,7 +202,7 @@
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
-<script src="/static/chat.js?v=14"></script>
+<script src="/static/chat.js?v=15"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=3"></script>
 

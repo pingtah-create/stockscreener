@@ -7,11 +7,13 @@ const SESSIONS_KEY = `stockdash_sessions_v1_${window.CURRENT_USER || 'default'}`
 const MAX_HISTORY  = 20;
 const currentSessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
-const heroEl    = document.getElementById('chHero');
-const chatEl    = document.getElementById('chChat');
-const threadEl  = document.getElementById('chThread');
-const form      = document.getElementById('chForm');
-const input     = document.getElementById('chInput');
+const heroEl     = document.getElementById('chHero');
+const chatEl     = document.getElementById('chChat');
+const threadEl   = document.getElementById('chThread');
+const form       = document.getElementById('chForm');
+const input      = document.getElementById('chInput');
+const formHero   = document.getElementById('chFormHero');
+const inputHero  = document.getElementById('chInputHero');
 const newChatBtn = document.getElementById('newChatBtn');
 
 let messages = loadHistory();
@@ -45,11 +47,14 @@ const LOADING_PHRASES = [
 
 if (messages.length) {
   renderThread();
+  document.body.classList.add('has-thread');
 } else {
   initHero();
 }
 
+// Two forms: hero input (when hero is showing) and bottom input (after chat starts)
 form.addEventListener('submit', e => { e.preventDefault(); send(input.value); });
+if (formHero) formHero.addEventListener('submit', e => { e.preventDefault(); send(inputHero.value); });
 
 function resetToHero() {
   saveCurrentSession();
@@ -58,9 +63,10 @@ function resetToHero() {
   threadEl.innerHTML = '';
   chatEl.hidden  = true;
   heroEl.hidden  = false;
-  input.placeholder = 'Ask about a stock — e.g. Is NVDA overvalued?';
+  document.body.classList.remove('has-thread');
+  if (inputHero) inputHero.value = '';
   input.value = '';
-  input.focus();
+  if (inputHero) inputHero.focus(); else input.focus();
   initHero();
 }
 
@@ -69,7 +75,7 @@ newChatBtn.addEventListener('click', () => {
   resetToHero();
 });
 
-// Click brand → return to hero (no full page reload if we're already on /)
+// Brand click → return to hero in-place
 const brandLink = document.getElementById('chBrandLink');
 if (brandLink) {
   brandLink.addEventListener('click', e => {
@@ -79,48 +85,53 @@ if (brandLink) {
   });
 }
 
-document.querySelectorAll('.ch-chip').forEach(b => {
+// Suggestion cards
+document.querySelectorAll('.ch-suggest-card').forEach(b => {
   b.addEventListener('click', () => send(b.dataset.q));
 });
 
 document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
     e.preventDefault();
-    input.focus();
+    (heroEl && !heroEl.hidden ? inputHero : input).focus();
   }
 });
 
-// ── Sidebar drag-to-resize ────────────────────────────────────────────────────
-(function initSidebarResize() {
-  const SIDEBAR_KEY = `stockdash_sidebar_w_${window.CURRENT_USER || 'default'}`;
-  const MIN_W = 140;
-  const MAX_W = 480;
-  const saved = parseInt(localStorage.getItem(SIDEBAR_KEY) || '', 10);
-  if (saved && saved >= MIN_W && saved <= MAX_W) {
-    document.documentElement.style.setProperty('--sidebar-w', saved + 'px');
-  }
-  const resizer = document.getElementById('chSidebarResizer');
-  if (!resizer) return;
-  let dragging = false;
-  resizer.addEventListener('mousedown', e => {
-    dragging = true;
-    resizer.classList.add('dragging');
-    document.body.classList.add('resizing-sidebar');
-    e.preventDefault();
-  });
-  document.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    const w = Math.max(MIN_W, Math.min(MAX_W, e.clientX));
-    document.documentElement.style.setProperty('--sidebar-w', w + 'px');
-  });
-  document.addEventListener('mouseup', () => {
-    if (!dragging) return;
-    dragging = false;
-    resizer.classList.remove('dragging');
-    document.body.classList.remove('resizing-sidebar');
-    const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--sidebar-w'), 10);
-    if (w) localStorage.setItem(SIDEBAR_KEY, String(w));
-  });
+// ── Time-aware greeting ──────────────────────────────────────────────────────
+(function initGreeting() {
+  const titleEl = document.getElementById('chGreetTitle');
+  const subEl   = document.getElementById('chGreetSub');
+  if (!titleEl) return;
+  const h = new Date().getHours();
+  const user = window.CURRENT_USER ? window.CURRENT_USER.charAt(0).toUpperCase() + window.CURRENT_USER.slice(1) : '';
+  let greet;
+  if (h < 5)      greet = 'Up late';
+  else if (h < 12) greet = 'Good morning';
+  else if (h < 18) greet = 'Good afternoon';
+  else             greet = 'Good evening';
+  titleEl.textContent = user ? `${greet}, ${user}` : greet;
+  const subs = [
+    "What's on your mind today?",
+    "Ready when you are.",
+    "Ask anything about the market.",
+    "Got a stock to dig into?",
+  ];
+  if (subEl) subEl.textContent = subs[Math.floor(Math.random() * subs.length)];
+})();
+
+// ── History drawer ───────────────────────────────────────────────────────────
+(function initHistoryDrawer() {
+  const btn    = document.getElementById('historyBtn');
+  const drawer = document.getElementById('chHistoryDrawer');
+  const scrim  = document.getElementById('chDrawerScrim');
+  const close  = document.getElementById('chDrawerClose');
+  if (!btn || !drawer || !scrim) return;
+  function open()  { drawer.hidden = false; scrim.hidden = false; renderHistory(); }
+  function shut()  { drawer.hidden = true;  scrim.hidden = true;  }
+  btn.addEventListener('click', open);
+  scrim.addEventListener('click', shut);
+  close && close.addEventListener('click', shut);
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !drawer.hidden) shut(); });
 })();
 
 async function send(text, skill = '') {
@@ -130,13 +141,15 @@ async function send(text, skill = '') {
   if (heroEl && !heroEl.hidden) {
     heroEl.hidden = true;
     chatEl.hidden = false;
+    document.body.classList.add('has-thread');
   }
 
   messages.push({ role: 'user', content: text });
   saveHistory();
   appendMessage('user', text);
   input.value = '';
-  input.placeholder = 'Ask anything…';
+  if (inputHero) inputHero.value = '';
+  input.placeholder = 'Ask a follow-up…';
 
   pending = true;
   const loadingNode = appendLoading();
@@ -316,6 +329,7 @@ function appendMessage(role, text, tickers = [], toolsUsed = [], isError = false
 function renderThread() {
   heroEl.hidden = true;
   chatEl.hidden = false;
+  document.body.classList.add('has-thread');
   threadEl.innerHTML = '';
   for (const m of messages) {
     appendMessage(m.role, m.content, m.tickers || [], m.tools_used || [], false, m.chart_data || null);
