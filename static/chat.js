@@ -560,6 +560,13 @@ function _skillDropdownOpen(q) {
   let dd = document.getElementById('chSkillDropdown');
   if (!dd) return;
   if (!q) { dd.classList.remove('open'); return; }
+  // Position using fixed coords so it works regardless of overflow/clipping
+  const inp = document.getElementById('chSkillTickerInput');
+  if (inp) {
+    const r = inp.getBoundingClientRect();
+    dd.style.top  = (r.bottom + 4) + 'px';
+    dd.style.left = r.left + 'px';
+  }
   const found = _skillUniverse.filter(s =>
     s.symbol?.toUpperCase().startsWith(q) ||
     (s.shortName || '').toUpperCase().includes(q)

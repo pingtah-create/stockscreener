@@ -729,26 +729,29 @@ header.ch-nav {
 }
 .ch-skill-ticker-btn:hover { opacity: 0.85; }
 
-/* Skill ticker dropdown — sits below the input, inside the wrap */
+/* Skill ticker dropdown — fixed to viewport so it never gets clipped */
 #chSkillDropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
+  position: fixed;
   width: 260px;
   max-height: 220px;
   overflow-y: auto;
   z-index: 9999;
-  background: var(--bg3);
-  border: 1px solid var(--border2);
-  border-radius: var(--radius);
-  box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  background: #161616;
+  border: 1px solid #2a2a2a;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.6);
 }
 #chSkillDropdown .search-result-item {
   padding: 8px 14px;
   font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-#chSkillDropdown .search-ticker { font-size: 13px; width: 56px; }
-#chSkillDropdown .search-name   { font-size: 12px; }
+#chSkillDropdown .search-result-item:hover { background: #1a1a1a; }
+#chSkillDropdown .search-ticker { font-size: 13px; width: 56px; font-weight: 700; color: #4f8cff; font-family: monospace; }
+#chSkillDropdown .search-name   { font-size: 12px; color: #888; }
 
 /* ── Trending ────────────────────────────────────── */
 .ch-trending-list { display: flex; flex-direction: column; gap: 1px; }
