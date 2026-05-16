@@ -35,10 +35,13 @@ async function init() {
   }
   setupTickerSearch();
   if (holdings.length) {
-    renderTable([]);          // show skeleton while loading
+    document.getElementById('holdingsTable').innerHTML =
+      '<div class="port-empty">Loading holdings…</div>';
     fetchSummary();           // live prices + stats
     fetchPerf(period);        // performance chart
   } else {
+    document.getElementById('holdingsTable').innerHTML =
+      '<div class="port-empty">No holdings yet — click + to add one</div>';
     document.getElementById('portChartEmpty').style.display = 'flex';
   }
 }
@@ -397,11 +400,22 @@ async function fetchSummary() {
     });
     const data = await r.json();
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-    renderStats(data.metrics);
-    renderTable(data.allocation);
+
+    const metrics    = data.metrics    || {};
+    const allocation = data.allocation || [];
+
+    // Big hero value — set here too so it doesn't depend on the perf chart call
+    if (metrics.total_value != null) {
+      document.getElementById('portTotalValue').textContent =
+        '$' + metrics.total_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    renderStats(metrics);
+    renderTable(allocation);
     if (stamp) stamp.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
-    if (stamp) stamp.textContent = 'Price fetch failed';
+    console.error('fetchSummary failed:', err);
+    if (stamp) stamp.textContent = 'Price fetch failed — retrying soon';
   }
 }
 

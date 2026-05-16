@@ -1568,6 +1568,41 @@ def api_portfolio_summary():
     total_cost  = 0.0
     has_cost    = False
 
+    # Resolve a quick {ticker -> stock_cache dict} lookup
+    cache_by_sym = {s.get("symbol"): s for s in _stock_cache if s.get("symbol")}
+
+    # Any holding NOT in the stock cache (e.g. ETFs like SPY/IBIT/GLD) needs a
+    # live price. Batch-fetch ALL of them in ONE yf.download() call instead of
+    # N serial yf.Ticker().fast_info calls — the latter made this endpoint slow
+    # and prone to Vercel timeouts when the portfolio had many off-universe tickers.
+    extra_prices: dict = {}
+    missing = [
+        h.get("ticker", "").upper() for h in holdings
+        if h.get("ticker", "").upper() and h.get("ticker", "").upper() not in cache_by_sym
+    ]
+    missing = list({t for t in missing if t})
+    if missing:
+        try:
+            import pandas as pd
+            df = yf.download(missing, period="2d", interval="1d",
+                             progress=False, auto_adjust=True, threads=True)
+            if not df.empty:
+                close = df["Close"] if "Close" in df else df.get("Adj Close")
+                if close is not None and not close.empty:
+                    for t in missing:
+                        col = t if (hasattr(close, "columns") and t in close.columns) else None
+                        if col is None and len(missing) == 1:
+                            series = close.dropna() if hasattr(close, "dropna") else None
+                        else:
+                            series = close[col].dropna() if col is not None else None
+                        if series is not None and len(series):
+                            last = float(series.iloc[-1])
+                            prev = float(series.iloc[-2]) if len(series) >= 2 else None
+                            chg  = round((last - prev) / prev * 100, 2) if prev and prev > 0 else 0
+                            extra_prices[t] = (last, chg)
+        except Exception:
+            pass
+
     for h in holdings:
         ticker = h.get("ticker", "").upper()
         shares = float(h.get("shares") or 0)
@@ -1575,14 +1610,16 @@ def api_portfolio_summary():
         if not ticker or shares <= 0:
             continue
 
-        data  = next((s for s in _stock_cache if s.get("symbol") == ticker), None)
-        price = (data.get("currentPrice") or data.get("previousClose")) if data else None
-        if price is None:
-            try:
-                info  = yf.Ticker(ticker).fast_info
-                price = getattr(info, "last_price", None) or getattr(info, "previous_close", None)
-            except Exception:
-                pass
+        data  = cache_by_sym.get(ticker)
+        if data:
+            price = data.get("currentPrice") or data.get("previousClose")
+            chg   = data.get("regularMarketChangePercent") or 0
+            sector = data.get("sector") or "Unknown"
+        else:
+            ep = extra_prices.get(ticker)
+            price = ep[0] if ep else None
+            chg   = ep[1] if ep else 0
+            sector = "ETF / Other"
         if not price:
             continue
 
@@ -1595,8 +1632,6 @@ def api_portfolio_summary():
 
         unreal     = round(value - cost_basis, 2)    if cost_basis is not None else None
         unreal_pct = round(unreal / cost_basis * 100, 2) if cost_basis and cost_basis > 0 else None
-        sector     = (data.get("sector") or "Unknown") if data else "Unknown"
-        chg        = (data.get("regularMarketChangePercent") or 0) if data else 0
 
         allocation.append({
             "ticker":              ticker,
@@ -1613,11 +1648,20 @@ def api_portfolio_summary():
 
     for a in allocation:
         a["pct"] = round(a["value"] / total_value * 100, 1) if total_value > 0 else 0
+        # Frontend reads `return_pct` for the daily move
+        a["return_pct"] = a["change_pct"]
 
     allocation.sort(key=lambda a: -a["pct"])
     top       = allocation[0] if allocation else {}
     total_pnl = round(total_value - total_cost, 2) if has_cost else None
     total_pnl_pct = round(total_pnl / total_cost * 100, 2) if has_cost and total_cost else None
+
+    # Best / worst performer by today's % change
+    by_chg = sorted(allocation, key=lambda a: a.get("change_pct", 0))
+    best   = ({"ticker": by_chg[-1]["ticker"], "return_pct": by_chg[-1]["change_pct"]}
+              if by_chg else None)
+    worst  = ({"ticker": by_chg[0]["ticker"], "return_pct": by_chg[0]["change_pct"]}
+              if by_chg else None)
 
     return jsonify({
         "allocation": allocation,
@@ -1629,6 +1673,8 @@ def api_portfolio_summary():
             "num_stocks":           len(allocation),
             "top_stock":            top.get("ticker"),
             "top_concentration_pct": top.get("pct"),
+            "best_performer":       best,
+            "worst_performer":      worst,
         },
     })
 
