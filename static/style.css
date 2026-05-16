@@ -89,17 +89,23 @@ body {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
+  right: 0;
   min-width: 280px;
   background: var(--bg3);
   border: 1px solid var(--border2);
   border-radius: var(--radius);
-  z-index: 200;
+  z-index: 300;
   max-height: 280px;
   overflow-y: auto;
   box-shadow: 0 8px 24px rgba(0,0,0,0.5);
   display: none;
 }
 .search-dropdown.open { display: block; }
+/* Dashboard nav search: anchor dropdown to the right so it stays on-screen */
+.db-search-wrap .search-dropdown {
+  left: auto;
+  right: 0;
+}
 .search-result-item {
   padding: 9px 14px;
   cursor: pointer;
@@ -447,6 +453,10 @@ body {
 
 .watchlist-input-wrap {
   padding: 7px 12px; border-bottom: 1px solid var(--border);
+  position: relative;
+}
+.watchlist-input-wrap .search-dropdown {
+  left: 12px; right: 12px;
 }
 .watchlist-input {
   width: 100%; background: var(--bg2); border: 1px solid var(--border);

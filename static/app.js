@@ -373,21 +373,63 @@ function setupWatchlist() {
   const btn  = document.getElementById("watchlistAddBtn");
   const wrap = document.getElementById("watchlistInputWrap");
   const inp  = document.getElementById("watchlistInput");
+  const dd   = document.getElementById("watchlistDropdown");
   if (!btn || !wrap || !inp) return;
+
+  function closeDd() { if (dd) dd.classList.remove("open"); }
+
+  function pick(ticker) {
+    addToWatchlist(ticker);
+    inp.value = "";
+    closeDd();
+    wrap.style.display = "none";
+  }
+
   btn.addEventListener("click", () => {
     const open = wrap.style.display !== "none";
     wrap.style.display = open ? "none" : "block";
     if (!open) inp.focus();
+    else closeDd();
   });
+
+  // Live autocomplete dropdown
+  inp.addEventListener("input", () => {
+    const q = inp.value.trim().toUpperCase();
+    if (!dd) return;
+    if (q.length < 1) { closeDd(); return; }
+    const found = allResults.filter(s =>
+      s.symbol?.toUpperCase().includes(q) ||
+      (s.shortName || s.longName || "").toUpperCase().includes(q)
+    ).slice(0, 7);
+    const directItem = `<div class="search-result-item" data-ticker="${q}" style="border-top:1px solid var(--border);opacity:.7">
+      <span class="search-ticker">${q}</span>
+      <span class="search-name" style="color:var(--text3)">Add anyway →</span>
+    </div>`;
+    dd.innerHTML = found.map(s => `
+      <div class="search-result-item" data-ticker="${s.symbol}">
+        <span class="search-ticker">${s.symbol}</span>
+        <span class="search-name">${s.shortName || s.longName || "—"}</span>
+      </div>`).join("") + directItem;
+    dd.querySelectorAll("[data-ticker]").forEach(item => {
+      item.addEventListener("click", () => pick(item.dataset.ticker));
+    });
+    dd.classList.add("open");
+  });
+
   inp.addEventListener("keydown", e => {
     if (e.key === "Enter") {
-      addToWatchlist(inp.value);
-      inp.value = "";
-      wrap.style.display = "none";
+      // Pick the first dropdown result if present, else the raw text
+      const first = dd && dd.querySelector("[data-ticker]");
+      pick(first ? first.dataset.ticker : inp.value);
     } else if (e.key === "Escape") {
       inp.value = "";
+      closeDd();
       wrap.style.display = "none";
     }
+  });
+
+  document.addEventListener("click", e => {
+    if (!wrap.contains(e.target)) closeDd();
   });
 }
 
