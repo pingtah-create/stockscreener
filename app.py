@@ -793,22 +793,35 @@ def api_movers():
     return jsonify(result)
 
 
-_FX_CACHE: dict = {"TWDUSD": None, "at": None}
-def _twd_to_usd_rate() -> float:
-    """USD per 1 TWD. Cached for 1 hour. Falls back to ~0.031 (~32 TWD/USD)."""
-    now = datetime.utcnow()
-    if _FX_CACHE["at"] and (now - _FX_CACHE["at"]).total_seconds() < 3600 and _FX_CACHE["TWDUSD"]:
-        return _FX_CACHE["TWDUSD"]
+_FX_CACHE: dict = {"TWDUSD": 0.031, "at": None}
+_fx_refreshing = False
+
+
+def _fetch_twd_rate():
+    """Background fetch of TWD→USD rate. Never blocks a request."""
+    global _fx_refreshing
     try:
         info = yf.Ticker("TWDUSD=X").fast_info
         rate = float(getattr(info, "last_price", None) or 0)
         if rate > 0:
             _FX_CACHE["TWDUSD"] = rate
-            _FX_CACHE["at"] = now
-            return rate
+            _FX_CACHE["at"] = datetime.utcnow()
     except Exception:
         pass
-    return 0.031  # ~32 TWD per USD, May 2026
+    finally:
+        _fx_refreshing = False
+
+
+def _twd_to_usd_rate() -> float:
+    """USD per 1 TWD. Returns cached value instantly; refreshes in the background
+    when stale (1h TTL). Never makes a blocking network call from a request."""
+    global _fx_refreshing
+    now = datetime.utcnow()
+    is_stale = not _FX_CACHE["at"] or (now - _FX_CACHE["at"]).total_seconds() >= 3600
+    if is_stale and not _fx_refreshing:
+        _fx_refreshing = True
+        threading.Thread(target=_fetch_twd_rate, daemon=True).start()
+    return _FX_CACHE["TWDUSD"] or 0.031  # fallback ~32 TWD/USD
 
 
 @app.route("/api/stockmap")
