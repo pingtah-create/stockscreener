@@ -4,20 +4,25 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Journal · Stockdash</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=2" />
   <link rel="stylesheet" href="/static/journal.css" />
   <link rel="stylesheet" href="/static/legal.css" />
   {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
 <body>
 
-<nav class="db-nav">
-  <a class="db-brand" href="/">◈ STOCKDASH</a>
-  <div class="db-nav-right">
-    <a href="/" class="btn btn-secondary sm">AI Research</a>
-    <a href="/dashboard" class="btn btn-secondary sm">Dashboard</a>
-    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
-    <span class="btn btn-secondary sm db-nav-current">Journal</span>
+<header class="ch-nav">
+  <a class="ch-brand-link" href="/">
+    <span class="ch-brand-mark">◈</span>
+    <span class="ch-brand-text">stockdash</span>
+  </a>
+  <nav class="ch-nav-pills">
+    <a href="/" class="ch-nav-pill">AI Research</a>
+    <a href="/dashboard" class="ch-nav-pill">Dashboard</a>
+    <a href="/portfolio" class="ch-nav-pill">Portfolio</a>
+    <a href="/journal" class="ch-nav-pill is-active">Journal</a>
+  </nav>
+  <div class="ch-nav-right">
     {% if current_user %}
       <div class="nav-avatar-wrap">
         <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
@@ -30,7 +35,7 @@
       </div>
     {% endif %}
   </div>
-</nav>
+</header>
 
 <div class="jnl-layout">
 

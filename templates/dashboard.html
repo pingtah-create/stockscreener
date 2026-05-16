@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Market Map</title>
-  <link rel="stylesheet" href="/static/style.css" />
+  <link rel="stylesheet" href="/static/style.css?v=2" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -13,10 +13,42 @@
 <body>
 
 <!-- TOPBAR -->
-<nav class="db-nav">
-  <a class="db-brand" href="/">◈ STOCKDASH</a>
+<header class="ch-nav">
+  <a class="ch-brand-link" href="/">
+    <span class="ch-brand-mark">◈</span>
+    <span class="ch-brand-text">stockdash</span>
+  </a>
+  <nav class="ch-nav-pills">
+    <a href="/" class="ch-nav-pill">AI Research</a>
+    <a href="/dashboard" class="ch-nav-pill is-active">Dashboard</a>
+    <a href="/portfolio" class="ch-nav-pill">Portfolio</a>
+    <a href="/journal" class="ch-nav-pill">Journal</a>
+  </nav>
+  <div class="ch-nav-right">
+    <div class="db-search-wrap" id="searchWrap">
+      <span class="db-search-icon">⌕</span>
+      <input class="db-search-input" id="searchInput" type="text"
+             placeholder="Search ticker…  Ctrl+K" autocomplete="off" />
+      <div class="search-dropdown" id="searchDropdown"></div>
+    </div>
+    <button id="tourHelpBtn" class="ch-icon-btn" title="Start guided tour" aria-label="Help">?</button>
+    {% if current_user %}
+      <div class="nav-avatar-wrap">
+        <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
+        <div class="nav-avatar-dropdown">
+          <div class="nav-avatar-dropdown-inner">
+            <div class="nav-avatar-name">{{ current_user }}</div>
+            <a href="/logout" class="nav-avatar-item">Logout</a>
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  </div>
+</header>
 
-  <div class="db-indices">
+<!-- INDEX TAPE -->
+<div class="db-tape">
+  <div class="db-tape-indices">
     <span class="db-idx" id="mktcard-SP500">
       <span class="db-idx-name">S&amp;P</span>
       <span id="mktprice-SP500">—</span>
@@ -53,37 +85,11 @@
       <span class="mkt-card-chg" id="mktchg-10Y">—</span>
     </span>
   </div>
-
-  <div class="db-search-wrap" id="searchWrap">
-    <span class="db-search-icon">⌕</span>
-    <input class="db-search-input" id="searchInput" type="text"
-           placeholder="Search…  Ctrl+K" autocomplete="off" />
-    <div class="search-dropdown" id="searchDropdown"></div>
-  </div>
-
-  <div class="db-nav-right">
-    <button id="tourHelpBtn" class="tour-help-btn" title="Start guided tour">?</button>
-    <span class="market-status" id="marketStatus">
-      <span class="market-dot" id="marketDot"></span>
-      <span class="market-label" id="marketLabel">—</span>
-    </span>
-    <a href="/" class="btn btn-secondary sm">AI Research</a>
-    <span class="btn btn-secondary sm db-nav-current">Dashboard</span>
-    <a href="/portfolio" class="btn btn-secondary sm">Portfolio</a>
-    <a href="/journal" class="btn btn-secondary sm">Journal</a>
-    {% if current_user %}
-      <div class="nav-avatar-wrap">
-        <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>
-        <div class="nav-avatar-dropdown">
-          <div class="nav-avatar-dropdown-inner">
-            <div class="nav-avatar-name">{{ current_user }}</div>
-            <a href="/logout" class="nav-avatar-item">Logout</a>
-          </div>
-        </div>
-      </div>
-    {% endif %}
-  </div>
-</nav>
+  <span class="market-status" id="marketStatus">
+    <span class="market-dot" id="marketDot"></span>
+    <span class="market-label" id="marketLabel">—</span>
+  </span>
+</div>
 
 <!-- BODY -->
 <div class="db-body">

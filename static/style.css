@@ -822,11 +822,39 @@ header.ch-nav {
 }
 
 .db-search-wrap {
-  flex: 1;
-  max-width: 300px;
+  width: 240px;
   position: relative;
   display: flex;
   align-items: center;
+}
+
+/* ── Index tape row (below nav) ─────────────────────── */
+.db-tape {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 34px;
+  padding: 0 22px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.db-tape-indices {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  min-width: 0;
+}
+.db-tape-indices::-webkit-scrollbar { display: none; }
+.db-tape .market-status {
+  flex-shrink: 0;
+  border: none;
+  padding: 0;
+  font-size: 10px;
 }
 
 .db-search-icon {
@@ -840,17 +868,17 @@ header.ch-nav {
 
 .db-search-input {
   width: 100%;
-  background: var(--bg2);
+  background: var(--bg3);
   border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
+  border-radius: 8px;
   color: var(--text);
   font-family: var(--font);
-  font-size: 12px;
-  padding: 5px 10px 5px 28px;
+  font-size: 12.5px;
+  padding: 7px 12px 7px 30px;
   transition: border-color var(--transition);
 }
 
-.db-search-input:focus { outline: none; border-color: var(--border2); }
+.db-search-input:focus { outline: none; border-color: var(--accent); }
 .db-search-input::placeholder { color: var(--text3); }
 
 .db-nav-right {
@@ -870,7 +898,7 @@ header.ch-nav {
 
 .db-body {
   display: flex;
-  height: calc(100vh - 42px);
+  height: calc(100vh - 53px - 34px);
   overflow: hidden;
 }
 
