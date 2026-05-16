@@ -105,7 +105,6 @@ window.addEventListener('DOMContentLoaded', () => {
   setupPeriodBtns();
   setupDrawingCanvas();
   setupPriceAlerts();
-  setupTradeButton();
   loadAlertsFromServer();
   updateWatchStarUI();
   setupCompare();
@@ -594,24 +593,6 @@ async function saveAlertEmail() {
       showAlertToast('Invalid email');
     }
   } catch { showAlertToast('Could not save email'); }
-}
-
-function setupTradeButton() {
-  const btn = document.getElementById('tradeBtn');
-  const pop = document.getElementById('tradePopup');
-  if (!btn || !pop) return;
-  btn.addEventListener('click', e => {
-    e.stopPropagation();
-    pop.style.display = pop.style.display === 'none' ? 'block' : 'none';
-  });
-  document.addEventListener('click', e => {
-    if (!pop.contains(e.target) && !btn.contains(e.target)) pop.style.display = 'none';
-  });
-  pop.querySelectorAll('.trade-broker').forEach(a => {
-    a.addEventListener('click', () => {
-      if (window.plausible) window.plausible('Broker Click', { props: { broker: a.querySelector('.trade-broker-name')?.textContent || 'unknown', ticker: TICKER } });
-    });
-  });
 }
 
 // Check current price against saved alerts. Fires browser notification +
