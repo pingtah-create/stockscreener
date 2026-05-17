@@ -5,17 +5,32 @@
 const LC = LightweightCharts;
 
 // ── Theme ──────────────────────────────────────────────────────────
+// Pull live colors from the CSS design tokens so the chart follows
+// the dark/light theme.
+function cssVar(name, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+function chartTheme() {
+  return {
+    bg:     cssVar('--bg2', '#131722'),
+    text:   cssVar('--text2', '#a9b1bc'),
+    grid:   cssVar('--border', '#232838'),
+    border: cssVar('--border', '#232838'),
+  };
+}
+const _ct = chartTheme();
 const CHART_OPT = {
   autoSize: true,
-  layout: { background: { color: '#090e1a' }, textColor: '#8899aa', fontSize: 11 },
-  grid:    { vertLines: { color: '#1a2540' }, horzLines: { color: '#1a2540' } },
+  layout: { background: { color: _ct.bg }, textColor: _ct.text, fontSize: 11 },
+  grid:    { vertLines: { color: _ct.grid }, horzLines: { color: _ct.grid } },
   crosshair: {
     mode: 1,
-    vertLine: { color: 'rgba(136,153,170,0.35)', width: 1, style: 1, labelBackgroundColor: '#1a2540' },
-    horzLine: { color: 'rgba(136,153,170,0.35)', width: 1, style: 1, labelBackgroundColor: '#1a2540' },
+    vertLine: { color: 'rgba(136,153,170,0.35)', width: 1, style: 1, labelBackgroundColor: _ct.border },
+    horzLine: { color: 'rgba(136,153,170,0.35)', width: 1, style: 1, labelBackgroundColor: _ct.border },
   },
-  rightPriceScale: { borderColor: '#1a2540', scaleMargins: { top: 0.08, bottom: 0.08 } },
-  timeScale: { borderColor: '#1a2540', timeVisible: true, secondsVisible: false, rightOffset: 5 },
+  rightPriceScale: { borderColor: _ct.border, scaleMargins: { top: 0.08, bottom: 0.08 } },
+  timeScale: { borderColor: _ct.border, timeVisible: true, secondsVisible: false, rightOffset: 5 },
   handleScroll: true,
   handleScale:  true,
 };
@@ -230,9 +245,9 @@ function syncLine(chart, el, time) {
 // ── Build price series ─────────────────────────────────────────────
 function buildPriceSeries() {
   candleSeries = priceChart.addCandlestickSeries({
-    upColor: '#00e676', downColor: '#ff4f4f',
-    borderUpColor: '#00e676', borderDownColor: '#ff4f4f',
-    wickUpColor: '#00e676', wickDownColor: '#ff4f4f',
+    upColor: '#26a69a', downColor: '#ef5350',
+    borderUpColor: '#26a69a', borderDownColor: '#ef5350',
+    wickUpColor: '#26a69a', wickDownColor: '#ef5350',
   });
 
   linePriceSeries = priceChart.addLineSeries({
@@ -852,7 +867,7 @@ function updateOHLCV(param) {
   const chgAbs = prev ? (bar.close - prev.close) : null;
   const t      = chartData.technicals;
 
-  const green = '#00e676', red = '#ff4f4f';
+  const green = '#26a69a', red = '#ef5350';
   const clr   = bar.up ? green : red;
   const sign  = chgPct >= 0 ? '+' : '';
 
@@ -1841,7 +1856,7 @@ function togglePatterns(btn) {
     _patternMarkers = patterns.map(p => ({
       time:     p.time,
       position: p.bull === true ? 'belowBar' : p.bull === false ? 'aboveBar' : 'belowBar',
-      color:    p.bull === true ? '#00e676'  : p.bull === false ? '#ff4f4f'  : '#ffd54f',
+      color:    p.bull === true ? '#26a69a'  : p.bull === false ? '#ef5350'  : '#ffd54f',
       shape:    p.bull === true ? 'arrowUp'  : p.bull === false ? 'arrowDown': 'circle',
       text:     p.name.split(' ').map(w => w[0]).join(''),
       size: 1,
@@ -1922,14 +1937,14 @@ function applyAutoTA() {
   let trendDrawn = false;
   for (let i = lows.length - 1; i >= 1 && !trendDrawn; i--) {
     if (lows[i].price > lows[i-1].price) {
-      drawings.push({ type: 'trendline', points: [lows[i-1], lows[i]], color: '#00e676', _autoTA: true });
+      drawings.push({ type: 'trendline', points: [lows[i-1], lows[i]], color: '#26a69a', _autoTA: true });
       trendDrawn = true;
     }
   }
   if (!trendDrawn) {
     for (let i = highs.length - 1; i >= 1; i--) {
       if (highs[i].price < highs[i-1].price) {
-        drawings.push({ type: 'trendline', points: [highs[i-1], highs[i]], color: '#ff4f4f', _autoTA: true });
+        drawings.push({ type: 'trendline', points: [highs[i-1], highs[i]], color: '#ef5350', _autoTA: true });
         break;
       }
     }
@@ -1942,9 +1957,9 @@ function applyAutoTA() {
       const m1 = t.macd[i],   s1 = t.macd_signal[i];
       if (m0 == null || s0 == null || m1 == null || s1 == null) continue;
       if (m0 < s0 && m1 >= s1)
-        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: '▲', size: 1 });
+        _autoTAMarkers.push({ time: dates[i], position: 'belowBar', color: '#26a69a', shape: 'arrowUp',   text: '▲', size: 1 });
       else if (m0 > s0 && m1 <= s1)
-        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: '▼', size: 1 });
+        _autoTAMarkers.push({ time: dates[i], position: 'aboveBar', color: '#ef5350', shape: 'arrowDown', text: '▼', size: 1 });
     }
   }
 
@@ -2010,7 +2025,7 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   let trendFinding = null;
   for (let i = lows.length - 1; i >= 1; i--) {
     if (lows[i].price > lows[i-1].price) {
-      trendFinding = { icon: '↗', lbl: 'TREND', val: `Uptrend — lows rising $${lows[i-1].price.toFixed(2)} → $${lows[i].price.toFixed(2)}`, color: '#00e676' };
+      trendFinding = { icon: '↗', lbl: 'TREND', val: `Uptrend — lows rising $${lows[i-1].price.toFixed(2)} → $${lows[i].price.toFixed(2)}`, color: '#26a69a' };
       bull++;
       break;
     }
@@ -2018,7 +2033,7 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
   if (!trendFinding) {
     for (let i = highs.length - 1; i >= 1; i--) {
       if (highs[i].price < highs[i-1].price) {
-        trendFinding = { icon: '↘', lbl: 'TREND', val: `Downtrend — highs falling $${highs[i-1].price.toFixed(2)} → $${highs[i].price.toFixed(2)}`, color: '#ff4f4f' };
+        trendFinding = { icon: '↘', lbl: 'TREND', val: `Downtrend — highs falling $${highs[i-1].price.toFixed(2)} → $${highs[i].price.toFixed(2)}`, color: '#ef5350' };
         bear++;
         break;
       }
@@ -2041,10 +2056,10 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
     if (cross) {
       const ago = cross.daysAgo === 0 ? 'today' : `${cross.daysAgo}d ago`;
       if (cross.dir === 'bull') {
-        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bullish crossover ${ago} — momentum shifting up`, color: '#00e676' };
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bullish crossover ${ago} — momentum shifting up`, color: '#26a69a' };
         bull++;
       } else {
-        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bearish crossover ${ago} — momentum shifting down`, color: '#ff4f4f' };
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: `Bearish crossover ${ago} — momentum shifting down`, color: '#ef5350' };
         bear++;
       }
     } else {
@@ -2052,7 +2067,7 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
       if (mLast != null && sLast != null) {
         const aboveSig = mLast > sLast;
         const gap = Math.abs(mLast - sLast).toFixed(3);
-        macdFinding = { icon: '⚡', lbl: 'MACD', val: aboveSig ? `Above signal line (gap ${gap}) — bullish momentum` : `Below signal line (gap ${gap}) — bearish momentum`, color: aboveSig ? '#00e676' : '#ff4f4f' };
+        macdFinding = { icon: '⚡', lbl: 'MACD', val: aboveSig ? `Above signal line (gap ${gap}) — bullish momentum` : `Below signal line (gap ${gap}) — bearish momentum`, color: aboveSig ? '#26a69a' : '#ef5350' };
         if (aboveSig) bull += 0.5; else bear += 0.5;
       }
     }
@@ -2106,10 +2121,10 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
     const dist20 = ((close - sma20v) / sma20v * 100).toFixed(1);
     const dist50 = ((close - sma50v) / sma50v * 100).toFixed(1);
     if (aboveBoth && sma20v > sma50v) {
-      findings.push({ icon: '✓', lbl: 'SMA', val: `Above SMA20 (+${dist20}%) & SMA50 (+${dist50}%) — bullish alignment; golden structure`, color: '#00e676' });
+      findings.push({ icon: '✓', lbl: 'SMA', val: `Above SMA20 (+${dist20}%) & SMA50 (+${dist50}%) — bullish alignment; golden structure`, color: '#26a69a' });
       bull++;
     } else if (belowBoth && sma20v < sma50v) {
-      findings.push({ icon: '✗', lbl: 'SMA', val: `Below SMA20 (${dist20}%) & SMA50 (${dist50}%) — bearish alignment; death cross structure`, color: '#ff4f4f' });
+      findings.push({ icon: '✗', lbl: 'SMA', val: `Below SMA20 (${dist20}%) & SMA50 (${dist50}%) — bearish alignment; death cross structure`, color: '#ef5350' });
       bear++;
     } else if (close > sma20v && close < sma50v) {
       findings.push({ icon: '~', lbl: 'SMA', val: `Above SMA20 (+${dist20}%) but below SMA50 — recovery attempt, $${sma50v.toFixed(2)} is resistance`, color: '#ffd54f' });
@@ -2134,7 +2149,7 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
     const volFmtK   = v => v >= 1e6 ? (v/1e6).toFixed(1)+'M' : v >= 1e3 ? (v/1e3).toFixed(0)+'K' : v.toFixed(0);
     if (volRatio >= 1.5) {
       const dir = priceUp ? 'up on heavy volume — institutional buying likely' : 'down on heavy volume — distribution pressure';
-      findings.push({ icon: '📊', lbl: 'VOL', val: `${volRatio.toFixed(1)}× avg (${volFmtK(lastVol)}) — ${dir}`, color: priceUp ? '#00e676' : '#ff4f4f' });
+      findings.push({ icon: '📊', lbl: 'VOL', val: `${volRatio.toFixed(1)}× avg (${volFmtK(lastVol)}) — ${dir}`, color: priceUp ? '#26a69a' : '#ef5350' });
       if (priceUp) bull += 0.5; else bear += 0.5;
     } else if (volRatio <= 0.5) {
       findings.push({ icon: '📊', lbl: 'VOL', val: `${volRatio.toFixed(1)}× avg (${volFmtK(lastVol)}) — low conviction, move may not sustain`, color: 'var(--text2)' });
@@ -2174,7 +2189,7 @@ function renderAutoTAPanel(ohlcv, t, lows, highs, srLevels) {
 
   // ── Outlook / Watch section ───────────────────────────────────────
   const bias = bull > bear ? 'bullish' : bear > bull ? 'bearish' : 'neutral';
-  const biasColor = bias === 'bullish' ? '#00e676' : bias === 'bearish' ? '#ff4f4f' : '#ffd54f';
+  const biasColor = bias === 'bullish' ? '#26a69a' : bias === 'bearish' ? '#ef5350' : '#ffd54f';
   const totalPts = bull + bear;
   const scoreLabel = `${bull % 1 === 0 ? bull.toFixed(0) : bull.toFixed(1)} bull / ${bear % 1 === 0 ? bear.toFixed(0) : bear.toFixed(1)} bear`;
 
@@ -2283,8 +2298,8 @@ async function loadInsider() {
     }
     _insiderMarkers = [];
     for (const [date, counts] of Object.entries(insiderMap)) {
-      if (counts.buy)  _insiderMarkers.push({ time: date, position: 'belowBar', color: '#00e676', shape: 'arrowUp',   text: counts.buy  > 1 ? `B×${counts.buy}`  : 'B', size: 1 });
-      if (counts.sell) _insiderMarkers.push({ time: date, position: 'aboveBar', color: '#ff4f4f', shape: 'arrowDown', text: counts.sell > 1 ? `S×${counts.sell}` : 'S', size: 1 });
+      if (counts.buy)  _insiderMarkers.push({ time: date, position: 'belowBar', color: '#26a69a', shape: 'arrowUp',   text: counts.buy  > 1 ? `B×${counts.buy}`  : 'B', size: 1 });
+      if (counts.sell) _insiderMarkers.push({ time: date, position: 'aboveBar', color: '#ef5350', shape: 'arrowDown', text: counts.sell > 1 ? `S×${counts.sell}` : 'S', size: 1 });
     }
     flushMarkers();
   } catch (e) {
@@ -2454,7 +2469,7 @@ async function loadCompareData(input) {
     } catch {
       // flash input red briefly on error
       const inputEl = document.getElementById('compareInput');
-      if (inputEl) { inputEl.style.borderColor='#ff4f4f'; setTimeout(()=>{ inputEl.style.borderColor=''; },1500); }
+      if (inputEl) { inputEl.style.borderColor='#ef5350'; setTimeout(()=>{ inputEl.style.borderColor=''; },1500); }
     }
   }));
 
@@ -2488,11 +2503,11 @@ function _updateCompareResult() {
   const mainBase = mainBars[0].close;
   const mainPct  = ((mainBars[mainBars.length-1].close / mainBase - 1) * 100).toFixed(1);
   const parts = [
-    `<span style="color:#8899aa">${TICKER}</span> <span style="color:${+mainPct>=0?'#00e676':'#ff4f4f'}">${+mainPct>=0?'+':''}${mainPct}%</span>`,
+    `<span style="color:#8899aa">${TICKER}</span> <span style="color:${+mainPct>=0?'#26a69a':'#ef5350'}">${+mainPct>=0?'+':''}${mainPct}%</span>`,
   ];
   for (const [t, {bars, color}] of Object.entries(compMap)) {
     const pct = ((bars[bars.length-1].close / bars[0].close - 1) * 100).toFixed(1);
-    parts.push(`<span style="color:${color}">${t}</span> <span style="color:${+pct>=0?'#00e676':'#ff4f4f'}">${+pct>=0?'+':''}${pct}%</span>`);
+    parts.push(`<span style="color:${color}">${t}</span> <span style="color:${+pct>=0?'#26a69a':'#ef5350'}">${+pct>=0?'+':''}${pct}%</span>`);
   }
   if (resultEl) { resultEl.innerHTML = parts.join(' <span style="color:#555">|</span> '); resultEl.style.display = ''; }
 }

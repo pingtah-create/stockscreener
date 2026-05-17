@@ -1,20 +1,4 @@
-/* ── chart.css — Minimal dark stock chart ────────────────── */
-
-:root {
-  --bg:      #0d0d0d;
-  --bg2:     #111;
-  --bg3:     #161616;
-  --bg4:     #1a1a1a;
-  --border:  #222;
-  --border2: #2a2a2a;
-  --text:    #e8e8e8;
-  --text2:   #888;
-  --text3:   #444;
-  --green:   #3d9e6e;
-  --red:     #b84444;
-  --accent:  #4f8cff;
-  --mono:    "SF Mono", Consolas, "Cascadia Code", monospace;
-}
+/* ── chart.css — stock chart page. Inherits design tokens from style.css. ──── */
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
