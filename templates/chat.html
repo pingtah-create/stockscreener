@@ -7,7 +7,7 @@
   <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
   <script src="/static/theme.js?v=2"></script>
   <link rel="stylesheet" href="/static/style.css?v=5" />
-  <link rel="stylesheet" href="/static/chat-home.css?v=17" />
+  <link rel="stylesheet" href="/static/chat-home.css?v=18" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -45,12 +45,36 @@
   </div>
 </header>
 
+<!-- INDEX TAPE -->
+<div class="ch-tape" id="chTape">
+  <div class="ch-tape-cell" data-idx="SP500">
+    <span class="ch-tape-name">S&amp;P 500</span>
+    <span class="ch-tape-px mono">—</span>
+    <span class="ch-tape-chg mono">—</span>
+  </div>
+  <div class="ch-tape-cell" data-idx="NASDAQ">
+    <span class="ch-tape-name">NASDAQ</span>
+    <span class="ch-tape-px mono">—</span>
+    <span class="ch-tape-chg mono">—</span>
+  </div>
+  <div class="ch-tape-cell" data-idx="VIX">
+    <span class="ch-tape-name">VIX</span>
+    <span class="ch-tape-px mono">—</span>
+    <span class="ch-tape-chg mono">—</span>
+  </div>
+  <div class="ch-tape-status">
+    <span class="ch-tape-dot"></span>
+    <span id="chTapeStatus">Market</span>
+  </div>
+</div>
+
 <main class="ch-main" id="chMain">
 
   <!-- HERO state: greeting + big input + suggestions + sections -->
   <section class="ch-hero" id="chHero">
 
     <div class="ch-hero-greet">
+      <div class="ch-hero-eyebrow"><span class="ch-hero-dot"></span>AI RESEARCH · POWERED BY CLAUDE</div>
       <h1 class="ch-greet-title" id="chGreetTitle">Hello</h1>
       <p class="ch-greet-sub" id="chGreetSub">What's on your mind today?</p>
     </div>
@@ -86,16 +110,32 @@
     <!-- Sections below the fold -->
     <div class="ch-sections">
 
-      <!-- Market Snapshot -->
+      <!-- Market Snapshot — 2x2 grid: F&G gauge | Breadth | Leaders | Laggards -->
       <div class="ch-section">
         <div class="ch-section-hdr">
           <span class="ch-section-label">Market Snapshot</span>
           <span class="ch-snapshot-time" id="snapshotTime"></span>
         </div>
         <div class="ch-snapshot-card" id="chSnapshot">
-          <div id="snapshotBody" class="ch-snapshot-loading-wrap">
-            <span class="ch-snapshot-loading-text">Loading market data…</span>
+          <div class="ch-snap-grid" id="snapshotBody">
+            <div class="ch-snap-cell ch-snap-gauge-cell">
+              <div class="ch-snap-label">Fear &amp; Greed</div>
+              <div class="ch-fg-gauge" id="chFgGauge"></div>
+            </div>
+            <div class="ch-snap-cell" id="chSnapBreadth">
+              <div class="ch-snap-label">Breadth</div>
+              <div class="ch-snap-loading">Loading…</div>
+            </div>
+            <div class="ch-snap-cell" id="chSnapLeaders">
+              <div class="ch-snap-label">Leaders</div>
+              <div class="ch-snap-loading">Loading…</div>
+            </div>
+            <div class="ch-snap-cell" id="chSnapLaggards">
+              <div class="ch-snap-label">Laggards</div>
+              <div class="ch-snap-loading">Loading…</div>
+            </div>
           </div>
+          <div class="ch-snap-narrative" id="chSnapNarrative" style="display:none"></div>
         </div>
       </div>
 
@@ -205,7 +245,7 @@
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
-<script src="/static/chat.js?v=16"></script>
+<script src="/static/chat.js?v=18"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=3"></script>
 

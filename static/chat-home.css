@@ -471,81 +471,170 @@ body:not(.has-thread) .ch-input-wrap-bottom { display: none; }
   text-transform: uppercase;
 }
 
-/* ── Market Snapshot card ────────────────────────── */
+/* ── Index tape (top strip) ──────────────────────── */
+.ch-tape {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 14px;
+  background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.ch-tape-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 14px;
+  border-right: 1px solid var(--border);
+  height: 100%;
+}
+.ch-tape-cell:first-child { padding-left: 0; }
+.ch-tape-name {
+  color: var(--text3);
+  font-weight: 600;
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+.ch-tape-px { color: var(--text); font-size: 11px; font-weight: 500; }
+.ch-tape-chg { font-size: 10.5px; }
+.ch-tape-chg.pos { color: var(--green); }
+.ch-tape-chg.neg { color: var(--red); }
+.ch-tape-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text2);
+  font-size: 11px;
+  padding-left: 14px;
+}
+.ch-tape-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px var(--green-bg);
+}
+.ch-tape-dot.closed { background: var(--text3); box-shadow: 0 0 0 3px var(--bg4); }
+
+/* ── Hero eyebrow ────────────────────────────────── */
+.ch-hero-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+  margin-bottom: 12px;
+}
+.ch-hero-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+/* ── Market Snapshot — 2x2 grid ──────────────────── */
 .ch-snapshot-card {
   background: var(--bg2);
   border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px 16px;
+  border-radius: 8px;
   width: 100%;
+  overflow: hidden;
 }
-.ch-snapshot-hdr {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 14px;
-}
-.ch-snapshot-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  color: var(--text-faint);
-  text-transform: uppercase;
-}
-.ch-snapshot-time { font-size: 10px; color: var(--text-faint); }
-.ch-snapshot-loading-wrap {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 8px 0;
-}
-.ch-snapshot-loading-text { font-size: 12px; color: var(--text-faint); }
-.ch-snap-cols {
+.ch-snapshot-time { font-size: 10.5px; color: var(--text3); }
+.ch-snap-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 0;
 }
-.ch-snap-col {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  padding: 10px 14px;
+.ch-snap-cell {
+  padding: 14px 16px;
   border-right: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
-  align-items: flex-start;
+  min-width: 0;
 }
-.ch-snap-col:nth-child(2n) { border-right: none; }
-.ch-snap-col:nth-child(n+3) { border-bottom: none; }
-.ch-snap-col-label {
-  font-size: 10px;
-  font-weight: 600;
-  letter-spacing: 0.05em;
-  color: var(--text-faint);
+.ch-snap-cell:nth-child(2n) { border-right: none; }
+.ch-snap-cell:nth-child(n+3) { border-bottom: none; }
+.ch-snap-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text3);
   text-transform: uppercase;
+  margin-bottom: 8px;
 }
-.ch-snap-col-val {
-  font-size: 18px;
+.ch-snap-loading { font-size: 12px; color: var(--text3); }
+
+/* Breadth / Leaders / Laggards rows */
+.ch-snap-big {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.ch-snap-big-val {
+  font-family: var(--mono);
+  font-size: 22px;
   font-weight: 600;
-  color: var(--text);
-  font-variant-numeric: tabular-nums;
   line-height: 1;
 }
-.ch-snap-col-val.pos { color: var(--green); }
-.ch-snap-col-val.neg { color: var(--red); }
-.ch-snap-col-val.neu { color: var(--text2); }
-.ch-snap-col-chg {
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
+.ch-snap-big-val.pos { color: var(--green); }
+.ch-snap-big-val.neg { color: var(--red); }
+.ch-snap-big-sub { font-size: 11px; color: var(--text2); }
+.ch-snap-meta {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text3);
+  margin-top: 4px;
 }
-.ch-snap-col-chg.pos { color: var(--green); }
-.ch-snap-col-chg.neg { color: var(--red); }
+.ch-snap-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  padding: 2px 0;
+}
+.ch-snap-row-sym { font-weight: 600; color: var(--text); }
+.ch-snap-row-chg.pos { color: var(--green); }
+.ch-snap-row-chg.neg { color: var(--red); }
+
+/* ── Fear & Greed speedometer gauge ──────────────── */
+.ch-snap-gauge-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.ch-fg-gauge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+.ch-fg-gauge svg { display: block; }
+.ch-fg-score {
+  font-family: var(--mono);
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: -22px;
+}
+.ch-fg-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 4px;
+}
+
 .ch-snap-narrative {
-  margin-top: 12px;
   font-size: 12px;
-  color: var(--text-faint);
-  line-height: 1.5;
+  color: var(--text2);
+  line-height: 1.55;
   border-top: 1px solid var(--border);
-  padding-top: 10px;
+  padding: 12px 16px;
 }
 
 /* ── Skills grid ─────────────────────────────────── */
@@ -654,38 +743,51 @@ body:not(.has-thread) .ch-input-wrap-bottom { display: none; }
 #chSkillDropdown .search-name   { font-size: 12px; color: var(--text2); }
 
 /* ── Trending ────────────────────────────────────── */
-.ch-trending-list { display: flex; flex-direction: column; gap: 1px; }
+/* Trending — 4-column card grid */
+.ch-trending-list {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
 .ch-trending-item {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 7px 8px;
-  border-radius: 7px;
+  padding: 10px 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
   text-decoration: none;
-  transition: background 0.12s;
+  transition: border-color 0.12s;
 }
-.ch-trending-item:hover { background: var(--bg2); }
+.ch-trending-item:hover { border-color: var(--border2); }
+.ch-trending-info { flex: 1; min-width: 0; }
 .ch-trending-ticker {
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 700;
   color: var(--text);
-  font-family: "SF Mono", Consolas, monospace;
-  width: 54px;
-  flex-shrink: 0;
+  font-family: var(--mono);
+  display: block;
 }
 .ch-trending-name {
-  font-size: 11.5px;
-  color: var(--text-faint);
-  flex: 1;
+  font-size: 11px;
+  color: var(--text3);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.ch-trending-chg {
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
+.ch-trending-right { text-align: right; }
+.ch-trending-px {
+  font-family: var(--mono);
+  font-size: 12px;
   font-weight: 500;
-  flex-shrink: 0;
+  color: var(--text);
+  display: block;
+}
+.ch-trending-chg {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
 }
 .ch-trending-chg.pos { color: var(--green); }
 .ch-trending-chg.neg { color: var(--red); }
@@ -806,5 +908,8 @@ body:not(.has-thread) .ch-input-wrap-bottom { display: none; }
   .ch-greet-title { font-size: 26px; }
   .ch-suggest-row { grid-template-columns: 1fr; }
   .ch-skills-grid { grid-template-columns: 1fr; }
+  .ch-trending-list { grid-template-columns: repeat(2, 1fr); }
+  .ch-snap-grid { grid-template-columns: 1fr; }
+  .ch-snap-cell { border-right: none; }
   .ch-bubble { font-size: 14.5px; }
 }

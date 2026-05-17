@@ -597,56 +597,155 @@ function initHero() {
   renderHistory();
 }
 
+// Index tape loads on every page view (independent of hero/chat state)
+loadTape();
+
 // ── Market Snapshot ────────────────────────────────────────────────────────────
+// Draw a car-speedometer-style Fear & Greed gauge into a container.
+function renderFgGauge(container, score, label) {
+  score = Math.max(0, Math.min(100, score || 50));
+  const W = 150, H = 90, cx = W / 2, cy = H - 8, r = 60;
+  // Color by score: red (fear) → yellow → green (greed)
+  const color = score >= 70 ? 'var(--green)' : score >= 55 ? 'var(--green2)'
+              : score >= 45 ? 'var(--yellow)' : score >= 30 ? 'var(--red2)' : 'var(--red)';
+  // Arc helpers — semicircle from 180° (left) to 0° (right)
+  const polar = (deg, rad) => {
+    const a = (deg) * Math.PI / 180;
+    return [cx + rad * Math.cos(a), cy - rad * Math.sin(a)];
+  };
+  const arc = (fromDeg, toDeg, rad) => {
+    const [x1, y1] = polar(fromDeg, rad), [x2, y2] = polar(toDeg, rad);
+    const large = Math.abs(toDeg - fromDeg) > 180 ? 1 : 0;
+    const sweep = toDeg < fromDeg ? 1 : 0;
+    return `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${rad} ${rad} 0 ${large} ${sweep} ${x2.toFixed(2)} ${y2.toFixed(2)}`;
+  };
+  // Track 180°→0°. Needle angle: 180° at score 0, 0° at score 100.
+  const needleDeg = 180 - (score / 100) * 180;
+  const [nx, ny] = polar(needleDeg, r - 12);
+  // Colored zones
+  const zones = [
+    { from: 180, to: 144, c: 'var(--red)' },
+    { from: 144, to: 108, c: 'var(--red2)' },
+    { from: 108, to: 72,  c: 'var(--yellow)' },
+    { from: 72,  to: 36,  c: 'var(--green2)' },
+    { from: 36,  to: 0,   c: 'var(--green)' },
+  ];
+  const zonePaths = zones.map(z =>
+    `<path d="${arc(z.from, z.to, r)}" fill="none" stroke="${z.c}" stroke-width="9" stroke-linecap="butt"/>`
+  ).join('');
+  container.innerHTML = `
+    <svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">
+      ${zonePaths}
+      <line x1="${cx}" y1="${cy}" x2="${nx.toFixed(2)}" y2="${ny.toFixed(2)}"
+            stroke="var(--text)" stroke-width="2.5" stroke-linecap="round"/>
+      <circle cx="${cx}" cy="${cy}" r="4" fill="var(--text)"/>
+    </svg>
+    <div class="ch-fg-score" style="color:${color}">${score}</div>
+    <div class="ch-fg-label" style="color:${color}">${label || 'Neutral'}</div>
+  `;
+}
+
 async function loadMarketSnapshot() {
-  const body   = document.getElementById('snapshotBody');
-  const timeEl = document.getElementById('snapshotTime');
-  if (!body) return;
+  const timeEl   = document.getElementById('snapshotTime');
+  const gaugeEl  = document.getElementById('chFgGauge');
+  const breadthEl= document.getElementById('chSnapBreadth');
+  const leadEl   = document.getElementById('chSnapLeaders');
+  const lagEl    = document.getElementById('chSnapLaggards');
+  const narrEl   = document.getElementById('chSnapNarrative');
+
+  // Fear & Greed + narrative from /api/market-snapshot
   try {
     const r = await fetch('/api/market-snapshot');
-    if (!r.ok) throw new Error('failed');
-    const d = await r.json();
-
-    // indices is a dict: { VIX: {price, change_pct}, SP500: {...}, NASDAQ: {...} }
-    const LABELS = { SP500: 'S&P 500', NASDAQ: 'NASDAQ', VIX: 'VIX' };
-    const idxOrder = ['SP500', 'NASDAQ', 'VIX'];
-    const colsHtml = idxOrder.map(key => {
-      const idx  = (d.indices || {})[key] || {};
-      const chg  = idx.change_pct || 0;
-      const cls  = key === 'VIX' ? (chg > 0 ? 'neg' : 'pos') : (chg >= 0 ? 'pos' : 'neg');
-      const sign = chg >= 0 ? '+' : '';
-      const price = idx.price != null
-        ? idx.price.toLocaleString('en-US', { maximumFractionDigits: 2 })
-        : '—';
-      return `<div class="ch-snap-col">
-        <span class="ch-snap-col-label">${LABELS[key] || key}</span>
-        <span class="ch-snap-col-val">${price}</span>
-        <span class="ch-snap-col-chg ${cls}">${sign}${chg.toFixed(2)}%</span>
-      </div>`;
-    }).join('');
-
-    // Fear & Greed as 4th column
-    const fgScore = d.fg_score != null ? d.fg_score : 50;
-    const fgLabel = d.fg_label || 'Neutral';
-    const fgCls   = fgScore >= 60 ? 'pos' : fgScore <= 40 ? 'neg' : 'neu';
-    const fgCol = `<div class="ch-snap-col">
-      <span class="ch-snap-col-label">Fear &amp; Greed</span>
-      <span class="ch-snap-col-val ${fgCls}">${fgScore}</span>
-      <span class="ch-snap-col-chg ${fgCls}">${fgLabel}</span>
-    </div>`;
-
-    body.innerHTML = `
-      <div class="ch-snap-cols">${colsHtml}${fgCol}</div>
-      ${d.narrative ? `<div class="ch-snap-narrative">${d.narrative}</div>` : ''}
-    `;
-
-    if (timeEl) {
-      const now = new Date();
-      timeEl.textContent = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    if (r.ok) {
+      const d = await r.json();
+      if (gaugeEl) renderFgGauge(gaugeEl, d.fg_score, d.fg_label);
+      if (narrEl && d.narrative) {
+        narrEl.textContent = d.narrative;
+        narrEl.style.display = '';
+      }
+      if (timeEl) timeEl.textContent = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+    } else if (gaugeEl) {
+      renderFgGauge(gaugeEl, 50, 'Neutral');
     }
   } catch {
-    body.innerHTML = '<span class="ch-snapshot-loading-text">Market data unavailable</span>';
+    if (gaugeEl) renderFgGauge(gaugeEl, 50, 'Neutral');
   }
+
+  // Real breadth from the full universe (/api/stockmap = all 600+ stocks)
+  try {
+    const r = await fetch('/api/stockmap');
+    if (r.ok && breadthEl) {
+      const all = await r.json();
+      let adv = 0, dec = 0, flat = 0;
+      for (const s of all) {
+        const c = s.change_pct || 0;
+        if (c > 0.05) adv++; else if (c < -0.05) dec++; else flat++;
+      }
+      const total = adv + dec + flat || 1;
+      const advPct = Math.round((adv / total) * 100);
+      const cls = advPct >= 50 ? 'pos' : 'neg';
+      breadthEl.innerHTML = `
+        <div class="ch-snap-label">Breadth</div>
+        <div class="ch-snap-big">
+          <span class="ch-snap-big-val ${cls}">${advPct}%</span>
+          <span class="ch-snap-big-sub">advancers</span>
+        </div>
+        <div class="ch-snap-meta">${adv} ▲ · ${dec} ▼ · ${flat} →</div>`;
+    }
+  } catch {
+    if (breadthEl) breadthEl.innerHTML = '<div class="ch-snap-label">Breadth</div><div class="ch-snap-loading">Unavailable</div>';
+  }
+
+  // Leaders + Laggards from /api/movers ({chg, symbol, name})
+  try {
+    const r = await fetch('/api/movers');
+    if (!r.ok) throw new Error('failed');
+    const m = await r.json();
+    const up = m.gainers || [], down = m.losers || [];
+    const rowsHtml = arr => arr.slice(0, 3).map(s => {
+      const chg = (s.chg != null ? s.chg : s.change_pct) || 0;
+      const cls = chg >= 0 ? 'pos' : 'neg';
+      const sign = chg >= 0 ? '+' : '';
+      return `<div class="ch-snap-row">
+        <span class="ch-snap-row-sym">${s.symbol || s.ticker}</span>
+        <span class="ch-snap-row-chg ${cls}">${sign}${chg.toFixed(2)}%</span>
+      </div>`;
+    }).join('');
+    if (leadEl) leadEl.innerHTML = `<div class="ch-snap-label">Leaders</div>${rowsHtml(up)}`;
+    if (lagEl)  lagEl.innerHTML  = `<div class="ch-snap-label">Laggards</div>${rowsHtml(down)}`;
+  } catch {
+    if (leadEl) leadEl.innerHTML = '<div class="ch-snap-label">Leaders</div><div class="ch-snap-loading">—</div>';
+    if (lagEl)  lagEl.innerHTML  = '<div class="ch-snap-label">Laggards</div><div class="ch-snap-loading">—</div>';
+  }
+}
+
+// ── Index tape ─────────────────────────────────────────────────────────────────
+async function loadTape() {
+  try {
+    const r = await fetch('/api/market-snapshot');
+    if (!r.ok) return;
+    const d = await r.json();
+    const idx = d.indices || {};
+    document.querySelectorAll('.ch-tape-cell').forEach(cell => {
+      const key = cell.dataset.idx;
+      const data = idx[key] || {};
+      const chg = data.change_pct || 0;
+      const px  = data.price != null ? data.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '—';
+      // VIX up = risk-off = red
+      const cls = key === 'VIX' ? (chg > 0 ? 'neg' : 'pos') : (chg >= 0 ? 'pos' : 'neg');
+      const sign = chg >= 0 ? '+' : '';
+      const pxEl  = cell.querySelector('.ch-tape-px');
+      const chgEl = cell.querySelector('.ch-tape-chg');
+      if (pxEl)  pxEl.textContent = px;
+      if (chgEl) { chgEl.textContent = `${sign}${chg.toFixed(2)}%`; chgEl.className = `ch-tape-chg mono ${cls}`; }
+    });
+    const statusEl = document.getElementById('chTapeStatus');
+    const dotEl = document.querySelector('.ch-tape-dot');
+    const h = new Date().getUTCHours();   // rough US market-hours check (13:30-20:00 UTC)
+    const open = h >= 13 && h < 21;
+    if (statusEl) statusEl.textContent = open ? 'Market open' : 'Market closed';
+    if (dotEl) dotEl.classList.toggle('closed', !open);
+  } catch {}
 }
 
 // ── Trending ───────────────────────────────────────────────────────────────────
@@ -662,14 +761,20 @@ async function loadTrending() {
       el.innerHTML = '<span style="color:var(--text-faint);font-size:12px">No data</span>';
       return;
     }
-    el.innerHTML = stocks.map(s => {
+    el.innerHTML = stocks.slice(0, 8).map(s => {
       const chg  = s.change_pct || 0;
       const cls  = chg >= 0 ? 'pos' : 'neg';
       const sign = chg >= 0 ? '+' : '';
+      const px   = s.price != null ? '$' + s.price.toLocaleString('en-US', { maximumFractionDigits: 2 }) : '';
       return `<a href="/stock/${encodeURIComponent(s.ticker)}" class="ch-trending-item">
-        <span class="ch-trending-ticker">${s.ticker}</span>
-        <span class="ch-trending-name">${s.name || ''}</span>
-        <span class="ch-trending-chg ${cls}">${sign}${chg.toFixed(1)}%</span>
+        <span class="ch-trending-info">
+          <span class="ch-trending-ticker">${s.ticker}</span>
+          <span class="ch-trending-name">${s.name || ''}</span>
+        </span>
+        <span class="ch-trending-right">
+          ${px ? `<span class="ch-trending-px">${px}</span>` : ''}
+          <span class="ch-trending-chg ${cls}">${sign}${chg.toFixed(1)}%</span>
+        </span>
       </a>`;
     }).join('');
   } catch {
