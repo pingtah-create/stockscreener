@@ -1256,6 +1256,74 @@ def _pf_cookie_load(user: str) -> list | None:
     return None
 
 
+# ── Background chat jobs ───────────────────────────────────────────────────────
+# A chat "job" runs the full Claude agent to completion server-side. The browser
+# fires POST /api/chat/job with `keepalive: true` so the request survives a page
+# navigation — the answer is saved to Supabase and can be polled back later.
+# Falls back to an in-memory dict when Supabase isn't configured (local dev).
+
+_chat_jobs_mem: dict = {}  # job_id -> result dict (local-dev fallback)
+
+
+def _chat_job_save(user: str, job_id: str, payload: dict) -> None:
+    _chat_jobs_mem[job_id] = payload
+    # Persist the most recent job per user in Supabase so it survives cold starts
+    _sb_save(user, chat_job={"id": job_id, **payload})
+
+
+def _chat_job_load(user: str, job_id: str) -> dict | None:
+    job = _chat_jobs_mem.get(job_id)
+    if job:
+        return job
+    sb = _sb_load(user, "chat_job")
+    if isinstance(sb, dict) and sb.get("id") == job_id:
+        return {k: v for k, v in sb.items() if k != "id"}
+    return None
+
+
+@app.route("/api/chat/job", methods=["POST"])
+@auth.require_login_api
+def api_chat_job():
+    """Run the chat agent to completion (non-streaming) and persist the result.
+    The browser sends this with fetch keepalive:true so it survives navigation."""
+    _ensure_stocks_loaded()
+    body     = request.json or {}
+    messages = body.get("messages") or []
+    job_id   = body.get("job_id") or ""
+    skill    = body.get("skill", "")
+    if not messages or not job_id:
+        return jsonify({"error": "messages and job_id required"}), 400
+
+    api_key = _os.environ.get("ANTHROPIC_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "ANTHROPIC_API_KEY not set"}), 503
+
+    user = auth.current_user()
+    try:
+        from agent import run_agent
+        result   = run_agent(messages, _stock_cache[:], dict(_indices_cache), api_key)
+        reply    = result.get("reply", "")
+        tools    = result.get("tools_used", [])
+        tickers  = _extract_tickers(reply)
+        payload  = {"status": "done", "reply": reply,
+                    "tools_used": tools, "tickers": tickers}
+    except Exception as e:
+        payload = {"status": "error", "error": str(e)}
+
+    _chat_job_save(user, job_id, payload)
+    return jsonify({"job_id": job_id, **payload})
+
+
+@app.route("/api/chat/job/<job_id>", methods=["GET"])
+@auth.require_login_api
+def api_chat_job_get(job_id: str):
+    """Poll for a finished chat job (used when the user navigated away mid-reply)."""
+    job = _chat_job_load(auth.current_user(), job_id)
+    if not job:
+        return jsonify({"status": "pending"})
+    return jsonify({"job_id": job_id, **job})
+
+
 @app.route("/api/portfolio/holdings", methods=["GET"])
 @auth.require_login_api
 def api_portfolio_holdings_get():

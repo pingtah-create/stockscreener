@@ -2,9 +2,10 @@
 // Multi-turn conversation with localStorage persistence, tool-call display,
 // rotating loading messages, and link-out to /stock/<TICKER> pages.
 
-const STORAGE_KEY  = `stockdash_chat_v1_${window.CURRENT_USER || 'default'}`;
-const SESSIONS_KEY = `stockdash_sessions_v1_${window.CURRENT_USER || 'default'}`;
-const MAX_HISTORY  = 20;
+const STORAGE_KEY   = `stockdash_chat_v1_${window.CURRENT_USER || 'default'}`;
+const SESSIONS_KEY  = `stockdash_sessions_v1_${window.CURRENT_USER || 'default'}`;
+const PENDING_KEY   = `stockdash_pendingjob_v1_${window.CURRENT_USER || 'default'}`;
+const MAX_HISTORY   = 20;
 const currentSessionId = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 const heroEl     = document.getElementById('chHero');
@@ -51,6 +52,72 @@ if (messages.length) {
 } else {
   initHero();
 }
+
+// ── Recover a chat job that was running when the user navigated away ─────────
+(function recoverPendingJob() {
+  let pj;
+  try { pj = JSON.parse(localStorage.getItem(PENDING_KEY) || 'null'); } catch { return; }
+  if (!pj || !pj.jobId) return;
+
+  // Stale guard: drop jobs older than 5 minutes.
+  if (Date.now() - (pj.ts || 0) > 5 * 60 * 1000) {
+    try { localStorage.removeItem(PENDING_KEY); } catch {}
+    return;
+  }
+
+  // If the last saved message is already this question's user turn with an
+  // assistant reply after it, the stream finished — nothing to recover.
+  const last = messages[messages.length - 1];
+  if (last && last.role === 'assistant') {
+    try { localStorage.removeItem(PENDING_KEY); } catch {}
+    return;
+  }
+
+  // Show the conversation + a loading state, then poll the server for the job.
+  if (messages.length) {
+    chatEl.hidden = false; heroEl.hidden = true;
+    document.body.classList.add('has-thread');
+    renderThread();
+  }
+  const loadingNode = appendLoading();
+  pending = true;
+
+  let tries = 0;
+  const poll = async () => {
+    tries++;
+    try {
+      const r = await fetch(`/api/chat/job/${pj.jobId}`);
+      const d = await r.json();
+      if (d.status === 'done') {
+        loadingNode.remove();
+        const tickers = d.tickers || [], tools = d.tools_used || [];
+        messages.push({ role: 'assistant', content: d.reply, tickers, tools_used: tools });
+        saveHistory();
+        saveCurrentSession();
+        appendMessage('assistant', d.reply, tickers, tools);
+        try { localStorage.removeItem(PENDING_KEY); } catch {}
+        pending = false;
+        return;
+      }
+      if (d.status === 'error') {
+        loadingNode.remove();
+        appendMessage('assistant', `**Error:** ${d.error}`, [], [], true);
+        try { localStorage.removeItem(PENDING_KEY); } catch {}
+        pending = false;
+        return;
+      }
+    } catch {}
+    if (tries < 40) {        // ~2 min of polling at 3s
+      setTimeout(poll, 3000);
+    } else {
+      loadingNode.remove();
+      appendMessage('assistant', '*Response timed out — please ask again.*', [], [], true);
+      try { localStorage.removeItem(PENDING_KEY); } catch {}
+      pending = false;
+    }
+  };
+  poll();
+})();
 
 // Two forms: hero input (when hero is showing) and bottom input (after chat starts)
 form.addEventListener('submit', e => { e.preventDefault(); send(input.value); });
@@ -154,6 +221,24 @@ async function send(text, skill = '') {
   pending = true;
   const loadingNode = appendLoading();
 
+  // ── Background job: survives navigation ──────────────────────────────────
+  // Fire a parallel keepalive request that runs the agent to completion
+  // server-side. If the user navigates away mid-stream the browser keeps THIS
+  // request alive; the answer is recovered on the next page load.
+  const jobId = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  const jobMessages = messages.slice(-MAX_HISTORY);
+  try {
+    localStorage.setItem(PENDING_KEY, JSON.stringify({
+      jobId, question: text, messages: jobMessages, ts: Date.now(),
+    }));
+  } catch {}
+  fetch('/api/chat/job', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ job_id: jobId, messages: jobMessages, skill }),
+    keepalive: true,   // <-- request survives a page navigation
+  }).catch(() => {});
+
   try {
     const r = await fetch('/api/chat', {
       method: 'POST',
@@ -198,6 +283,8 @@ async function send(text, skill = '') {
           saveCurrentSession();
           if (msgNode) finaliseStreamingMessage(msgNode, fullText, tickers, tools, chartData);
           else { loadingNode.remove(); appendMessage('assistant', fullText, tickers, tools, false, chartData); }
+          // Stream finished cleanly — the background job is no longer needed.
+          try { localStorage.removeItem(PENDING_KEY); } catch {}
 
         } else if (evt.type === 'error') {
           throw new Error(evt.error);
