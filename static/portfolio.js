@@ -121,6 +121,17 @@ function renderPerfChart(historical) {
   const spyPts  = historical.map(d => d.spy_pct ?? null);
   const isPos   = (portPts[portPts.length - 1] ?? 0) >= 0;
 
+  // Pull theme colors from CSS design tokens
+  const cs   = getComputedStyle(document.documentElement);
+  const cv   = (n, f) => (cs.getPropertyValue(n).trim() || f);
+  const ACC  = cv('--accent', '#4d8eff');
+  const RED  = cv('--red', '#ef5350');
+  const GRID = cv('--grid', 'rgba(255,255,255,0.04)');
+  const T2   = cv('--text2', '#a9b1bc');
+  const T3   = cv('--text3', '#6a7280');
+  const PANEL= cv('--bg3', '#1a1f2c');
+  const LINE = cv('--border', '#232838');
+
   if (lineInst) lineInst.destroy();
   lineInst = new Chart(ctx, {
     type: 'line',
@@ -130,14 +141,14 @@ function renderPerfChart(historical) {
         {
           label: 'Portfolio',
           data: portPts,
-          borderColor: isPos ? '#4f8cff' : '#f44336',
-          backgroundColor: isPos ? 'rgba(79,140,255,0.07)' : 'rgba(244,67,54,0.07)',
+          borderColor: isPos ? ACC : RED,
+          backgroundColor: isPos ? ACC + '14' : RED + '14',
           borderWidth: 2, pointRadius: 0, tension: 0.3, fill: true,
         },
         {
           label: 'S&P 500',
           data: spyPts,
-          borderColor: '#444', borderWidth: 1.5, borderDash: [4, 4],
+          borderColor: T3, borderWidth: 1.5, borderDash: [4, 4],
           pointRadius: 0, tension: 0.3, fill: false,
         },
       ],
@@ -147,18 +158,18 @@ function renderPerfChart(historical) {
       maintainAspectRatio: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
-        legend: { labels: { color: '#666', font: { size: 11 }, boxWidth: 12, padding: 14 } },
+        legend: { labels: { color: T2, font: { size: 11 }, boxWidth: 12, padding: 14 } },
         tooltip: {
-          backgroundColor: '#161616', borderColor: '#222', borderWidth: 1,
-          titleColor: '#888', bodyColor: '#ccc',
+          backgroundColor: PANEL, borderColor: LINE, borderWidth: 1,
+          titleColor: T2, bodyColor: cv('--text', '#e8eaf0'),
           callbacks: { label: c => `${c.dataset.label}: ${c.parsed.y >= 0 ? '+' : ''}${c.parsed.y.toFixed(2)}%` },
         },
       },
       scales: {
-        x: { ticks: { color: '#555', maxTicksLimit: 8, font: { size: 10 } }, grid: { color: '#1a1a1a' } },
+        x: { ticks: { color: T3, maxTicksLimit: 8, font: { size: 10 } }, grid: { color: GRID } },
         y: {
-          ticks: { color: '#555', font: { size: 10 }, callback: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` },
-          grid: { color: '#1a1a1a' },
+          ticks: { color: T3, font: { size: 10 }, callback: v => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%` },
+          grid: { color: GRID },
         },
       },
     },
