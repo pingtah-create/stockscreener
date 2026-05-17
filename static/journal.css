@@ -31,7 +31,7 @@
   transition: all 0.12s;
   font-family: inherit;
 }
-.jnl-filter-btn:hover { border-color: #333; color: var(--text); }
+.jnl-filter-btn:hover { border-color: var(--border2); color: var(--text); }
 .jnl-filter-btn.active { border-color: var(--accent); color: var(--accent); background: var(--blue-bg); }
 
 /* ── Stats ── */
@@ -68,7 +68,7 @@
   overflow: hidden;
   transition: border-color 0.15s;
 }
-.jnl-card:hover { border-color: #2a2a2a; }
+.jnl-card:hover { border-color: var(--border2); }
 .jnl-card-body { padding: 14px 16px; cursor: pointer; }
 
 .jnl-card-top {
@@ -256,7 +256,7 @@
   font-family: inherit;
   text-align: center;
 }
-.jnl-seg-btn:hover { color: var(--text); border-color: #333; }
+.jnl-seg-btn:hover { color: var(--text); border-color: var(--border2); }
 .jnl-seg-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 /* ── Ticker wrap ── */
