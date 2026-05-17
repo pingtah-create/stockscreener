@@ -7,7 +7,7 @@
   <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
   <script src="/static/theme.js?v=2"></script>
   <link rel="stylesheet" href="/static/style.css?v=5" />
-  <link rel="stylesheet" href="/static/chat-home.css?v=18" />
+  <link rel="stylesheet" href="/static/chat-home.css?v=19" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -110,7 +110,7 @@
     <!-- Sections below the fold -->
     <div class="ch-sections">
 
-      <!-- Market Snapshot — 2x2 grid: F&G gauge | Breadth | Leaders | Laggards -->
+      <!-- Market Snapshot — 2x2 grid: F&G gauge | Breadth | Volatility | Top Movers -->
       <div class="ch-section">
         <div class="ch-section-hdr">
           <span class="ch-section-label">Market Snapshot</span>
@@ -126,12 +126,12 @@
               <div class="ch-snap-label">Breadth</div>
               <div class="ch-snap-loading">Loading…</div>
             </div>
-            <div class="ch-snap-cell" id="chSnapLeaders">
-              <div class="ch-snap-label">Leaders</div>
+            <div class="ch-snap-cell" id="chSnapVol">
+              <div class="ch-snap-label">Volatility</div>
               <div class="ch-snap-loading">Loading…</div>
             </div>
-            <div class="ch-snap-cell" id="chSnapLaggards">
-              <div class="ch-snap-label">Laggards</div>
+            <div class="ch-snap-cell" id="chSnapMovers">
+              <div class="ch-snap-label">Top Movers</div>
               <div class="ch-snap-loading">Loading…</div>
             </div>
           </div>
@@ -245,7 +245,7 @@
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
-<script src="/static/chat.js?v=18"></script>
+<script src="/static/chat.js?v=19"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=3"></script>
 
