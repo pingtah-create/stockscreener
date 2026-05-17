@@ -123,6 +123,7 @@ function renderStockMap() {
       tile.style.width = tr.w + "px";
       tile.style.height = tr.h + "px";
       tile.style.background = colorForChange(tr.node.change_pct);
+      tile.style.color = textForChange(tr.node.change_pct);
       tile.title = `${tr.node.symbol} — ${tr.node.name} · $${(tr.node.mcap/1e9).toFixed(1)}B · ${tr.node.change_pct >= 0 ? "+" : ""}${tr.node.change_pct}%`;
 
       // Show ticker + change% if there's room
@@ -144,19 +145,26 @@ function renderStockMap() {
   }
 }
 
-// ── Color: red (loss) → grey (flat) → green (gain) ──────
+// ── Color: red (loss) → flat → green (gain) — TradingView heat ──────
 function colorForChange(p) {
-  // Cap at ±5% for color saturation; beyond that, just use the strongest shade.
-  const t = Math.max(-1, Math.min(1, p / 5));
-  if (t === 0 || isNaN(t)) return "#2a2f36";
-  if (t > 0) {
-    // 0 → #2a2f36, 1 → #1faa3e
-    const a = t;
-    return `rgb(${Math.round(42 + (31 - 42) * a)}, ${Math.round(47 + (170 - 47) * a)}, ${Math.round(54 + (62 - 54) * a)})`;
-  } else {
-    const a = -t;
-    return `rgb(${Math.round(42 + (200 - 42) * a)}, ${Math.round(47 + (47 - 47) * a)}, ${Math.round(54 + (47 - 54) * a)})`;
+  if (p == null || isNaN(p)) return 'var(--bg4)';
+  // Cap at ±5% for color saturation.
+  const n = Math.max(-5, Math.min(5, p)) / 5;   // -1..1
+  if (n > 0) {
+    const a = 0.16 + Math.abs(n) * 0.75;
+    return `rgba(38,166,154,${a.toFixed(3)})`;   // TradingView green
   }
+  if (n < 0) {
+    const a = 0.16 + Math.abs(n) * 0.75;
+    return `rgba(239,83,80,${a.toFixed(3)})`;    // TradingView red
+  }
+  return 'var(--bg4)';
+}
+
+// Tile text: white when the heat is saturated, theme text otherwise.
+function textForChange(p) {
+  if (p == null || isNaN(p)) return 'var(--text2)';
+  return Math.abs(p) > 2 ? '#fff' : 'var(--text)';
 }
 
 // ── Squarified treemap (Bruls, Huijsen & van Wijk 2000) ─────
