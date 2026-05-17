@@ -12,6 +12,8 @@
     document.documentElement.dataset.theme = t;
     try { localStorage.setItem(KEY, t); } catch (e) {}
     updateButtons();
+    // Notify anything that paints to a canvas (charts) so it can recolor.
+    window.dispatchEvent(new CustomEvent('themechange', { detail: { theme: t } }));
   }
   function updateButtons() {
     document.querySelectorAll('.theme-toggle').forEach(function (btn) {

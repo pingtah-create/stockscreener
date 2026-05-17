@@ -35,6 +35,23 @@ const CHART_OPT = {
   handleScale:  true,
 };
 
+// Re-apply theme colors to both chart canvases (called on themechange).
+function applyChartTheme() {
+  const t = chartTheme();
+  const opts = {
+    layout: { background: { color: t.bg }, textColor: t.text },
+    grid:   { vertLines: { color: t.grid }, horzLines: { color: t.grid } },
+    crosshair: {
+      vertLine: { labelBackgroundColor: t.border },
+      horzLine: { labelBackgroundColor: t.border },
+    },
+    rightPriceScale: { borderColor: t.border },
+    timeScale: { borderColor: t.border },
+  };
+  if (priceChart) priceChart.applyOptions(opts);
+  if (oscChart)   oscChart.applyOptions(opts);
+}
+
 // ── State ──────────────────────────────────────────────────────────
 let priceChart, oscChart;
 let candleSeries, linePriceSeries;
@@ -158,6 +175,9 @@ function initCharts() {
   buildPriceSeries();
   buildVolSeries();
   buildOscSeries(currentOsc);
+
+  // Recolor the chart canvas when the dark/light theme is toggled.
+  window.addEventListener('themechange', applyChartTheme);
 
   // Sync time-scale scroll/zoom across all three charts (bidirectional)
   function hideTooltips() {

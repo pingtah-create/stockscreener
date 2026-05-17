@@ -114,7 +114,10 @@ async function fetchPerf(p) {
   } catch {}
 }
 
+let _lastPerfData = null;
+
 function renderPerfChart(historical) {
+  _lastPerfData = historical;   // keep for theme re-render
   const ctx    = document.getElementById('lineChart').getContext('2d');
   const labels = historical.map(d => d.date);
   const portPts = historical.map(d => d.pct);
@@ -694,6 +697,11 @@ function renderMarkdown(s) {
   o = o.replace(/\n/g, '<br>');
   return `<p>${o}</p>`;
 }
+
+// Re-render the performance chart with new theme colors on dark/light toggle.
+window.addEventListener('themechange', () => {
+  if (_lastPerfData) renderPerfChart(_lastPerfData);
+});
 
 // ── Start ─────────────────────────────────────────────────────────────────────
 init();
