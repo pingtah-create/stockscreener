@@ -13,37 +13,66 @@ let tickerUniverse = [];
 
 async function init() {
   loadTickerUniverse();
-  const localData = _localLoad();
-  try {
-    const r = await fetch('/api/portfolio/holdings');
-    if (r.ok) {
-      const serverData = await r.json();
-      if (Array.isArray(serverData) && serverData.length > 0) {
-        holdings = serverData;
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
-      } else if (localData.length > 0) {
-        holdings = localData;
-        saveHoldings();
-      } else {
-        holdings = [];
-      }
-    } else {
-      holdings = localData;
-    }
-  } catch {
-    holdings = localData;
-  }
   setupTickerSearch();
+
+  // 1. INSTANT render from localStorage — never show a blank page on cold start.
+  const localData = _localLoad();
+  holdings = localData;
   if (holdings.length) {
-    document.getElementById('holdingsTable').innerHTML =
-      '<div class="port-empty">Loading holdings…</div>';
-    fetchSummary();           // live prices + stats
-    fetchPerf(period);        // performance chart
+    renderHoldingsInstant(holdings);   // names + shares immediately, prices pending
+    fetchSummary();                    // live prices + stats (replaces instant list)
+    fetchPerf(period);                 // performance chart
   } else {
     document.getElementById('holdingsTable').innerHTML =
       '<div class="port-empty">No holdings yet — click + to add one</div>';
     document.getElementById('portChartEmpty').style.display = 'flex';
   }
+
+  // 2. Reconcile with the server in the BACKGROUND — never blocks the render.
+  //    Only adopt the server copy if it actually has data; never let an empty
+  //    server response (cold start / Supabase miss) wipe the local holdings.
+  try {
+    const r = await fetch('/api/portfolio/holdings');
+    if (r.ok) {
+      const serverData = await r.json();
+      if (Array.isArray(serverData) && serverData.length > 0) {
+        const changed = JSON.stringify(serverData) !== JSON.stringify(holdings);
+        holdings = serverData;
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(holdings)); } catch {}
+        if (changed) {
+          renderHoldingsInstant(holdings);
+          fetchSummary();
+          fetchPerf(period);
+        }
+      } else if (holdings.length > 0) {
+        // Local has data, server doesn't — push local up so it persists.
+        saveHoldings();
+      }
+    }
+  } catch { /* offline / cold start — keep the local render */ }
+}
+
+// Lightweight instant render from cached holdings (no live prices yet).
+function renderHoldingsInstant(list) {
+  const el = document.getElementById('holdingsTable');
+  if (!list.length) {
+    el.innerHTML = '<div class="port-empty">No holdings yet — click + to add one</div>';
+    return;
+  }
+  el.innerHTML = list.map(h => `
+    <div class="port-row">
+      <div class="port-row-left">
+        <a class="port-row-ticker" href="/stock/${h.ticker}">${h.ticker}</a>
+        <div class="port-row-meta">
+          <span>${h.shares} sh</span>
+          ${h.buyin != null ? `<span class="port-row-dot">·</span><span>@ $${(+h.buyin).toFixed(2)}</span>` : ''}
+        </div>
+      </div>
+      <div class="port-row-right">
+        <div class="port-row-value">—</div>
+        <div class="port-row-chg">loading…</div>
+      </div>
+    </div>`).join('');
 }
 
 // ── Add form toggle ───────────────────────────────────────────────────────────
@@ -415,7 +444,12 @@ async function fetchSummary() {
     if (stamp) stamp.textContent = 'Updated ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   } catch (err) {
     console.error('fetchSummary failed:', err);
-    if (stamp) stamp.textContent = 'Price fetch failed — retrying soon';
+    if (stamp) stamp.textContent = 'Price fetch failed — retrying…';
+    // Auto-retry once after a short delay (covers Vercel cold-start timeouts)
+    if (!fetchSummary._retried) {
+      fetchSummary._retried = true;
+      setTimeout(() => { fetchSummary._retried = false; fetchSummary(); }, 4000);
+    }
   }
 }
 
