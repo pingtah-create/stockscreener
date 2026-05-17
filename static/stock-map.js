@@ -35,14 +35,25 @@ function populateSectorFilter() {
   sel._populated = true;
 }
 
+let _smRenderTries = 0;
+
 function renderStockMap() {
   const wrap = document.getElementById("stockMap");
   if (!wrap) return;
-  const W = wrap.clientWidth, H = wrap.clientHeight;
+  let W = wrap.clientWidth, H = wrap.clientHeight;
+  // The container may not have laid out yet — retry a bounded number of times,
+  // then fall back to sensible dimensions so we NEVER loop forever.
   if (W < 50 || H < 50) {
-    requestAnimationFrame(renderStockMap);
-    return;
+    if (_smRenderTries < 30) {
+      _smRenderTries++;
+      requestAnimationFrame(renderStockMap);
+      return;
+    }
+    // Give up waiting — use a fallback size so the map still draws.
+    W = Math.max(W, wrap.parentElement?.clientWidth || 600);
+    H = Math.max(H, 400);
   }
+  _smRenderTries = 0;
   wrap.innerHTML = "";
 
   const rows = _smSectorFilter

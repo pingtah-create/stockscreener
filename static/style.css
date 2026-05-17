@@ -908,7 +908,8 @@ header.ch-nav {
 
 .db-body {
   display: flex;
-  height: calc(100vh - 53px - 34px);
+  height: calc(100vh - 53px - 35px);
+  min-height: 360px;
   overflow: hidden;
 }
 
