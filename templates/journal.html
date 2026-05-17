@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Journal · Stockdash</title>
-  <link rel="stylesheet" href="/static/style.css?v=2" />
-  <link rel="stylesheet" href="/static/journal.css" />
+  <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
+  <script src="/static/theme.js?v=1"></script>
+  <link rel="stylesheet" href="/static/style.css?v=5" />
+  <link rel="stylesheet" href="/static/journal.css?v=2" />
   <link rel="stylesheet" href="/static/legal.css" />
   {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
@@ -23,6 +25,7 @@
     <a href="/journal" class="ch-nav-pill is-active">Journal</a>
   </nav>
   <div class="ch-nav-right">
+    <button class="theme-toggle" aria-label="Toggle theme">☾</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">
         <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>

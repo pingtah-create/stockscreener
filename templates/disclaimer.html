@@ -4,8 +4,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Disclaimer · Stockdash</title>
-  <link rel="stylesheet" href="/static/style.css?v=2" />
-  <link rel="stylesheet" href="/static/chat-home.css?v=13" />
+  <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
+  <script src="/static/theme.js?v=1"></script>
+  <link rel="stylesheet" href="/static/style.css?v=5" />
+  <link rel="stylesheet" href="/static/chat-home.css?v=17" />
   <link rel="stylesheet" href="/static/legal.css" />
   {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>

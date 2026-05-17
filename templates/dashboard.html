@@ -3,8 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Market Map</title>
-  <link rel="stylesheet" href="/static/style.css?v=4" />
+  <title>Market Map · Stockdash</title>
+  <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
+  <script src="/static/theme.js?v=1"></script>
+  <link rel="stylesheet" href="/static/style.css?v=5" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=2" />
@@ -32,6 +34,7 @@
       <div class="search-dropdown" id="searchDropdown"></div>
     </div>
     <button id="tourHelpBtn" class="ch-icon-btn" title="Start guided tour" aria-label="Help">?</button>
+    <button class="theme-toggle" aria-label="Toggle theme">☾</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">
         <div class="nav-avatar" title="{{ current_user }}">{{ current_user[0].upper() }}</div>

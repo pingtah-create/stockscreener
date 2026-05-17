@@ -1,33 +1,77 @@
 /* =====================================================
-   Stock Dashboard — Minimal Dark Theme
+   Stockdash — TradingView-inspired design system
+   Dark + light themes. Token NAMES are kept stable so
+   the rest of the codebase re-skins automatically.
    ===================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
 
-:root {
-  --bg:       #0d0d0d;
-  --bg2:      #111;
-  --bg3:      #161616;
-  --bg4:      #1a1a1a;
-  --border:   #222;
-  --border2:  #2a2a2a;
-  --text:     #e8e8e8;
-  --text2:    #888;
-  --text3:    #444;
-  --green:    #3d9e6e;
-  --green2:   #2e7d52;
-  --green-bg: rgba(61,158,110,0.1);
-  --red:      #b84444;
-  --red2:     #943535;
-  --red-bg:   rgba(184,68,68,0.1);
-  --yellow:   #b89a44;
-  --blue:     #4f8cff;
-  --blue-bg:  rgba(79,140,255,0.1);
-  --accent:   #4f8cff;
+:root,
+:root[data-theme="dark"] {
+  /* Backgrounds */
+  --bg:       #0e1015;   /* page */
+  --bg2:      #131722;   /* panel base */
+  --bg3:      #1a1f2c;   /* panel raised */
+  --bg4:      #232737;   /* hover */
+  --bg-input: #1c2030;
+  /* Lines */
+  --border:   #232838;
+  --border2:  #2a3046;
+  /* Text */
+  --text:     #e8eaf0;
+  --text2:    #a9b1bc;
+  --text3:    #6a7280;
+  --text4:    #4b5260;
+  /* Up / down */
+  --green:    #26a69a;
+  --green2:   #2ec4b6;
+  --green-bg: rgba(38,166,154,0.12);
+  --red:      #ef5350;
+  --red2:     #ff6b68;
+  --red-bg:   rgba(239,83,80,0.12);
+  --yellow:   #ffc233;
+  /* Accent (overridable by theme toggle) */
+  --blue:     #4d8eff;
+  --blue-bg:  rgba(77,142,255,0.12);
+  --accent:   #4d8eff;
+  --accent-bg: rgba(77,142,255,0.12);
+  --grid:     rgba(255,255,255,0.04);
+  --shadow-1: 0 1px 0 rgba(255,255,255,0.02), 0 0 0 1px var(--border);
+  --shadow-2: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 1px var(--border);
+  /* Geometry */
   --radius:   6px;
   --radius-sm: 4px;
-  --radius-lg: 10px;
-  --font:  -apple-system, BlinkMacSystemFont, "Inter", sans-serif;
-  --mono:  "SF Mono", Consolas, "Cascadia Code", monospace;
+  --radius-lg: 8px;
+  --font:  "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --mono:  "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   --transition: 0.15s ease;
+}
+
+:root[data-theme="light"] {
+  --bg:       #f4f5f7;
+  --bg2:      #ffffff;
+  --bg3:      #ffffff;
+  --bg4:      #f4f5f7;
+  --bg-input: #f4f5f7;
+  --border:   #e6e8ec;
+  --border2:  #d3d7df;
+  --text:     #131722;
+  --text2:    #50535e;
+  --text3:    #787b86;
+  --text4:    #a3a6af;
+  --green:    #089981;
+  --green2:   #008060;
+  --green-bg: rgba(8,153,129,0.10);
+  --red:      #f23645;
+  --red2:     #cc222f;
+  --red-bg:   rgba(242,54,69,0.10);
+  --yellow:   #f57c00;
+  --blue:     #2962ff;
+  --blue-bg:  rgba(41,98,255,0.10);
+  --accent:   #2962ff;
+  --accent-bg: rgba(41,98,255,0.10);
+  --grid:     rgba(0,0,0,0.04);
+  --shadow-1: 0 1px 2px rgba(20,28,50,0.04), 0 0 0 1px var(--border);
+  --shadow-2: 0 12px 32px rgba(20,28,50,0.10), 0 0 0 1px var(--border);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -36,10 +80,13 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.45;
   min-height: 100vh;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── TICKER TAPE ──────────────────────────────── */
@@ -697,17 +744,18 @@ body {
   flex-shrink: 0;
 }
 
-/* ── Shared modern nav (ch-nav style) ───────────────── */
+/* ── Shared TradingView-style nav ───────────────────── */
 header.ch-nav {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  align-items: center;
-  padding: 12px 22px;
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+  height: 48px;
+  padding: 0 14px;
   flex-shrink: 0;
   border-bottom: 1px solid var(--border);
   width: 100%;
   box-sizing: border-box;
-  background: var(--bg);
+  background: var(--bg2);
   position: sticky;
   top: 0;
   z-index: 100;
@@ -717,70 +765,163 @@ header.ch-nav {
   align-items: center;
   gap: 8px;
   text-decoration: none;
-  justify-self: start;
-  padding: 4px 6px;
-  border-radius: 6px;
+  padding-right: 14px;
+  margin-right: 6px;
+  border-right: 1px solid var(--border);
   transition: opacity 0.15s;
 }
-.ch-brand-link:hover { opacity: 0.75; }
+.ch-brand-link:hover { opacity: 0.8; }
 .ch-brand-mark {
-  font-size: 18px;
-  color: var(--accent);
+  width: 22px; height: 22px;
+  display: grid; place-items: center;
+  background: linear-gradient(135deg, var(--accent) 0%, #6a4dff 100%);
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  border-radius: 5px;
+  font-family: var(--mono);
   line-height: 1;
 }
 .ch-brand-text {
-  font-family: var(--mono);
-  font-size: 12px;
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.18em;
+  letter-spacing: -0.01em;
   color: var(--text);
-  text-transform: uppercase;
+  text-transform: none;
+  font-family: var(--font);
 }
 .ch-nav-pills {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 2px;
-  padding: 4px;
-  background: var(--bg3);
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  justify-self: center;
+  flex: 1;
+  background: none;
+  border: none;
+  border-radius: 0;
+  padding: 0;
 }
 .ch-nav-pill {
-  font-size: 12.5px;
+  display: flex;
+  align-items: center;
+  font-size: 13px;
   font-weight: 500;
   color: var(--text2);
   text-decoration: none;
-  padding: 6px 14px;
-  border-radius: 999px;
-  letter-spacing: 0.01em;
-  transition: color 0.15s, background 0.15s;
+  padding: 0 12px;
+  border-radius: 0;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  letter-spacing: 0;
+  transition: color 0.12s, background 0.12s;
   white-space: nowrap;
 }
-.ch-nav-pill:hover { color: var(--text); background: rgba(255,255,255,0.04); }
+.ch-nav-pill:hover { color: var(--text); background: var(--bg3); }
 .ch-nav-pill.is-active {
   color: var(--text);
-  background: var(--bg);
+  background: none;
+  border-bottom-color: var(--accent);
 }
 .ch-nav-right {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  justify-self: end;
+  gap: 6px;
 }
 .ch-icon-btn {
   width: 28px; height: 28px;
-  border-radius: 50%;
-  border: 1px solid var(--border);
+  border-radius: 4px;
+  border: none;
   background: transparent;
   color: var(--text2);
   font-size: 13px; font-weight: 600;
   cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   font-family: inherit;
-  transition: color 0.15s, border-color 0.15s;
+  transition: color 0.12s, background 0.12s;
 }
-.ch-icon-btn:hover { color: var(--text); border-color: var(--border2); }
+.ch-icon-btn:hover { color: var(--text); background: var(--bg3); }
+
+/* ── Theme toggle ─────────────────────────────────── */
+.theme-toggle {
+  width: 28px; height: 28px;
+  border-radius: 4px;
+  border: none;
+  background: transparent;
+  color: var(--text2);
+  font-size: 14px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: color 0.12s, background 0.12s;
+}
+.theme-toggle:hover { color: var(--text); background: var(--bg3); }
+
+/* ── Shared UI atoms (TradingView) ─────────────────── */
+.tv-panel {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.tv-panel-hdr {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.tv-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.tv-eyebrow {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text3);
+}
+.tv-pill {
+  display: inline-flex; align-items: center;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  background: var(--bg4);
+  color: var(--text2);
+}
+.tv-pill.up { background: var(--green-bg); color: var(--green); }
+.tv-pill.down { background: var(--red-bg); color: var(--red); }
+.tv-pill.info { background: var(--accent-bg); color: var(--accent); }
+.tv-seg {
+  display: inline-flex;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px;
+  gap: 1px;
+}
+.tv-seg-btn {
+  padding: 3px 9px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text2);
+  border-radius: 3px;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-family: inherit;
+}
+.tv-seg-btn:hover { color: var(--text); }
+.tv-seg-btn.active { background: var(--bg-input); color: var(--text); box-shadow: inset 0 0 0 1px var(--border2); }
+.mono { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.up { color: var(--green); }
+.down { color: var(--red); }
 
 .db-brand {
   font-family: var(--mono);
