@@ -647,9 +647,9 @@ function renderFgGauge(container, score, label) {
 async function loadMarketSnapshot() {
   const timeEl   = document.getElementById('snapshotTime');
   const gaugeEl  = document.getElementById('chFgGauge');
-  const breadthEl= document.getElementById('chSnapBreadth');
   const volEl    = document.getElementById('chSnapVol');
-  const moversEl = document.getElementById('chSnapMovers');
+  const leadEl   = document.getElementById('chSnapLeaders');
+  const lagEl    = document.getElementById('chSnapLaggards');
   const narrEl   = document.getElementById('chSnapNarrative');
 
   // Fear & Greed gauge + Volatility (VIX) + narrative from /api/market-snapshot
@@ -689,53 +689,26 @@ async function loadMarketSnapshot() {
     if (volEl) volEl.innerHTML = '<div class="ch-snap-label">Volatility</div><div class="ch-snap-loading">Unavailable</div>';
   }
 
-  // Real breadth from the full universe (/api/stockmap = all 600+ stocks)
-  try {
-    const r = await fetch('/api/stockmap');
-    if (r.ok && breadthEl) {
-      const all = await r.json();
-      let adv = 0, dec = 0, flat = 0;
-      for (const s of all) {
-        const c = s.change_pct || 0;
-        if (c > 0.05) adv++; else if (c < -0.05) dec++; else flat++;
-      }
-      const total = adv + dec + flat || 1;
-      const advPct = Math.round((adv / total) * 100);
-      const cls = advPct >= 50 ? 'pos' : 'neg';
-      breadthEl.innerHTML = `
-        <div class="ch-snap-label">Breadth</div>
-        <div class="ch-snap-big">
-          <span class="ch-snap-big-val ${cls}">${advPct}%</span>
-          <span class="ch-snap-big-sub">advancers</span>
-        </div>
-        <div class="ch-snap-meta">${adv} ▲ · ${dec} ▼ · ${flat} →</div>`;
-    }
-  } catch {
-    if (breadthEl) breadthEl.innerHTML = '<div class="ch-snap-label">Breadth</div><div class="ch-snap-loading">Unavailable</div>';
-  }
-
-  // Top Movers — best gainer + worst loser from /api/movers ({chg, symbol, name})
+  // Leaders + Laggards from /api/movers ({chg, symbol, name})
   try {
     const r = await fetch('/api/movers');
     if (!r.ok) throw new Error('failed');
     const m = await r.json();
     const up = m.gainers || [], down = m.losers || [];
-    const row = (s, isUp) => {
-      if (!s) return '';
+    const rowsHtml = arr => arr.slice(0, 3).map(s => {
       const chg = (s.chg != null ? s.chg : s.change_pct) || 0;
       const cls = chg >= 0 ? 'pos' : 'neg';
       const sign = chg >= 0 ? '+' : '';
-      const arrow = isUp ? '▲' : '▼';
       return `<div class="ch-snap-row">
-        <span class="ch-snap-row-sym">${arrow} ${s.symbol || s.ticker}</span>
+        <span class="ch-snap-row-sym">${s.symbol || s.ticker}</span>
         <span class="ch-snap-row-chg ${cls}">${sign}${chg.toFixed(2)}%</span>
       </div>`;
-    };
-    if (moversEl) {
-      moversEl.innerHTML = `<div class="ch-snap-label">Top Movers</div>${row(up[0], true)}${row(up[1], true)}${row(down[0], false)}`;
-    }
+    }).join('');
+    if (leadEl) leadEl.innerHTML = `<div class="ch-snap-label">Leaders</div>${rowsHtml(up)}`;
+    if (lagEl)  lagEl.innerHTML  = `<div class="ch-snap-label">Laggards</div>${rowsHtml(down)}`;
   } catch {
-    if (moversEl) moversEl.innerHTML = '<div class="ch-snap-label">Top Movers</div><div class="ch-snap-loading">Unavailable</div>';
+    if (leadEl) leadEl.innerHTML = '<div class="ch-snap-label">Leaders</div><div class="ch-snap-loading">Unavailable</div>';
+    if (lagEl)  lagEl.innerHTML  = '<div class="ch-snap-label">Laggards</div><div class="ch-snap-loading">Unavailable</div>';
   }
 }
 
@@ -781,7 +754,7 @@ async function loadTrending() {
       el.innerHTML = '<span style="color:var(--text-faint);font-size:12px">No data</span>';
       return;
     }
-    el.innerHTML = stocks.slice(0, 8).map(s => {
+    el.innerHTML = stocks.slice(0, 6).map(s => {
       const chg  = s.change_pct || 0;
       const cls  = chg >= 0 ? 'pos' : 'neg';
       const sign = chg >= 0 ? '+' : '';

@@ -743,10 +743,10 @@ body:not(.has-thread) .ch-input-wrap-bottom { display: none; }
 #chSkillDropdown .search-name   { font-size: 12px; color: var(--text2); }
 
 /* ── Trending ────────────────────────────────────── */
-/* Trending — 4-column card grid (uniform card height) */
+/* Trending — 3-column card grid, 2 rows = 6 cards (uniform card height) */
 .ch-trending-list {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  grid-template-columns: repeat(3, 1fr);
   gap: 8px;
 }
 .ch-trending-item {
