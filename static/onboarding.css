@@ -80,13 +80,14 @@
 /* ── Bright highlight on active element ── */
 
 .driver-active-element {
-  outline: 2px solid rgba(255,255,255,0.6) !important;
-  outline-offset: 6px !important;
-  border-radius: 8px !important;
+  outline: 3px solid rgba(255,255,255,0.95) !important;
+  outline-offset: 10px !important;
+  border-radius: 10px !important;
   box-shadow:
-    0 0 0 6px rgba(79,140,255,0.3),
-    0 0 30px rgba(79,140,255,0.2),
-    0 0 60px rgba(79,140,255,0.08) !important;
+    0 0 0 10px rgba(255,255,255,0.12),
+    0 0 0 13px rgba(255,255,255,0.06),
+    0 0 40px rgba(255,255,255,0.25),
+    0 0 80px rgba(79,140,255,0.2) !important;
 }
 
 
