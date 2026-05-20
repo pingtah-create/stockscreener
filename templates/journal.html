@@ -9,6 +9,8 @@
   <link rel="stylesheet" href="/static/style.css?v=5" />
   <link rel="stylesheet" href="/static/journal.css?v=2" />
   <link rel="stylesheet" href="/static/legal.css" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
+  <link rel="stylesheet" href="/static/onboarding.css?v=2" />
   {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
 <body>
@@ -25,6 +27,7 @@
     <a href="/journal" class="ch-nav-pill is-active">Journal</a>
   </nav>
   <div class="ch-nav-right">
+    <button id="tourHelpBtn" class="tour-help-btn" title="Start guided tour">?</button>
     <button class="theme-toggle" aria-label="Toggle theme">☾</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">
@@ -171,5 +174,7 @@
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="/static/journal.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
+<script src="/static/onboarding.js?v=5"></script>
 </body>
 </html>
