@@ -96,7 +96,7 @@
       showProgress: true,
       showButtons: ['next', 'previous', 'close'],
       animate: true,
-      stagePadding: 28,
+      stagePadding: 32,
       stageRadius: 12,
       popoverOffset: 14,
       smoothScroll: true,
