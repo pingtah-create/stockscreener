@@ -840,7 +840,9 @@ body:not(.has-thread) .ch-input-wrap-bottom { display: none; }
   box-shadow: -8px 0 32px rgba(0,0,0,0.4);
 }
 .ch-drawer:not([hidden]) { transform: translateX(0); }
-.ch-drawer[hidden] { display: flex; }  /* keep flex layout so animation works */
+/* Keep it laid out (so the slide animates) but fully click-through when hidden. */
+.ch-drawer[hidden] { display: flex; visibility: hidden; pointer-events: none; }
+.ch-drawer:not([hidden]) { visibility: visible; pointer-events: auto; }
 .ch-drawer-hdr {
   display: flex;
   align-items: center;
@@ -885,8 +887,9 @@ body:not(.has-thread) .ch-input-wrap-bottom { display: none; }
   opacity: 0;
   transition: opacity 0.2s;
 }
-.ch-drawer-scrim:not([hidden]) { opacity: 1; }
-.ch-drawer-scrim[hidden] { display: block; pointer-events: none; }
+.ch-drawer-scrim:not([hidden]) { opacity: 1; pointer-events: auto; }
+/* Hidden scrim must NOT cover the page — it was eating every click. */
+.ch-drawer-scrim[hidden] { display: none; }
 /* History session button — reused inside drawer */
 .ch-sidebar-session {
   width: 100%;
