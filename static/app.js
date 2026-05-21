@@ -10,12 +10,21 @@ document.addEventListener("DOMContentLoaded", async () => {
   updateMarketStatus();
   setInterval(updateMarketStatus, 30000);
   await loadIndices();
+  // Render the treemap immediately with seed prices — instant, no waiting.
   if (typeof loadStockMap === "function") loadStockMap();
   initWatchlist();
   preloadStocksForSearch();
   setInterval(loadIndices, 60000);
   if (typeof loadStockMap === "function") setInterval(loadStockMap, 60000);
   setInterval(loadWatchlist, 30000);
+
+  // After the page is up, kick the server to refresh live prices off the
+  // request path (so the slow yf.download never blocks page load), then
+  // reload the treemap once fresh data is in.
+  fetch("/api/refresh-prices", { method: "POST" })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d && typeof loadStockMap === "function") loadStockMap(); })
+    .catch(() => {});
 });
 
 function setupSidebarResize() {

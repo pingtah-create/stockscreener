@@ -245,28 +245,20 @@ def _refresh_live_prices():
 
 
 def _ensure_stocks_loaded():
-    """Load seed + per-ticker cache on first hit, then refresh live prices.
+    """Load seed + per-ticker cache on first hit. NEVER blocks the request on a
+    live-price fetch — that 25s yf.download() would hang the user's page load.
 
-    Strategy:
-      - Local dev: spawn a background thread (survives the request, refreshes
-        live prices in parallel without slowing the response).
-      - Vercel: background threads get killed when the request returns, so
-        background work never completes. Only refresh INLINE on the very first
-        cold-start request (when prices have never been fetched in this warm
-        instance). Subsequent requests use the now-warm cache instantly.
+    Prices come from the seed file (data/stocks.json) instantly. A live refresh
+    happens off the request path: a background thread locally, and on Vercel via
+    the explicit /api/refresh-prices endpoint the client pings after render.
     """
     global _stock_cache
     if not _stock_cache:
         with _stock_cache_lock:
             if not _stock_cache:
                 _stock_cache = _load_all_from_cache()
-    if _IS_SERVERLESS:
-        # Inline refresh only on first cold-start request, then never again
-        # in this warm instance. Keeps every subsequent request fast.
-        if _prices_refreshed_at is None:
-            _refresh_live_prices()
-    else:
-        # Local dev: background thread refreshes without blocking the response.
+    if not _IS_SERVERLESS:
+        # Local dev only: background thread refreshes without blocking.
         threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
@@ -952,6 +944,18 @@ def _twd_to_usd_rate() -> float:
         _fx_refreshing = True
         threading.Thread(target=_fetch_twd_rate, daemon=True).start()
     return _FX_CACHE["TWDUSD"] or 0.031  # fallback ~32 TWD/USD
+
+
+@app.route("/api/refresh-prices", methods=["POST", "GET"])
+@auth.require_login_api
+def api_refresh_prices():
+    """Refresh live prices into the in-memory cache. The client pings this
+    AFTER the page renders, so the slow yf.download() never blocks page load.
+    The 5-min throttle inside _refresh_live_prices makes repeat calls cheap."""
+    _ensure_stocks_loaded()
+    _refresh_live_prices()
+    return jsonify({"refreshed": True,
+                    "at": _prices_refreshed_at.isoformat() if _prices_refreshed_at else None})
 
 
 @app.route("/api/stockmap")
