@@ -65,7 +65,7 @@ let currentType  = localStorage.getItem('chartType') || 'candle';
 let _syncingRange = false;
 
 // ── Period auto-extend ────────────────────────────────────────────
-const PERIOD_ORDER = ['5d','1mo','3mo','6mo','1y','2y','5y'];
+const PERIOD_ORDER = ['1d','5d','1mo','3mo','6mo','1y','2y','5y'];
 let currentPeriod = '3mo';
 let _autoLoading  = false;
 
