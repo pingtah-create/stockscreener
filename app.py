@@ -2071,6 +2071,21 @@ def api_quote(ticker: str):
         "change_pct": round((cur - prev) / prev * 100, 2) if prev else 0,
         "source":     source,
     }
+
+    # ── Extended-hours (pre-market / after-hours) price ─────────────────
+    # When the regular session is closed, yfinance fast_info.last_price
+    # reflects the latest extended-hours trade. If it differs meaningfully
+    # from the regular close, surface it as a separate post-market quote.
+    if not ticker.endswith(".TW"):
+        try:
+            fi = yf.Ticker(ticker).fast_info
+            ext = float(getattr(fi, "last_price", None) or 0)
+            if ext > 0 and abs(ext - cur) / cur > 0.0005:   # >0.05% gap
+                result["post_market_price"] = round(ext, 2)
+                result["post_market_change_pct"] = round((ext - cur) / cur * 100, 2)
+        except Exception:
+            pass
+
     _quote_cache[ticker] = {**result, "at": now}
     return jsonify(result)
 

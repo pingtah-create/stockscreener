@@ -1709,6 +1709,23 @@ async function pollLivePrice() {
       chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
       chgEl.className   = 'stock-chg ' + (chg >= 0 ? 'chg-up' : 'chg-down');
     }
+    // Extended-hours (pre-/after-market) quote, if the API returned one
+    let extEl = document.getElementById('stockPostMarket');
+    if (q.post_market_price != null) {
+      if (!extEl) {
+        extEl = document.createElement('span');
+        extEl.id = 'stockPostMarket';
+        extEl.className = 'stock-postmarket';
+        (chgEl || priceEl)?.insertAdjacentElement('afterend', extEl);
+      }
+      const pc = q.post_market_change_pct || 0;
+      extEl.textContent =
+        `· Post $${q.post_market_price.toFixed(2)} (${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%)`;
+      extEl.className = 'stock-postmarket ' + (pc >= 0 ? 'chg-up' : 'chg-down');
+      extEl.style.display = '';
+    } else if (extEl) {
+      extEl.style.display = 'none';
+    }
     checkAlerts(TICKER, q.price);
   } catch {}
 }

@@ -600,6 +600,21 @@ function initHero() {
 // Index tape loads on every page view (independent of hero/chat state)
 loadTape();
 
+// ── Auto-refresh hero data ──────────────────────────────────────────────────
+// Tape refreshes every 60s; snapshot + trending every 90s while the hero is
+// visible. force=true busts the memoized snapshot cache so data is genuinely
+// re-fetched. Skipped once the user is in a chat thread.
+setInterval(() => {
+  getMarketSnapshot(true);
+  loadTape();
+}, 60000);
+setInterval(() => {
+  if (heroEl && !heroEl.hidden) {
+    loadMarketSnapshot(true);
+    loadTrending();
+  }
+}, 90000);
+
 // ── Market Snapshot ────────────────────────────────────────────────────────────
 // Draw a car-speedometer-style Fear & Greed gauge into a container.
 function renderFgGauge(container, score, label) {
@@ -644,7 +659,7 @@ function renderFgGauge(container, score, label) {
   `);
 }
 
-async function loadMarketSnapshot() {
+async function loadMarketSnapshot(force) {
   const timeEl   = document.getElementById('snapshotTime');
   const gaugeEl  = document.getElementById('chFgGauge');
   const volEl    = document.getElementById('chSnapVol');
@@ -654,9 +669,8 @@ async function loadMarketSnapshot() {
 
   // Fear & Greed gauge + Volatility (VIX) + narrative from /api/market-snapshot
   try {
-    const r = await fetch('/api/market-snapshot');
-    if (r.ok) {
-      const d = await r.json();
+    const d = await getMarketSnapshot(force);
+    if (d) {
       if (gaugeEl) renderFgGauge(gaugeEl, d.fg_score, d.fg_label);
 
       // Volatility cell — VIX level + regime
@@ -712,12 +726,24 @@ async function loadMarketSnapshot() {
   }
 }
 
+// Shared /api/market-snapshot fetch — memoized so the tape and the snapshot
+// panel reuse ONE network call instead of hitting the slow endpoint twice.
+// Pass force=true to bypass the cache (used by the auto-refresh timer).
+let _snapshotPromise = null;
+function getMarketSnapshot(force) {
+  if (force || !_snapshotPromise) {
+    _snapshotPromise = fetch('/api/market-snapshot')
+      .then(r => (r.ok ? r.json() : null))
+      .catch(() => null);
+  }
+  return _snapshotPromise;
+}
+
 // ── Index tape ─────────────────────────────────────────────────────────────────
 async function loadTape() {
   try {
-    const r = await fetch('/api/market-snapshot');
-    if (!r.ok) return;
-    const d = await r.json();
+    const d = await getMarketSnapshot();
+    if (!d) return;
     const idx = d.indices || {};
     document.querySelectorAll('.ch-tape-cell').forEach(cell => {
       const key = cell.dataset.idx;
