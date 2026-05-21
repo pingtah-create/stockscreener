@@ -424,28 +424,33 @@ def api_chart(ticker: str):
         return jsonify({"ohlcv": [], "technicals": {}, "error": "invalid ticker"})
     period = request.args.get("period", "6mo")
 
-    # Map requested period → (yfinance fetch period, # of bars to keep).
-    # Fetch period is larger so SMA200/BB have full lookback for the visible
-    # range — otherwise overlays show a "warmup gap" on the left edge.
+    # Map requested period → (yfinance fetch period, interval, # of bars to keep).
+    # 1D / 1W use intraday intervals so the chart can show day/week candles;
+    # the rest use daily. Fetch period is larger than the visible range so
+    # SMA200/BB have full lookback (no warmup gap on the left edge).
     PERIOD_MAP = {
-        "5d":  ("1y",  5),
-        "1mo": ("1y",  21),
-        "3mo": ("2y",  63),
-        "6mo": ("2y",  126),
-        "1y":  ("5y",  252),
-        "2y":  ("5y",  504),
-        "5y":  ("10y", 1260),
+        "1d":  ("1d",  "5m",  None),
+        "5d":  ("5d",  "30m", None),
+        "1mo": ("1y",  "1d",  21),
+        "3mo": ("2y",  "1d",  63),
+        "6mo": ("2y",  "1d",  126),
+        "1y":  ("5y",  "1d",  252),
+        "2y":  ("5y",  "1d",  504),
+        "5y":  ("10y", "1d",  1260),
     }
-    fetch_period, keep_bars = PERIOD_MAP.get(period, (period, None))
+    fetch_period, interval, keep_bars = PERIOD_MAP.get(period, (period, "1d", None))
+    intraday = interval != "1d"
 
     try:
         import pandas as pd
 
         t_obj = yf.Ticker(ticker)
-        hist = t_obj.history(period=fetch_period, interval="1d", timeout=20)
+        hist = t_obj.history(period=fetch_period, interval=interval,
+                             prepost=intraday, timeout=20)
         if hist.empty:
             # Try once more — Yahoo sometimes returns empty on first call
-            hist = t_obj.history(period=fetch_period, interval="1d", timeout=20)
+            hist = t_obj.history(period=fetch_period, interval=interval,
+                                 prepost=intraday, timeout=20)
         if hist.empty:
             return jsonify({"ohlcv": [], "technicals": {}, "error": f"No data found for {ticker}"})
 
@@ -516,12 +521,15 @@ def api_chart(ticker: str):
         cci     = (cci_tp - cci_sma) / (0.015 * cci_mad.replace(0, float("nan")))
 
         # ── Build OHLCV list ──────────────────────────
+        # Daily bars use a "YYYY-MM-DD" date; intraday bars use a UNIX
+        # timestamp (seconds) so Lightweight Charts plots the intraday time.
         ohlcv = []
         closes = close.tolist()
         for i, (idx, row) in enumerate(hist.iterrows()):
             prev = closes[i - 1] if i > 0 else closes[0]
+            time_val = int(idx.timestamp()) if intraday else str(idx.date())
             ohlcv.append({
-                "date":   str(idx.date()),
+                "date":   time_val,
                 "open":   round(float(row["Open"]),  2),
                 "high":   round(float(row["High"]),  2),
                 "low":    round(float(row["Low"]),   2),
@@ -558,7 +566,8 @@ def api_chart(ticker: str):
             ohlcv = ohlcv[-keep_bars:]
             technicals = {k: v[-keep_bars:] for k, v in technicals.items()}
 
-        return jsonify({"ohlcv": ohlcv, "technicals": technicals})
+        return jsonify({"ohlcv": ohlcv, "technicals": technicals,
+                        "intraday": intraday})
     except Exception as e:
         return jsonify({"ohlcv": [], "technicals": {}, "error": str(e)})
 
