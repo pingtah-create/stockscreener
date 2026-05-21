@@ -278,14 +278,21 @@ async function saveEntry() {
       entries.unshift(created);
     }
     _localSave(entries);
-    document.getElementById('jnlModalOverlay').style.display = 'none';
-    editingId = null;
-    render();
   } catch (err) {
     alert('Save failed: ' + err.message);
-  } finally {
     btn.disabled = false;
+    return;
   }
+  // The entry is saved — UI updates below must never surface as "Save failed".
+  try {
+    const overlay = document.getElementById('jnlModalOverlay');
+    if (overlay) overlay.style.display = 'none';
+    editingId = null;
+    render();
+  } catch (e) {
+    console.error('journal render after save failed:', e);
+  }
+  btn.disabled = false;
 }
 
 async function deleteEntry(id) {
