@@ -524,6 +524,27 @@ def api_chart(ticker: str):
         return jsonify({"ohlcv": [], "technicals": {}, "error": "invalid ticker"})
     period = request.args.get("period", "6mo")
 
+    # Customizable indicator periods (query params, clamped to sane ranges).
+    def _ip(name, default, lo, hi):
+        try:
+            return max(lo, min(hi, int(request.args.get(name, default))))
+        except (TypeError, ValueError):
+            return default
+    p_sma1   = _ip("sma1",   20,  2, 400)
+    p_sma2   = _ip("sma2",   50,  2, 400)
+    p_sma3   = _ip("sma3",   200, 2, 400)
+    p_ema1   = _ip("ema1",   9,   2, 400)
+    p_ema2   = _ip("ema2",   20,  2, 400)
+    p_rsi    = _ip("rsi",    14,  2, 100)
+    p_bb     = _ip("bb",     20,  2, 200)
+    p_macdf  = _ip("macdf",  12,  2, 100)
+    p_macds  = _ip("macds",  26,  3, 200)
+    p_macdsig= _ip("macdsig",9,   2, 100)
+    try:
+        p_bbstd = max(0.5, min(5.0, float(request.args.get("bbstd", 2))))
+    except (TypeError, ValueError):
+        p_bbstd = 2.0
+
     # Map requested period → (yfinance fetch period, interval, # of bars to keep).
     # 1D / 1W use intraday intervals so the chart can show day/week candles;
     # the rest use daily. Fetch period is larger than the visible range so
@@ -562,32 +583,32 @@ def api_chart(ticker: str):
         def r(v): return round(float(v), 4) if pd.notna(v) else None
         def to_list(s): return [r(v) for v in s]
 
-        # ── Moving Averages ───────────────────────────
-        sma20  = close.rolling(20).mean()
-        sma50  = close.rolling(50).mean()
-        sma200 = close.rolling(200).mean()
-        ema9   = close.ewm(span=9,  adjust=False).mean()
-        ema12  = close.ewm(span=12, adjust=False).mean()
-        ema20  = close.ewm(span=20, adjust=False).mean()
-        ema26  = close.ewm(span=26, adjust=False).mean()
+        # ── Moving Averages (periods are user-customizable) ──
+        sma20  = close.rolling(p_sma1).mean()
+        sma50  = close.rolling(p_sma2).mean()
+        sma200 = close.rolling(p_sma3).mean()
+        ema9   = close.ewm(span=p_ema1, adjust=False).mean()
+        ema12  = close.ewm(span=p_macdf, adjust=False).mean()
+        ema20  = close.ewm(span=p_ema2, adjust=False).mean()
+        ema26  = close.ewm(span=p_macds, adjust=False).mean()
 
-        # ── Bollinger Bands (20, 2σ) ──────────────────
-        bb_mid   = close.rolling(20).mean()
-        bb_std   = close.rolling(20).std()
-        bb_upper = bb_mid + 2 * bb_std
-        bb_lower = bb_mid - 2 * bb_std
+        # ── Bollinger Bands (customizable period & σ) ──
+        bb_mid   = close.rolling(p_bb).mean()
+        bb_std   = close.rolling(p_bb).std()
+        bb_upper = bb_mid + p_bbstd * bb_std
+        bb_lower = bb_mid - p_bbstd * bb_std
         bb_width = ((bb_upper - bb_lower) / bb_mid * 100)  # % bandwidth
 
-        # ── RSI (14) ──────────────────────────────────
+        # ── RSI (customizable length) ─────────────────
         delta = close.diff()
-        gain  = delta.clip(lower=0).rolling(14).mean()
-        loss  = (-delta.clip(upper=0)).rolling(14).mean()
+        gain  = delta.clip(lower=0).rolling(p_rsi).mean()
+        loss  = (-delta.clip(upper=0)).rolling(p_rsi).mean()
         rs    = gain / loss.replace(0, float("nan"))
         rsi   = 100 - (100 / (1 + rs))
 
-        # ── MACD (12, 26, 9) ──────────────────────────
+        # ── MACD (customizable fast/slow/signal) ──────
         macd_line   = ema12 - ema26
-        macd_signal = macd_line.ewm(span=9, adjust=False).mean()
+        macd_signal = macd_line.ewm(span=p_macdsig, adjust=False).mean()
         macd_hist   = macd_line - macd_signal
 
         # ── Stochastic Oscillator (14, 3) ────────────

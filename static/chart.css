@@ -478,6 +478,60 @@ html, body {
 }
 .ctrl-btn:hover  { color: var(--text2); border-color: var(--border2); }
 .ctrl-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(79,140,255,.08); }
+.ctrl-btn.primary { color: #fff; background: var(--accent); border-color: var(--accent); }
+.ctrl-btn.primary:hover { color: #fff; filter: brightness(1.1); }
+
+/* ── Indicator settings panel ─────────────────────────────── */
+.ind-settings-wrap { position: relative; flex-shrink: 0; }
+.ind-settings-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 200;
+  background: var(--bg2);
+  border: 1px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px;
+  width: 280px;
+  box-shadow: 0 8px 28px rgba(0,0,0,0.5);
+}
+.ind-settings-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text2);
+  margin-bottom: 10px;
+}
+.ind-settings-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ind-settings-grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 10.5px;
+  color: var(--text3);
+}
+.ind-settings-grid input {
+  background: var(--bg-input, var(--bg3));
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  font-family: var(--mono);
+  padding: 4px 7px;
+  outline: none;
+}
+.ind-settings-grid input:focus { border-color: var(--accent); }
+.ind-settings-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 12px;
+}
 
 /* ── OHLCV BAR ────────────────────────────────────────────── */
 .ohlcv-bar {

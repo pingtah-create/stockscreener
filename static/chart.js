@@ -111,6 +111,56 @@ function saveChartPrefs() {
   } catch {}
 }
 
+// ── Customizable indicator periods ─────────────────────────────────
+const IND_CFG_DEFAULT = {
+  sma1: 20, sma2: 50, sma3: 200, ema1: 9, ema2: 20,
+  rsi: 14, bb: 20, bbstd: 2, macdf: 12, macds: 26, macdsig: 9,
+};
+const IND_CFG = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('chartIndCfg') || 'null');
+    if (saved && typeof saved === 'object') return { ...IND_CFG_DEFAULT, ...saved };
+  } catch {}
+  return { ...IND_CFG_DEFAULT };
+})();
+// Build the ?sma1=..&rsi=.. query string for /api/chart
+function indCfgQuery() {
+  return Object.entries(IND_CFG).map(([k, v]) => `${k}=${v}`).join('&');
+}
+function toggleIndSettings() {
+  const panel = document.getElementById('indSettingsPanel');
+  if (!panel) return;
+  const open = panel.style.display !== 'none';
+  if (!open) {
+    // Sync inputs from current config
+    for (const k of Object.keys(IND_CFG)) {
+      const el = document.getElementById('cfg' + k.charAt(0).toUpperCase() + k.slice(1));
+      if (el) el.value = IND_CFG[k];
+    }
+  }
+  panel.style.display = open ? 'none' : 'block';
+}
+function applyIndSettings() {
+  for (const k of Object.keys(IND_CFG)) {
+    const el = document.getElementById('cfg' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (!el) continue;
+    const v = parseFloat(el.value);
+    if (!isNaN(v) && v > 0) IND_CFG[k] = v;
+  }
+  try { localStorage.setItem('chartIndCfg', JSON.stringify(IND_CFG)); } catch {}
+  document.getElementById('indSettingsPanel').style.display = 'none';
+  loadData(currentPeriod);   // recompute with new periods
+}
+function resetIndSettings() {
+  Object.assign(IND_CFG, IND_CFG_DEFAULT);
+  try { localStorage.setItem('chartIndCfg', JSON.stringify(IND_CFG)); } catch {}
+  for (const k of Object.keys(IND_CFG)) {
+    const el = document.getElementById('cfg' + k.charAt(0).toUpperCase() + k.slice(1));
+    if (el) el.value = IND_CFG[k];
+  }
+  loadData(currentPeriod);
+}
+
 // ── Drawing state ──────────────────────────────────────────────────
 const drawings     = [];   // committed drawings
 let   activeDrawing = null; // drawing in progress
@@ -380,7 +430,7 @@ async function loadData(period) {
   currentPeriod = period;
   showChartLoading();
   try {
-    const res = await fetch(`/api/chart/${TICKER}?period=${period}`);
+    const res = await fetch(`/api/chart/${TICKER}?period=${period}&${indCfgQuery()}`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     chartData = await res.json();
     if (!chartData?.ohlcv?.length) {
