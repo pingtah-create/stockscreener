@@ -270,11 +270,21 @@ def _ensure_stocks_loaded():
         threading.Thread(target=_refresh_live_prices, daemon=True).start()
 
 
+_GOOGLE_ERRORS = {
+    "google_unconfigured": "Google sign-in is not configured.",
+    "google_denied":       "Google sign-in was cancelled.",
+    "google_state":        "Google sign-in expired — please try again.",
+    "google_token":        "Google sign-in failed — please try again.",
+    "google_email":        "Could not verify your Google email.",
+    "google_failed":       "Google sign-in failed — please try again.",
+}
+
+
 @app.route("/login", methods=["GET", "POST"])
 def login_page():
     if auth.current_user():
         return redirect(url_for("index"))
-    error = None
+    error = _GOOGLE_ERRORS.get(request.args.get("err", ""))
     if request.method == "POST":
         username = (request.form.get("username") or "").strip()
         password = request.form.get("password") or ""
@@ -286,6 +296,8 @@ def login_page():
             return redirect(nxt)
         error = "Invalid username or password."
     return render_template("login.html", mode="login", error=error,
+                           form_username=request.form.get("username", ""),
+                           google_enabled=bool(_os.environ.get("GOOGLE_CLIENT_ID")),
                            signup_enabled=auth.signup_enabled(),
                            signup_code_required=bool(auth._signup_code()))
 
@@ -312,6 +324,9 @@ def signup_page():
                 return redirect(url_for("index"))
             error = msg
     return render_template("login.html", mode="signup", error=error,
+                           form_username=request.form.get("username", ""),
+                           form_email=request.form.get("email", ""),
+                           google_enabled=bool(_os.environ.get("GOOGLE_CLIENT_ID")),
                            signup_enabled=auth.signup_enabled(),
                            signup_code_required=bool(auth._signup_code()))
 
@@ -320,6 +335,91 @@ def signup_page():
 def logout():
     auth.logout_session()
     return redirect(url_for("login_page"))
+
+
+# ── Google OAuth ───────────────────────────────────────────────────────────────
+import secrets as _secrets
+
+_GOOGLE_AUTH_URL  = "https://accounts.google.com/o/oauth2/v2/auth"
+_GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
+_GOOGLE_USERINFO  = "https://www.googleapis.com/oauth2/v2/userinfo"
+
+
+def _google_redirect_uri() -> str:
+    """Where Google sends the user back. Explicit env var on Vercel; derived
+    from the request host locally."""
+    env = _os.environ.get("GOOGLE_REDIRECT_URI", "").strip()
+    if env:
+        return env
+    return request.url_root.rstrip("/") + "/auth/google/callback"
+
+
+@app.route("/auth/google")
+def auth_google():
+    """Kick off the Google OAuth consent flow."""
+    client_id = _os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    if not client_id:
+        return redirect(url_for("login_page") + "?err=google_unconfigured")
+    state = _secrets.token_urlsafe(24)
+    session["oauth_state"] = state
+    from urllib.parse import urlencode
+    params = {
+        "client_id":     client_id,
+        "redirect_uri":  _google_redirect_uri(),
+        "response_type": "code",
+        "scope":         "openid email profile",
+        "state":         state,
+        "access_type":   "online",
+        "prompt":        "select_account",
+    }
+    return redirect(f"{_GOOGLE_AUTH_URL}?{urlencode(params)}")
+
+
+@app.route("/auth/google/callback")
+def auth_google_callback():
+    """Google redirects here with a code; exchange it for the user's email."""
+    import requests as _req
+    if request.args.get("error"):
+        return redirect(url_for("login_page") + "?err=google_denied")
+    code  = request.args.get("code", "")
+    state = request.args.get("state", "")
+    if not code or not state or state != session.pop("oauth_state", None):
+        return redirect(url_for("login_page") + "?err=google_state")
+
+    client_id     = _os.environ.get("GOOGLE_CLIENT_ID", "").strip()
+    client_secret = _os.environ.get("GOOGLE_CLIENT_SECRET", "").strip()
+    if not client_id or not client_secret:
+        return redirect(url_for("login_page") + "?err=google_unconfigured")
+
+    try:
+        tok = _req.post(_GOOGLE_TOKEN_URL, data={
+            "code":          code,
+            "client_id":     client_id,
+            "client_secret": client_secret,
+            "redirect_uri":  _google_redirect_uri(),
+            "grant_type":    "authorization_code",
+        }, timeout=10)
+        tok.raise_for_status()
+        access_token = tok.json().get("access_token")
+        if not access_token:
+            return redirect(url_for("login_page") + "?err=google_token")
+
+        info = _req.get(_GOOGLE_USERINFO,
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        timeout=10)
+        info.raise_for_status()
+        data = info.json()
+        email = (data.get("email") or "").strip().lower()
+        if not email or not data.get("verified_email", True):
+            return redirect(url_for("login_page") + "?err=google_email")
+    except Exception:
+        return redirect(url_for("login_page") + "?err=google_failed")
+
+    username = auth.google_login_user(email)
+    if not username:
+        return redirect(url_for("login_page") + "?err=google_failed")
+    auth.login_session(username)
+    return redirect(url_for("index"))
 
 
 @app.route("/")

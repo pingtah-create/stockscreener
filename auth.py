@@ -234,6 +234,74 @@ def create_user(username: str, password: str, invite_code: str = "",
     return True, "Account created."
 
 
+def _email_to_username(email: str) -> str:
+    """Derive a safe username from a Google email (local-part, sanitized)."""
+    import re as _re
+    local = (email or "").split("@", 1)[0].lower()
+    local = _re.sub(r"[^a-z0-9._-]", "", local)
+    if len(local) < 3:
+        local = (local + "user")
+    return local[:32]
+
+
+def google_login_user(email: str) -> str | None:
+    """Find-or-create a user for a verified Google email. Returns the username.
+
+    Google accounts have no password — a random unusable hash is stored so
+    password login can never succeed for them. Sign-in is via OAuth only.
+    """
+    email = (email or "").strip().lower()
+    if not email or "@" not in email:
+        return None
+
+    base = _email_to_username(email)
+
+    # ── Supabase path ──────────────────────────────────────────────────
+    if _sb_available():
+        # Already registered? Match by email first.
+        try:
+            r = _req.get(
+                f"{_SB_URL}/rest/v1/users",
+                headers={**_sb_auth_headers(), "Accept": "application/json"},
+                params={"email": f"eq.{email}", "select": "username"},
+                timeout=5,
+            )
+            data = r.json()
+            if isinstance(data, list) and data:
+                return data[0]["username"]
+        except Exception:
+            pass
+        # Create — find a free username variant
+        username = base
+        for n in range(2, 60):
+            if not _sb_username_taken(username):
+                break
+            username = f"{base}{n}"
+        random_hash = generate_password_hash(os.urandom(24).hex())
+        if _sb_create_user(username, random_hash, email):
+            return username
+        return None
+
+    # ── Flat-file path (local dev) ─────────────────────────────────────
+    users = _load()
+    for uname, rec in users.items():
+        if (rec.get("email") or "").lower() == email:
+            return uname
+    username = base
+    n = 2
+    while username in users or username in _ENV_USERS:
+        username = f"{base}{n}"
+        n += 1
+    users[username] = {
+        "password_hash": generate_password_hash(os.urandom(24).hex()),
+        "email":         email,
+        "created_at":    datetime.utcnow().isoformat() + "Z",
+        "google":        True,
+    }
+    _save(users)
+    return username
+
+
 def verify_user(username: str, password: str) -> bool:
     username = (username or "").strip().lower()
 
