@@ -90,22 +90,31 @@
     var filtered = filterVisible(steps);
     if (!filtered.length) { if (onFinish) onFinish(); return; }
 
+    var closedEarly = false;
+
     var d = createDriver({
       showProgress: true,
       showButtons: ['next', 'previous', 'close'],
       animate: true,
-      stagePadding: 10,
+      stagePadding: 14,
       stageRadius: 10,
-      popoverOffset: 14,
+      popoverOffset: 16,
       smoothScroll: true,
-      overlayOpacity: 0.75,
+      overlayOpacity: 0.62,
       progressText: '{{current}} / {{total}}',
       nextBtnText: 'Next',
       prevBtnText: 'Back',
       doneBtnText: onFinish ? "Let's go →" : 'Done',
+      onCloseClick: function() {
+        closedEarly = true;
+        setState('complete');
+        d.destroy();
+      },
       onDestroyStarted: function() {
-        if (onFinish) onFinish();
-        else setState('complete');
+        if (!closedEarly) {
+          if (onFinish) onFinish();
+          else setState('complete');
+        }
         d.destroy();
       },
       steps: filtered
