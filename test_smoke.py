@@ -201,6 +201,18 @@ def main():
             ok = False
         record("POST /api/quotes", ok, f"HTTP {status}")
 
+        # journal recap — with no closed trades the endpoint must return
+        # {"empty": true} (HTTP 200), not error. Confirms it's wired.
+        status, body = req(opener, "/api/journal/recap", "POST",
+                            {"entries": []}, timeout=30)
+        ok = status == 200
+        try:
+            d = json.loads(body)
+            ok = ok and (d.get("empty") is True or "trades" in d)
+        except Exception:
+            ok = False
+        record("POST /api/journal/recap", ok, f"HTTP {status}")
+
         # ── Static assets ──────────────────────────────────────────────
         print("\nSTATIC ASSETS")
         assets = ["/static/style.css", "/static/theme.js",

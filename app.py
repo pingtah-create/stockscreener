@@ -2546,6 +2546,176 @@ def api_journal_delete(entry_id):
     return jsonify({"ok": True})
 
 
+# ── Journal recap (AI: what went right / wrong + macro context) ────────────────
+
+_recap_cache: dict = {}   # {user: {"hash": str, "data": dict, "at": datetime}}
+_RECAP_TTL = 6 * 3600     # seconds
+
+
+def _trade_pnl(e: dict):
+    """P&L % for a closed entry, accounting for direction. None if not computable."""
+    if e.get("status") != "Closed":
+        return None
+    try:
+        ep = float(e.get("entry_price"))
+        cp = float(e.get("close_price"))
+    except (TypeError, ValueError):
+        return None
+    if not ep:
+        return None
+    return (ep - cp) / ep * 100 if e.get("direction") == "Short" else (cp - ep) / ep * 100
+
+
+def _macro_window(start: str, end: str):
+    """VIX + S&P move over a date window. Returns a short human string or None."""
+    try:
+        s = datetime.strptime(start, "%Y-%m-%d").date()
+        e = datetime.strptime(end, "%Y-%m-%d").date()
+    except Exception:
+        return None
+    if e <= s:
+        e = s + timedelta(days=5)
+    try:
+        df = yf.download(["^GSPC", "^VIX"], start=s.isoformat(),
+                         end=(e + timedelta(days=1)).isoformat(),
+                         progress=False, auto_adjust=True)
+        if df.empty:
+            return None
+        close = df["Close"]
+        spx = close["^GSPC"].dropna()
+        vix = close["^VIX"].dropna()
+        bits = []
+        if len(spx) >= 2:
+            spx_chg = (spx.iloc[-1] - spx.iloc[0]) / spx.iloc[0] * 100
+            bits.append(f"S&P 500 {'+' if spx_chg >= 0 else ''}{spx_chg:.1f}% over the trade")
+        if len(vix) >= 2:
+            v0, v1 = float(vix.iloc[0]), float(vix.iloc[-1])
+            trend = "rising" if v1 > v0 + 1 else "falling" if v1 < v0 - 1 else "flat"
+            bits.append(f"VIX {trend} ({v0:.0f}→{v1:.0f})")
+        return "; ".join(bits) if bits else None
+    except Exception:
+        return None
+
+
+@app.route("/api/journal/recap", methods=["POST"])
+@auth.require_login_api
+def api_journal_recap():
+    """AI recap of closed trades: what went right / wrong, the lesson, and the
+    macro backdrop for each trade window. Cached 6h per user (keyed on entries)."""
+    import hashlib as _hl
+    user = auth.current_user()
+    body = request.json or {}
+    entries = body.get("entries")
+    if not isinstance(entries, list):
+        entries = _sb_load(user, col="journal") or []
+
+    closed = [e for e in entries if e.get("status") == "Closed"]
+    if not closed:
+        return jsonify({"empty": True,
+                        "message": "Close some trades first — recap needs trades with an outcome."})
+
+    # Cache key: stable hash of the closed-trade content
+    key_src = json.dumps(
+        [{k: e.get(k) for k in ("ticker", "direction", "entry_price", "close_price",
+                                "date_opened", "date_closed", "notes")}
+         for e in closed], sort_keys=True)
+    h = _hl.sha1(key_src.encode()).hexdigest()
+    cached = _recap_cache.get(user)
+    if cached and cached.get("hash") == h and cached.get("at") and \
+            (datetime.utcnow() - cached["at"]).total_seconds() < _RECAP_TTL:
+        return jsonify(cached["data"])
+
+    api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+    if not api_key:
+        return jsonify({"error": "AI recap unavailable — GROQ_API_KEY not set"}), 503
+
+    # Build per-trade context: P&L, outcome vs plan, macro window, nearby news
+    trades = []
+    for e in closed:
+        tk = _clean_ticker(e.get("ticker", "")) or (e.get("ticker") or "").upper()
+        pnl = _trade_pnl(e)
+        d_open = e.get("date_opened") or ""
+        d_close = e.get("date_closed") or d_open
+        macro = _macro_window(d_open, d_close) if d_open else None
+
+        news = []
+        try:
+            t = yf.Ticker(tk)
+            for n in _parse_news(t.news, 40)[:6]:
+                if n.get("title"):
+                    news.append({"title": n["title"], "date": n.get("date", "")})
+        except Exception:
+            pass
+
+        trades.append({
+            "ticker": tk,
+            "direction": e.get("direction", "Long"),
+            "entry_price": e.get("entry_price"),
+            "target": e.get("target"),
+            "stop": e.get("stop"),
+            "close_price": e.get("close_price"),
+            "pnl_pct": round(pnl, 2) if pnl is not None else None,
+            "date_opened": d_open,
+            "date_closed": d_close,
+            "thesis": (e.get("notes") or "")[:600],
+            "macro": macro,
+            "recent_news": news,
+        })
+
+    prompt = f"""You are a trading coach reviewing a trader's closed trades. For each trade you are given their original thesis (notes), the actual P&L %, the entry/target/stop they planned, the macro market backdrop during the trade window, and recent news headlines for the stock.
+
+Trades:
+{json.dumps(trades, indent=2)}
+
+For each trade, judge it honestly:
+- "went_right": one sentence on what the trader did well (good thesis, hit target, sized macro correctly, respected stop). If nothing went right, say so plainly.
+- "went_wrong": one sentence on the mistake or what worked against them (thesis was wrong, macro went against them, no stop discipline, chased). If a profitable trade had no real mistake, say "Nothing notable went wrong" — do NOT invent a flaw.
+- "lesson": one short, concrete, actionable takeaway for next time.
+Use the macro context where relevant — connect the outcome to what the market was doing.
+Be truthful: only base judgements on the data given. Do not fabricate stop violations, losses, or mistakes that the numbers do not support.
+
+Then write an overall review across ALL trades.
+
+Return ONLY valid JSON, no markdown:
+{{
+  "overall": {{
+    "summary": "<2-3 sentences: how is this trader doing, in plain language>",
+    "biggest_win": "<TICKER — one phrase, or empty string if no winning trades>",
+    "biggest_loss": "<TICKER — one phrase, or empty string if no losing trades>",
+    "recurring_mistake": "<the single most common pattern hurting them, one sentence — empty string if the trades show no real mistakes>",
+    "macro_note": "<one sentence on what the market backdrop has been during their trading>"
+  }},
+  "trades": [
+    {{
+      "ticker": "<TICKER>",
+      "pnl_pct": <number or null>,
+      "verdict": "win" or "loss" or "scratch",
+      "went_right": "<one sentence>",
+      "went_wrong": "<one sentence>",
+      "lesson": "<one sentence>",
+      "macro": "<the macro string for this trade, or empty>"
+    }}
+  ]
+}}
+
+Include all {len(trades)} trades, ordered by date_closed descending."""
+
+    try:
+        import re as _re
+        raw = _groq_complete(prompt, system="Respond with valid JSON only.",
+                             temperature=0.3, max_tokens=2600)
+        raw = _re.sub(r"```json|```", "", raw).strip()
+        raw = _re.sub(r":\s*NaN\b", ": null", raw)
+        raw = _re.sub(r",\s*([}\]])", r"\1", raw)
+        data = json.loads(raw)
+    except Exception as ex:
+        return jsonify({"error": f"AI recap failed: {ex}"}), 500
+
+    data["generated_at"] = datetime.now(timezone.utc).isoformat()
+    _recap_cache[user] = {"hash": h, "data": data, "at": datetime.utcnow()}
+    return jsonify(data)
+
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  US Stock Screener  ·  http://localhost:5000")

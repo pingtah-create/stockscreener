@@ -324,3 +324,151 @@
 .cjnl-pnl { font-family: var(--mono); font-size: 11.5px; font-weight: 600; }
 .cjnl-pnl.green { color: var(--green); }
 .cjnl-pnl.red   { color: var(--red); }
+
+/* ── Header actions ── */
+.jnl-header-actions { display: flex; gap: 8px; }
+
+/* ── Recap modal ── */
+.jnl-recap-modal { max-width: 640px; }
+#jnlRecapBody { gap: 16px; }
+
+.jnl-recap-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 48px 0;
+  color: var(--text2);
+  font-size: 13px;
+  text-align: center;
+}
+.jnl-recap-spinner {
+  width: 26px;
+  height: 26px;
+  border: 2.5px solid var(--border2);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: jnlspin 0.8s linear infinite;
+}
+@keyframes jnlspin { to { transform: rotate(360deg); } }
+
+.jnl-recap-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 44px 24px;
+  text-align: center;
+  color: var(--text);
+  font-size: 13px;
+}
+.jnl-recap-empty-icon { font-size: 30px; }
+.jnl-recap-empty-sub { font-size: 12px; color: var(--text2); line-height: 1.6; max-width: 380px; }
+
+/* ── Overall card ── */
+.jnl-recap-overall {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 16px;
+}
+.jnl-recap-overall-summary {
+  font-size: 13px;
+  color: var(--text);
+  line-height: 1.6;
+  margin-bottom: 12px;
+}
+.jnl-recap-overall-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.jnl-recap-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.jnl-recap-stat.wide { grid-column: 1 / -1; }
+.jnl-recap-stat-lbl {
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+.jnl-recap-stat-lbl.green { color: var(--green); }
+.jnl-recap-stat-lbl.red   { color: var(--red); }
+.jnl-recap-stat-val { font-size: 12.5px; color: var(--text); line-height: 1.5; }
+
+/* ── Per-trade cards ── */
+.jnl-recap-trades { display: flex; flex-direction: column; gap: 10px; }
+.jnl-recap-trade {
+  background: var(--bg4);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--border2);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.jnl-recap-trade.win  { border-left-color: var(--green); }
+.jnl-recap-trade.loss { border-left-color: var(--red); }
+
+.jnl-recap-trade-hdr {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.jnl-recap-trade-tk {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.jnl-recap-verdict {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 2px 7px;
+  border-radius: 4px;
+}
+.jnl-recap-verdict.win     { background: var(--green-bg); color: var(--green); }
+.jnl-recap-verdict.loss    { background: var(--red-bg);   color: var(--red); }
+.jnl-recap-verdict.scratch { background: var(--bg3);      color: var(--text2); }
+.jnl-recap-pnl { margin-left: auto; font-family: var(--mono); font-size: 13px; font-weight: 600; }
+.jnl-recap-pnl.green { color: var(--green); }
+.jnl-recap-pnl.red   { color: var(--red); }
+
+.jnl-recap-line {
+  font-size: 12.5px;
+  color: var(--text2);
+  line-height: 1.6;
+  margin-top: 5px;
+}
+.jnl-recap-tag {
+  display: inline-block;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  margin-right: 6px;
+}
+.jnl-recap-line.right  .jnl-recap-tag { color: var(--green); }
+.jnl-recap-line.wrong  .jnl-recap-tag { color: var(--red); }
+.jnl-recap-line.lesson .jnl-recap-tag { color: var(--accent); }
+
+.jnl-recap-macro {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+  font-size: 11.5px;
+  color: var(--text2);
+  font-family: var(--mono);
+  line-height: 1.5;
+}
+
+@media (max-width: 520px) {
+  .jnl-recap-overall-grid { grid-template-columns: 1fr; }
+}

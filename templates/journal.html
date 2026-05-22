@@ -7,7 +7,7 @@
   <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
   <script src="/static/theme.js?v=2"></script>
   <link rel="stylesheet" href="/static/style.css?v=5" />
-  <link rel="stylesheet" href="/static/journal.css?v=2" />
+  <link rel="stylesheet" href="/static/journal.css?v=3" />
   <link rel="stylesheet" href="/static/legal.css" />
   {% if plausible_domain %}<script defer data-domain="{{ plausible_domain }}" src="https://plausible.io/js/script.js"></script>{% endif %}
 </head>
@@ -53,7 +53,10 @@
         <button class="jnl-filter-btn" data-status="Closed">Closed</button>
       </div>
     </div>
-    <button class="btn btn-primary" onclick="openEntryModal()">+ New Entry</button>
+    <div class="jnl-header-actions">
+      <button class="btn btn-secondary" id="jnlRecapBtn" onclick="openRecap()">📊 Recap</button>
+      <button class="btn btn-primary" onclick="openEntryModal()">+ New Entry</button>
+    </div>
   </div>
 
   <!-- Stats row -->
@@ -164,12 +167,28 @@
   </div>
 </div>
 
+<!-- Recap modal -->
+<div class="jnl-modal-overlay" id="jnlRecapOverlay" style="display:none" onclick="closeRecap(event)">
+  <div class="jnl-modal jnl-recap-modal" id="jnlRecapModal">
+    <div class="jnl-modal-header">
+      <span class="jnl-modal-title">📊 Trade Recap</span>
+      <button class="jnl-modal-close" onclick="closeRecap()">✕</button>
+    </div>
+    <div class="jnl-modal-body" id="jnlRecapBody">
+      <div class="jnl-recap-loading" id="jnlRecapLoading">
+        <div class="jnl-recap-spinner"></div>
+        <div>Reviewing your trades and the market backdrop…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="disclaimer-badge">
   <span class="data-delay" title="US quotes via Yahoo Finance are delayed at least 15 min">⏱ Data delayed 15m</span>
   Not advice · <a href="/disclaimer">Disclaimer</a> · <a href="/about">About</a>
 </div>
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
-<script src="/static/journal.js?v=2"></script>
+<script src="/static/journal.js?v=3"></script>
 </body>
 </html>

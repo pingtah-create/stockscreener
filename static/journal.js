@@ -345,5 +345,95 @@ function setupTickerSearch() {
   });
 }
 
+// ── Recap ─────────────────────────────────────────────────────────────────────
+
+let recapLoaded = false;
+
+async function openRecap() {
+  const overlay = document.getElementById('jnlRecapOverlay');
+  const body    = document.getElementById('jnlRecapBody');
+  overlay.style.display = 'flex';
+
+  const closed = entries.filter(e => e.status === 'Closed');
+  if (!closed.length) {
+    body.innerHTML = `<div class="jnl-recap-empty">
+      <div class="jnl-recap-empty-icon">📊</div>
+      <div>No closed trades yet.</div>
+      <div class="jnl-recap-empty-sub">Close a few trades — the recap reviews what went right, what went wrong, and the market backdrop at the time.</div>
+    </div>`;
+    return;
+  }
+
+  body.innerHTML = `<div class="jnl-recap-loading" id="jnlRecapLoading">
+      <div class="jnl-recap-spinner"></div>
+      <div>Reviewing your trades and the market backdrop…</div>
+    </div>`;
+
+  try {
+    const r = await fetch('/api/journal/recap', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries }),
+    });
+    const data = await r.json();
+    if (data.error)  { body.innerHTML = recapErr(data.error); return; }
+    if (data.empty)  { body.innerHTML = recapErr(data.message || 'Nothing to recap yet.'); return; }
+    body.innerHTML = renderRecap(data);
+    recapLoaded = true;
+  } catch (err) {
+    body.innerHTML = recapErr('Could not generate recap: ' + err.message);
+  }
+}
+
+function recapErr(msg) {
+  return `<div class="jnl-recap-empty">
+    <div class="jnl-recap-empty-icon">⚠</div>
+    <div>${escHtml(String(msg))}</div>
+  </div>`;
+}
+
+function renderRecap(data) {
+  const o = data.overall || {};
+  const trades = Array.isArray(data.trades) ? data.trades : [];
+
+  const overall = `
+    <div class="jnl-recap-overall">
+      <div class="jnl-recap-overall-summary">${escHtml(o.summary || '')}</div>
+      <div class="jnl-recap-overall-grid">
+        ${o.biggest_win ? `<div class="jnl-recap-stat"><span class="jnl-recap-stat-lbl green">Biggest win</span><span class="jnl-recap-stat-val">${escHtml(o.biggest_win)}</span></div>` : ''}
+        ${o.biggest_loss ? `<div class="jnl-recap-stat"><span class="jnl-recap-stat-lbl red">Biggest loss</span><span class="jnl-recap-stat-val">${escHtml(o.biggest_loss)}</span></div>` : ''}
+        ${o.recurring_mistake ? `<div class="jnl-recap-stat wide"><span class="jnl-recap-stat-lbl">Recurring mistake</span><span class="jnl-recap-stat-val">${escHtml(o.recurring_mistake)}</span></div>` : ''}
+        ${o.macro_note ? `<div class="jnl-recap-stat wide"><span class="jnl-recap-stat-lbl">Market backdrop</span><span class="jnl-recap-stat-val">${escHtml(o.macro_note)}</span></div>` : ''}
+      </div>
+    </div>`;
+
+  const cards = trades.map(t => {
+    const verdict = (t.verdict || 'scratch').toLowerCase();
+    const vClass  = verdict === 'win' ? 'win' : verdict === 'loss' ? 'loss' : 'scratch';
+    const pnl = (typeof t.pnl_pct === 'number')
+      ? `<span class="jnl-recap-pnl ${t.pnl_pct >= 0 ? 'green' : 'red'}">${t.pnl_pct >= 0 ? '+' : ''}${t.pnl_pct.toFixed(2)}%</span>`
+      : '';
+    return `
+      <div class="jnl-recap-trade ${vClass}">
+        <div class="jnl-recap-trade-hdr">
+          <span class="jnl-recap-trade-tk">${escHtml(t.ticker || '')}</span>
+          <span class="jnl-recap-verdict ${vClass}">${verdict}</span>
+          ${pnl}
+        </div>
+        ${t.went_right ? `<div class="jnl-recap-line right"><span class="jnl-recap-tag">✓ Went right</span>${escHtml(t.went_right)}</div>` : ''}
+        ${t.went_wrong ? `<div class="jnl-recap-line wrong"><span class="jnl-recap-tag">✕ Went wrong</span>${escHtml(t.went_wrong)}</div>` : ''}
+        ${t.lesson ? `<div class="jnl-recap-line lesson"><span class="jnl-recap-tag">➜ Lesson</span>${escHtml(t.lesson)}</div>` : ''}
+        ${t.macro ? `<div class="jnl-recap-macro">🌐 ${escHtml(t.macro)}</div>` : ''}
+      </div>`;
+  }).join('');
+
+  return overall + `<div class="jnl-recap-trades">${cards}</div>`;
+}
+
+function closeRecap(e) {
+  if (e && e.target !== document.getElementById('jnlRecapOverlay')) return;
+  document.getElementById('jnlRecapOverlay').style.display = 'none';
+}
+
 // ── Boot ──────────────────────────────────────────────────────────────────────
 init();
