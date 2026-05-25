@@ -6,6 +6,7 @@
   <title>Portfolio · Stockdash</title>
   <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
   <script src="/static/theme.js?v=2"></script>
+  <script src="/static/currency.js?v=1"></script>
   <link rel="stylesheet" href="/static/style.css?v=5" />
   <link rel="stylesheet" href="/static/portfolio.css?v=5" />
   <link rel="stylesheet" href="/static/legal.css" />
@@ -28,6 +29,19 @@
   </nav>
   <div class="ch-nav-right">
     <button id="tourHelpBtn" class="ch-icon-btn" title="Start guided tour" aria-label="Help">?</button>
+    <select class="currency-select" id="currencySelect" title="Display currency" aria-label="Currency">
+      <option value="USD">USD</option>
+      <option value="EUR">EUR</option>
+      <option value="GBP">GBP</option>
+      <option value="JPY">JPY</option>
+      <option value="TWD">TWD</option>
+      <option value="CAD">CAD</option>
+      <option value="AUD">AUD</option>
+      <option value="CHF">CHF</option>
+      <option value="HKD">HKD</option>
+      <option value="SGD">SGD</option>
+      <option value="KRW">KRW</option>
+    </select>
     <button class="theme-toggle" aria-label="Toggle theme">☾</button>
     {% if current_user %}
       <div class="nav-avatar-wrap">

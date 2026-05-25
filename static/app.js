@@ -25,6 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     .then(r => r.ok ? r.json() : null)
     .then(d => { if (d && typeof loadStockMap === "function") loadStockMap(); })
     .catch(() => {});
+
+  document.addEventListener("currencychange", () => loadWatchlist());
 });
 
 function setupSidebarResize() {
@@ -358,16 +360,18 @@ async function loadWatchlist() {
       const cls = q.change_pct >= 0 ? "up" : "down";
       const sign = q.change_pct >= 0 ? "+" : "";
       const shortName = (q.name || "").split(" ").slice(0, 2).join(" ");
-      const priceStr = q.price >= 1000
-        ? q.price.toLocaleString("en-US", { maximumFractionDigits: 2 })
-        : q.price.toFixed(2);
+      const priceStr = window.Currency
+        ? window.Currency.formatPrice(q.price)
+        : '$' + (q.price >= 1000
+            ? q.price.toLocaleString("en-US", { maximumFractionDigits: 2 })
+            : q.price.toFixed(2));
       return `<div class="watchlist-row ${cls}" onclick="window.location='/stock/${q.symbol}'">
         <div class="watchlist-row-left">
           <span class="mover-row-ticker">${q.symbol}</span>
           <span class="mover-row-name">${shortName}</span>
         </div>
         <div class="watchlist-row-right">
-          <span class="watchlist-price">$${priceStr}</span>
+          <span class="watchlist-price">${priceStr}</span>
           <span class="watchlist-pct">${sign}${q.change_pct.toFixed(2)}%</span>
           <span class="watchlist-remove" onclick="event.stopPropagation();removeFromWatchlist('${q.symbol}')" title="Remove">×</span>
         </div>

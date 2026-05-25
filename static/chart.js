@@ -192,6 +192,7 @@ window.addEventListener('DOMContentLoaded', () => {
   setupCompare();
   loadTickerNote();
   startRenderLoop();
+  document.addEventListener('currencychange', () => pollLivePrice());
 
   // Keyboard shortcuts
   document.addEventListener('keydown', e => {
@@ -475,7 +476,7 @@ function syncHeaderFromChart() {
   const chg  = prev && prev.close ? (cur - prev.close) / prev.close * 100 : 0;
   const priceEl = document.getElementById('stockPrice');
   const chgEl   = document.getElementById('stockChg');
-  if (priceEl) priceEl.textContent = '$' + cur.toFixed(2);
+  if (priceEl) priceEl.textContent = window.Currency ? window.Currency.formatPrice(cur) : '$' + cur.toFixed(2);
   if (chgEl)   {
     chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
     chgEl.className   = 'stock-chg ' + (chg >= 0 ? 'chg-up' : 'chg-down');
@@ -1695,7 +1696,7 @@ async function loadSwing() {
 function renderSwing(d) {
   const sigColor = d.signal === 'Bullish' ? 'var(--green)' : d.signal === 'Bearish' ? 'var(--red)' : 'var(--text2)';
   const confColor = d.confidence === 'High' ? 'var(--green)' : d.confidence === 'Medium' ? '#ff9800' : 'var(--red)';
-  const fmt = v => v != null ? '$' + Number(v).toFixed(2) : '—';
+  const fmt = v => v != null ? (window.Currency ? window.Currency.formatPrice(Number(v)) : '$' + Number(v).toFixed(2)) : '—';
   const rr = d.stop_loss && d.entry_low && d.target_1
     ? ((d.target_1 - d.entry_high) / (d.entry_low - d.stop_loss)).toFixed(1)
     : null;
@@ -1753,7 +1754,7 @@ async function pollLivePrice() {
     if (!q.price) return;
     const priceEl = document.getElementById('stockPrice');
     const chgEl   = document.getElementById('stockChg');
-    if (priceEl) priceEl.textContent = '$' + q.price.toFixed(2);
+    if (priceEl) priceEl.textContent = window.Currency ? window.Currency.formatPrice(q.price) : '$' + q.price.toFixed(2);
     if (chgEl) {
       const chg = q.change_pct || 0;
       chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
@@ -1769,8 +1770,9 @@ async function pollLivePrice() {
         (chgEl || priceEl)?.insertAdjacentElement('afterend', extEl);
       }
       const pc = q.post_market_change_pct || 0;
+      const postFmt = window.Currency ? window.Currency.formatPrice(q.post_market_price) : '$' + q.post_market_price.toFixed(2);
       extEl.textContent =
-        `· Post $${q.post_market_price.toFixed(2)} (${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%)`;
+        `· Post ${postFmt} (${pc >= 0 ? '+' : ''}${pc.toFixed(2)}%)`;
       extEl.className = 'stock-postmarket ' + (pc >= 0 ? 'chg-up' : 'chg-down');
       extEl.style.display = '';
     } else if (extEl) {
@@ -1795,7 +1797,9 @@ async function loadFundamentals() {
   const price = s.currentPrice || s.previousClose;
   const chg   = s.regularMarketChangePercent || 0;
   document.getElementById('stockName') .textContent = s.shortName || s.longName || '';
-  document.getElementById('stockPrice').textContent = price ? '$' + price.toFixed(2) : '—';
+  document.getElementById('stockPrice').textContent = price
+    ? (window.Currency ? window.Currency.formatPrice(price) : '$' + price.toFixed(2))
+    : '—';
   const chgEl = document.getElementById('stockChg');
   chgEl.textContent = (chg >= 0 ? '+' : '') + chg.toFixed(2) + '%';
   chgEl.className   = 'stock-chg ' + (chg >= 0 ? 'chg-up' : 'chg-down');
@@ -1842,8 +1846,8 @@ async function loadFundamentals() {
   const lo  = s.fiftyTwoWeekLow;
   const hi  = s.fiftyTwoWeekHigh;
   const pos = s.fiftyTwoWeekPosition;
-  document.getElementById('week52Lo').textContent = lo ? '$' + lo.toFixed(2) : '—';
-  document.getElementById('week52Hi').textContent = hi ? '$' + hi.toFixed(2) : '—';
+  document.getElementById('week52Lo').textContent = lo ? (window.Currency ? window.Currency.formatPrice(lo) : '$' + lo.toFixed(2)) : '—';
+  document.getElementById('week52Hi').textContent = hi ? (window.Currency ? window.Currency.formatPrice(hi) : '$' + hi.toFixed(2)) : '—';
   if (pos !== null && pos !== undefined) {
     document.getElementById('week52Fill') .style.width = pos + '%';
     document.getElementById('week52Thumb').style.left  = pos + '%';
@@ -2696,6 +2700,7 @@ function fmtVol(v){
 }
 function fmtMCap(v) {
   if (!v) return '—';
+  if (window.Currency) return window.Currency.formatLarge(v);
   if (v >= 1e12) return '$'+(v/1e12).toFixed(2)+'T';
   if (v >= 1e9)  return '$'+(v/1e9) .toFixed(1)+'B';
   if (v >= 1e6)  return '$'+(v/1e6) .toFixed(1)+'M';
