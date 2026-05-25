@@ -1,0 +1,1307 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <meta name="theme-color" content="#020617" />
+  <title>Stockdash — Professional stock intelligence, powered by AI</title>
+  <meta name="description" content="Real-time market data, AI-powered analysis, advanced charting, and portfolio tracking for serious investors. Cross-market coverage across US and Taiwan stocks." />
+  <meta property="og:title" content="Stockdash — Professional stock intelligence" />
+  <meta property="og:description" content="Real-time market data, AI research, and portfolio analytics in one dark, data-dense workspace." />
+  <meta property="og:type" content="website" />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <!-- ============================================================
+       NAVIGATION
+       ============================================================ -->
+  <header class="nav" role="banner">
+    <div class="nav__inner">
+      <a class="nav__brand" href="#top" aria-label="Stockdash home">
+        <span class="nav__mark" aria-hidden="true">◈</span>
+        <span class="nav__wordmark">stockdash</span>
+      </a>
+
+      <nav class="nav__links" aria-label="Primary">
+        <a href="#features">Features</a>
+        <a href="#preview">Live preview</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#education">Learn</a>
+        <a href="#faq">FAQ</a>
+      </nav>
+
+      <div class="nav__cta">
+        <a class="btn btn--ghost btn--sm" href="https://stockscreener-nine-zeta.vercel.app/login" rel="noopener">Sign in</a>
+        <a class="btn btn--primary btn--sm" href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">
+          Launch dashboard
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </a>
+        <button class="nav__menu" type="button" aria-label="Open menu" aria-expanded="false" aria-controls="mobileNav">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16"/><path d="M4 12h16"/><path d="M4 18h16"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="nav__mobile" id="mobileNav" hidden>
+      <a href="#features">Features</a>
+      <a href="#preview">Live preview</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#education">Learn</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://stockscreener-nine-zeta.vercel.app/login" rel="noopener">Sign in</a>
+      <a class="btn btn--primary" href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">Launch dashboard</a>
+    </div>
+  </header>
+
+  <main id="main" tabindex="-1">
+
+    <!-- ============================================================
+         HERO
+         ============================================================ -->
+    <section class="hero" id="top">
+      <div class="hero__bg" aria-hidden="true">
+        <div class="hero__grid"></div>
+        <div class="hero__glow hero__glow--a"></div>
+        <div class="hero__glow hero__glow--b"></div>
+      </div>
+
+      <div class="container hero__inner">
+        <div class="hero__copy">
+          <div class="eyebrow">
+            <span class="eyebrow__dot" aria-hidden="true"></span>
+            <span>Professional stock intelligence</span>
+          </div>
+
+          <h1 class="hero__title">
+            Research, screen, and trade <span class="text-gradient">like a pro</span> — without the Bloomberg bill.
+          </h1>
+
+          <p class="hero__sub">
+            Stockdash brings live market data, AI-powered research, advanced charting, and portfolio analytics into one dark, data-dense workspace. 193 tickers across US and Taiwan, 11 technical indicators, and a built-in research agent that argues both sides of every trade.
+          </p>
+
+          <div class="hero__ctas">
+            <a class="btn btn--primary btn--lg" href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">
+              Launch dashboard
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+            <a class="btn btn--secondary btn--lg" href="#video">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              Watch product tour
+            </a>
+          </div>
+
+          <ul class="hero__stats" aria-label="Platform highlights">
+            <li><strong>193</strong><span>tickers tracked</span></li>
+            <li><strong>11</strong><span>TA indicators</span></li>
+            <li><strong>14</strong><span>AI research tools</span></li>
+            <li><strong>2</strong><span>markets · US + Taiwan</span></li>
+          </ul>
+
+          <div class="hero__trust" aria-label="Powered by">
+            <span class="hero__trust-label">Built on</span>
+            <span class="chip">Yahoo Finance</span>
+            <span class="chip">Finnhub</span>
+            <span class="chip">Groq (Llama 3.3)</span>
+            <span class="chip">TradingView Charts</span>
+            <span class="chip">Supabase</span>
+          </div>
+        </div>
+
+        <!-- HERO MOCKUP -->
+        <div class="hero__mock" aria-hidden="true">
+          <div class="mock-window">
+            <div class="mock-window__bar">
+              <span class="mock-dot mock-dot--r"></span>
+              <span class="mock-dot mock-dot--y"></span>
+              <span class="mock-dot mock-dot--g"></span>
+              <span class="mock-window__url">stockdash · /dashboard</span>
+            </div>
+
+            <div class="mock-window__body">
+              <!-- Chart card -->
+              <div class="mock-card mock-card--chart">
+                <div class="mock-card__head">
+                  <div>
+                    <div class="mock-card__symbol">NVDA <span class="mock-card__name">NVIDIA Corp</span></div>
+                    <div class="mock-card__price">
+                      <span class="num" data-flicker="nvda-price">$487.62</span>
+                      <span class="pct pct--up" data-flicker="nvda-pct">+2.84%</span>
+                    </div>
+                  </div>
+                  <div class="mock-card__tabs">
+                    <span class="tab">1D</span><span class="tab tab--active">1W</span><span class="tab">1M</span><span class="tab">1Y</span>
+                  </div>
+                </div>
+                <svg class="mock-chart" viewBox="0 0 400 140" preserveAspectRatio="none" role="img" aria-label="Price chart">
+                  <defs>
+                    <linearGradient id="chartFill" x1="0" x2="0" y1="0" y2="1">
+                      <stop offset="0%" stop-color="#22C55E" stop-opacity="0.32"/>
+                      <stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+                    </linearGradient>
+                  </defs>
+                  <path class="mock-chart__area" d="M0,110 L24,98 L48,104 L72,86 L96,92 L120,72 L144,80 L168,58 L192,66 L216,48 L240,54 L264,38 L288,48 L312,30 L336,40 L360,22 L384,32 L400,18 L400,140 L0,140 Z" fill="url(#chartFill)" />
+                  <path class="mock-chart__line" d="M0,110 L24,98 L48,104 L72,86 L96,92 L120,72 L144,80 L168,58 L192,66 L216,48 L240,54 L264,38 L288,48 L312,30 L336,40 L360,22 L384,32 L400,18" fill="none" stroke="#22C55E" stroke-width="2"/>
+                  <g class="mock-chart__grid" stroke="#1F2A44" stroke-width="1">
+                    <line x1="0" x2="400" y1="35" y2="35"/>
+                    <line x1="0" x2="400" y1="70" y2="70"/>
+                    <line x1="0" x2="400" y1="105" y2="105"/>
+                  </g>
+                </svg>
+                <div class="mock-card__legend">
+                  <span><span class="legend-dot" style="background:#22C55E"></span>Price</span>
+                  <span><span class="legend-dot" style="background:#3B82F6"></span>SMA(20)</span>
+                  <span><span class="legend-dot" style="background:#F59E0B"></span>EMA(50)</span>
+                  <span class="muted">RSI 58.2 · MACD ↑</span>
+                </div>
+              </div>
+
+              <!-- Mini watchlist -->
+              <div class="mock-card mock-card--list">
+                <div class="mock-card__title">Watchlist</div>
+                <div class="mini-row">
+                  <span class="mini-row__sym">AAPL</span>
+                  <span class="num" data-flicker="aapl-price">$184.22</span>
+                  <span class="pct pct--up" data-flicker="aapl-pct">+0.74%</span>
+                </div>
+                <div class="mini-row">
+                  <span class="mini-row__sym">MSFT</span>
+                  <span class="num" data-flicker="msft-price">$412.05</span>
+                  <span class="pct pct--up" data-flicker="msft-pct">+1.12%</span>
+                </div>
+                <div class="mini-row">
+                  <span class="mini-row__sym">TSLA</span>
+                  <span class="num" data-flicker="tsla-price">$248.91</span>
+                  <span class="pct pct--down" data-flicker="tsla-pct">−1.04%</span>
+                </div>
+                <div class="mini-row">
+                  <span class="mini-row__sym">2330.TW</span>
+                  <span class="num" data-flicker="tsm-price">NT$ 985</span>
+                  <span class="pct pct--up" data-flicker="tsm-pct">+1.87%</span>
+                </div>
+              </div>
+
+              <!-- Mini AI -->
+              <div class="mock-card mock-card--ai">
+                <div class="mock-card__title">
+                  <span class="ai-dot" aria-hidden="true"></span>
+                  AI debate · TSLA
+                </div>
+                <p class="ai-line ai-line--bull"><span>BULL</span> Margins recovering, energy storage 90% YoY. Inflection point if FSD subscription attach &gt; 12%.</p>
+                <p class="ai-line ai-line--bear"><span>BEAR</span> China deliveries soft, multiple compression risk if rates stay higher for longer.</p>
+                <div class="ai-foot">
+                  <span class="muted">Risk/Reward</span> <strong class="num">1 : 2.4</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Floating sparkles -->
+          <div class="float-card float-card--a">
+            <div class="float-card__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
+            </div>
+            <div>
+              <div class="float-card__label">Sector heatmap</div>
+              <div class="float-card__value">Tech +1.42%</div>
+            </div>
+          </div>
+          <div class="float-card float-card--b">
+            <div class="float-card__icon float-card__icon--gold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            </div>
+            <div>
+              <div class="float-card__label">Fear &amp; Greed</div>
+              <div class="float-card__value">68 · Greed</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         TICKER TAPE
+         ============================================================ -->
+    <section class="ticker" aria-label="Live ticker tape">
+      <div class="ticker__track" role="marquee">
+        <div class="ticker__row" aria-hidden="false">
+          <span class="t-item"><span class="t-sym">SPX</span> <span class="num">5,318.42</span> <span class="pct pct--up">+0.62%</span></span>
+          <span class="t-item"><span class="t-sym">NDX</span> <span class="num">18,712.83</span> <span class="pct pct--up">+0.91%</span></span>
+          <span class="t-item"><span class="t-sym">VIX</span> <span class="num">13.24</span> <span class="pct pct--down">−2.10%</span></span>
+          <span class="t-item"><span class="t-sym">AAPL</span> <span class="num">184.22</span> <span class="pct pct--up">+0.74%</span></span>
+          <span class="t-item"><span class="t-sym">MSFT</span> <span class="num">412.05</span> <span class="pct pct--up">+1.12%</span></span>
+          <span class="t-item"><span class="t-sym">NVDA</span> <span class="num">487.62</span> <span class="pct pct--up">+2.84%</span></span>
+          <span class="t-item"><span class="t-sym">TSLA</span> <span class="num">248.91</span> <span class="pct pct--down">−1.04%</span></span>
+          <span class="t-item"><span class="t-sym">AMD</span> <span class="num">152.17</span> <span class="pct pct--up">+1.94%</span></span>
+          <span class="t-item"><span class="t-sym">META</span> <span class="num">498.30</span> <span class="pct pct--up">+0.42%</span></span>
+          <span class="t-item"><span class="t-sym">GOOGL</span> <span class="num">175.84</span> <span class="pct pct--down">−0.28%</span></span>
+          <span class="t-item"><span class="t-sym">AMZN</span> <span class="num">182.66</span> <span class="pct pct--up">+0.86%</span></span>
+          <span class="t-item"><span class="t-sym">2330.TW</span> <span class="num">985.00</span> <span class="pct pct--up">+1.87%</span></span>
+          <span class="t-item"><span class="t-sym">2454.TW</span> <span class="num">1,205</span> <span class="pct pct--down">−0.50%</span></span>
+          <span class="t-item"><span class="t-sym">GLD</span> <span class="num">218.49</span> <span class="pct pct--up">+0.31%</span></span>
+          <span class="t-item"><span class="t-sym">BTC-USD</span> <span class="num">67,840</span> <span class="pct pct--up">+1.20%</span></span>
+        </div>
+        <div class="ticker__row" aria-hidden="true">
+          <!-- duplicated for seamless loop -->
+          <span class="t-item"><span class="t-sym">SPX</span> <span class="num">5,318.42</span> <span class="pct pct--up">+0.62%</span></span>
+          <span class="t-item"><span class="t-sym">NDX</span> <span class="num">18,712.83</span> <span class="pct pct--up">+0.91%</span></span>
+          <span class="t-item"><span class="t-sym">VIX</span> <span class="num">13.24</span> <span class="pct pct--down">−2.10%</span></span>
+          <span class="t-item"><span class="t-sym">AAPL</span> <span class="num">184.22</span> <span class="pct pct--up">+0.74%</span></span>
+          <span class="t-item"><span class="t-sym">MSFT</span> <span class="num">412.05</span> <span class="pct pct--up">+1.12%</span></span>
+          <span class="t-item"><span class="t-sym">NVDA</span> <span class="num">487.62</span> <span class="pct pct--up">+2.84%</span></span>
+          <span class="t-item"><span class="t-sym">TSLA</span> <span class="num">248.91</span> <span class="pct pct--down">−1.04%</span></span>
+          <span class="t-item"><span class="t-sym">AMD</span> <span class="num">152.17</span> <span class="pct pct--up">+1.94%</span></span>
+          <span class="t-item"><span class="t-sym">META</span> <span class="num">498.30</span> <span class="pct pct--up">+0.42%</span></span>
+          <span class="t-item"><span class="t-sym">GOOGL</span> <span class="num">175.84</span> <span class="pct pct--down">−0.28%</span></span>
+          <span class="t-item"><span class="t-sym">AMZN</span> <span class="num">182.66</span> <span class="pct pct--up">+0.86%</span></span>
+          <span class="t-item"><span class="t-sym">2330.TW</span> <span class="num">985.00</span> <span class="pct pct--up">+1.87%</span></span>
+          <span class="t-item"><span class="t-sym">2454.TW</span> <span class="num">1,205</span> <span class="pct pct--down">−0.50%</span></span>
+          <span class="t-item"><span class="t-sym">GLD</span> <span class="num">218.49</span> <span class="pct pct--up">+0.31%</span></span>
+          <span class="t-item"><span class="t-sym">BTC-USD</span> <span class="num">67,840</span> <span class="pct pct--up">+1.20%</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         VIDEO / PRODUCT TOUR
+         ============================================================ -->
+    <section class="section" id="video" aria-labelledby="videoTitle">
+      <div class="container">
+        <div class="section__head section__head--center">
+          <div class="eyebrow eyebrow--center">
+            <span>90-second tour</span>
+          </div>
+          <h2 id="videoTitle" class="section__title">See Stockdash in motion</h2>
+          <p class="section__sub">A short product walkthrough — from screening stocks to running an AI debate and tracking your portfolio.</p>
+        </div>
+
+        <!--
+          ============================================================
+          REMOTION / HYPERFRAME VIDEO INTEGRATION POINT
+          ============================================================
+          Drop your exported MP4 (or WebM) into ./assets/ and either:
+
+          OPTION A — local video file (recommended):
+            <video class="video" controls playsinline preload="metadata"
+                   poster="./assets/video-poster.jpg">
+              <source src="./assets/product-tour.mp4" type="video/mp4" />
+              <source src="./assets/product-tour.webm" type="video/webm" />
+            </video>
+
+          OPTION B — Remotion Player (interactive React component):
+            Mount the @remotion/player into <div id="remotionMount"></div>.
+            See landing/README.md for the full snippet.
+
+          OPTION C — Hyperframe / hosted iframe:
+            <iframe class="video" src="https://hyperframe.app/embed/XXX"
+                    allow="autoplay; fullscreen" allowfullscreen></iframe>
+          ============================================================
+        -->
+        <div class="video-frame">
+          <div class="video-frame__inner">
+            <!-- Placeholder until video is dropped in -->
+            <div class="video-placeholder" id="videoPlaceholder">
+              <button class="video-play" type="button" aria-label="Play product tour">
+                <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l12-7z"/></svg>
+              </button>
+              <p class="video-placeholder__label">Drop your Remotion / Hyperframe export here</p>
+              <p class="video-placeholder__sub">See <code>landing/README.md</code> — replace this block with a <code>&lt;video&gt;</code>, Remotion mount, or iframe.</p>
+            </div>
+
+            <!-- Decorative chart loop behind placeholder -->
+            <svg class="video-bg" viewBox="0 0 800 300" preserveAspectRatio="none" aria-hidden="true">
+              <defs>
+                <linearGradient id="vBg" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stop-color="#3B82F6" stop-opacity="0.18"/>
+                  <stop offset="100%" stop-color="#3B82F6" stop-opacity="0"/>
+                </linearGradient>
+              </defs>
+              <path d="M0,220 C 100,200 160,180 220,170 S 340,150 400,140 S 560,130 620,110 S 760,90 800,80 L 800,300 L 0,300 Z" fill="url(#vBg)"/>
+              <path d="M0,220 C 100,200 160,180 220,170 S 340,150 400,140 S 560,130 620,110 S 760,90 800,80" fill="none" stroke="#3B82F6" stroke-width="2" stroke-opacity="0.6"/>
+            </svg>
+          </div>
+
+          <div class="video-meta">
+            <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> 1 min 28 sec</span>
+            <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 1 0-4 0v7h-4v-7a6 6 0 0 1 6-6Z"/><rect x="2" y="9" width="4" height="12"/><circle cx="4" cy="4" r="2"/></svg> No signup required</span>
+            <span><svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Captions included</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         PILLAR OVERVIEW (3 columns)
+         ============================================================ -->
+    <section class="section section--tight" aria-label="What Stockdash does">
+      <div class="container">
+        <div class="pillars">
+          <article class="pillar">
+            <div class="pillar__icon pillar__icon--blue">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3v3a3 3 0 0 0-3 3v1a3 3 0 0 0 6 0v-1a3 3 0 0 0-3-3"/><path d="M12 2a3 3 0 0 1 3 3v1a3 3 0 0 1 3 3v3a3 3 0 0 1 3 3v1a3 3 0 0 1-6 0v-1a3 3 0 0 1 3-3"/></svg>
+            </div>
+            <h3>AI research, on demand</h3>
+            <p>A conversational analyst that pulls fundamentals, technicals, news, options, and macro data — then argues both sides of every thesis.</p>
+            <ul class="pillar__list">
+              <li>14 built-in research tools</li>
+              <li>Bull / Bear debate per ticker</li>
+              <li>Cached company intel &amp; swing setups</li>
+            </ul>
+          </article>
+
+          <article class="pillar">
+            <div class="pillar__icon pillar__icon--green">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m7 14 4-4 4 4 5-5"/></svg>
+            </div>
+            <h3>Markets, in one canvas</h3>
+            <p>A treemap of every ticker you follow, live movers, sector heatmaps, the Fear &amp; Greed gauge, and an algorithmic swing scanner — all in real time.</p>
+            <ul class="pillar__list">
+              <li>Cross-market: US (150) + Taiwan (43)</li>
+              <li>Live treemap &amp; sector heatmap</li>
+              <li>Daily F&amp;G + AI market narrative</li>
+            </ul>
+          </article>
+
+          <article class="pillar">
+            <div class="pillar__icon pillar__icon--gold">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m7.5 4.27 9 5.15"/><path d="M3.3 7 12 12l8.7-5"/><path d="M12 22V12"/></svg>
+            </div>
+            <h3>Portfolio you actually trust</h3>
+            <p>Track holdings with live P&amp;L, weight, and sector breakdowns. Four redundant storage layers mean your data survives anything — even a Vercel cold start.</p>
+            <ul class="pillar__list">
+              <li>Live P&amp;L &amp; per-position attribution</li>
+              <li>4-layer persistence (Supabase → cookie)</li>
+              <li>One-click full AI portfolio analysis</li>
+            </ul>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FEATURES — DETAILED GRID
+         ============================================================ -->
+    <section class="section" id="features" aria-labelledby="featuresTitle">
+      <div class="container">
+        <div class="section__head">
+          <div class="eyebrow"><span>Everything you get</span></div>
+          <h2 id="featuresTitle" class="section__title">The complete feature set</h2>
+          <p class="section__sub">Stockdash bundles 25+ tools that normally cost $300+/month across Bloomberg Lite, TradingView Pro, Koyfin, and Seeking Alpha — into a single workspace.</p>
+        </div>
+
+        <!-- GROUP: AI & Intelligence -->
+        <div class="feature-group">
+          <h3 class="feature-group__title">
+            <span class="feature-group__chip feature-group__chip--blue">01</span>
+            AI &amp; Intelligence
+          </h3>
+          <div class="feature-grid">
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 12h.01"/><path d="M12 12h.01"/><path d="M16 12h.01"/><path d="M21 12c0 4.97-4.03 9-9 9a8.96 8.96 0 0 1-5-1.52L3 21l1.52-4A8.96 8.96 0 0 1 3 12c0-4.97 4.03-9 9-9s9 4.03 9 9Z"/></svg>
+              </div>
+              <h4>AI Research Assistant</h4>
+              <p>A chat-native analyst with 14 registered tools: fundamentals, technicals, news, options, peer comps, macro, screening, and more. Powered by Llama 3.3 via Groq.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 12h6"/><path d="m12 9 3 3-3 3"/><circle cx="12" cy="12" r="10"/></svg>
+              </div>
+              <h4>Bull vs Bear Debate</h4>
+              <p>One-click deep-dive on any ticker. Gathers fundamentals, technicals, peers, news, analyst consensus, and earnings — then synthesises a structured pro/con thesis with key numbers.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9c.36.13.64.4.79.74.13.34.13.71 0 1.05"/></svg>
+              </div>
+              <h4>AI Company Intel</h4>
+              <p>Business model, macro drivers, competitive moat, and key competitors — drafted by AI for any of 193 tickers. Cached on disk for 7 days so re-opens are instant.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+              </div>
+              <h4>AI Swing Setups</h4>
+              <p>Daily AI-generated swing trade ideas with entry, stop, target, and risk/reward ratio. Combined with an algorithmic scanner that pre-computes signals across the universe.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>
+              </div>
+              <h4>News &amp; Events Timeline</h4>
+              <p>AI labels every significant price move in the last 90 days with the nearby news that likely caused it — earnings, downgrades, product launches. Cached 6 hours.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+              </div>
+              <h4>Session History</h4>
+              <p>Every chat is saved automatically. Pick up exactly where you left off — up to 30 sessions per user, scoped per-account so your research never leaks.</p>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- GROUP: Markets & Discovery -->
+        <div class="feature-group">
+          <h3 class="feature-group__title">
+            <span class="feature-group__chip feature-group__chip--green">02</span>
+            Markets &amp; Discovery
+          </h3>
+          <div class="feature-grid">
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+              </div>
+              <h4>Live Stock Map</h4>
+              <p>Squarified treemap of the entire universe, market-cap weighted, coloured by daily change. Spot rotation, blowouts, and red days at a glance — auto-refresh every 60 seconds.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>
+              </div>
+              <h4>Top Movers</h4>
+              <p>Real-time gainers and losers, refreshed every minute. Built from the same in-memory cache as the rest of the dashboard, so it never drifts from your watchlist.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/><path d="M12 3v9l4 2"/></svg>
+              </div>
+              <h4>Fear &amp; Greed Gauge</h4>
+              <p>A daily market-mood score derived from VIX, with a short AI-written narrative explaining what's driving it. Helps you check yourself before adding risk.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m2 12 5.25 5L18 7"/><path d="m12 17 5-5"/></svg>
+              </div>
+              <h4>Trending Stocks</h4>
+              <p>The top 10 names ranked by a velocity score — absolute price change × volume surge. Surfaces what the market is actually talking about today.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20"/><path d="M12 2a14.5 14.5 0 0 1 0 20"/><path d="M2 12h20"/></svg>
+              </div>
+              <h4>Cross-Market Coverage</h4>
+              <p>150 US large- &amp; mid-caps plus 43 Taiwan tickers (TSMC, MediaTek, Hon Hai, ASE…). Taiwan market caps auto-normalize to USD using a live FX rate.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><rect x="7" y="13" width="3" height="5"/><rect x="12" y="9" width="3" height="9"/><rect x="17" y="5" width="3" height="13"/></svg>
+              </div>
+              <h4>Sector Heatmap</h4>
+              <p>11 sectors at a glance — instantly see whether today's tape is led by tech, energy, financials, or a sudden defensive rotation.</p>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- GROUP: Charting & Technicals -->
+        <div class="feature-group">
+          <h3 class="feature-group__title">
+            <span class="feature-group__chip feature-group__chip--gold">03</span>
+            Charting &amp; Technicals
+          </h3>
+          <div class="feature-grid">
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 3v18h18"/><path d="m19 9-5 5-4-4-3 3"/></svg>
+              </div>
+              <h4>Pro Charts (TradingView)</h4>
+              <p>TradingView Lightweight Charts with three synchronized panels: price, volume, and oscillator. Smooth zoom, crosshair, and auto-extend on drag.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20V10"/><path d="M18 20V4"/><path d="M6 20v-4"/></svg>
+              </div>
+              <h4>11 Technical Indicators</h4>
+              <p>SMA, EMA, Bollinger Bands, RSI, MACD, Stochastic, VWAP, ATR, OBV, Williams %R, CCI — all computed server-side with a longer lookback for clean edges.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 17V7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10"/><path d="M3 17h18"/><circle cx="9" cy="11" r="2"/><circle cx="15" cy="11" r="2"/></svg>
+              </div>
+              <h4>Customisable Periods</h4>
+              <p>Tweak the period of RSI, MACD, Bollinger, SMA, EMA right from the chart — your settings persist across sessions.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13 15 10"/><path d="m2 2 7.586 7.586"/><circle cx="11" cy="11" r="2"/></svg>
+              </div>
+              <h4>Drawing Tools</h4>
+              <p>Canvas-overlay trendlines, horizontal levels, and annotations sit on top of the chart without ever blocking interaction.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              </div>
+              <h4>News &amp; Insider Markers</h4>
+              <p>Headlines and insider transactions plotted directly on the price panel — see whether news moved the tape, or insiders moved before the news.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M3 12V3h9"/><path d="m3 3 9 9"/></svg>
+              </div>
+              <h4>Auto-Extend History</h4>
+              <p>Drag past the visible range and Stockdash automatically loads more candles — no awkward "no data" walls.</p>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- GROUP: Screening & Strategy -->
+        <div class="feature-group">
+          <h3 class="feature-group__title">
+            <span class="feature-group__chip feature-group__chip--red">04</span>
+            Screening &amp; Strategy
+          </h3>
+          <div class="feature-grid">
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+              </div>
+              <h4>Server-Side Screener</h4>
+              <p>Numeric and boolean filters across the entire universe — P/E, market cap, dividend yield, growth, momentum, and dozens more. Returns in milliseconds.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a14.5 14.5 0 0 1 0 20"/></svg>
+              </div>
+              <h4>Six Strategy Scores</h4>
+              <p>Every stock is scored 0–100 on Value, Growth, Momentum, Quality, Dividend, and Deep Value. Sort, filter, and combine to build your own factor screens.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M14 7h7v7"/></svg>
+              </div>
+              <h4>Swing Trade Scanner</h4>
+              <p>Pre-computed algorithmic setups across the universe, refreshed every 2 minutes. Each setup includes entry, stop, target, and R:R — ready to act on.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/><path d="m9 12 2 2 4-4"/></svg>
+              </div>
+              <h4>Real-Time Quotes</h4>
+              <p>Batch live quotes via Finnhub with a Yahoo Finance fallback. Watchlists and portfolios stay accurate even during the wildest open-bell minutes.</p>
+            </article>
+
+          </div>
+        </div>
+
+        <!-- GROUP: Portfolio & Workflow -->
+        <div class="feature-group">
+          <h3 class="feature-group__title">
+            <span class="feature-group__chip feature-group__chip--purple">05</span>
+            Portfolio &amp; Workflow
+          </h3>
+          <div class="feature-grid">
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/></svg>
+              </div>
+              <h4>Portfolio Analytics</h4>
+              <p>Live P&amp;L, position weights, sector breakdown, and per-holding attribution. Add or remove holdings and everything recomputes instantly.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9"/><path d="M21 12c0-1.66-4-3-9-3s-9 1.34-9 3"/></svg>
+              </div>
+              <h4>4-Layer Persistence</h4>
+              <p>Supabase → server disk → signed cookie → localStorage. Even on a serverless cold start with an offline database, your portfolio loads.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--gold">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 21V5a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v16l7-3 7 3z"/></svg>
+              </div>
+              <h4>Synced Watchlist</h4>
+              <p>One watchlist that follows you across devices and tabs. Powered by the same Supabase row as your portfolio, with offline-first fallback.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--blue">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="m9 15 2 2 4-4"/></svg>
+              </div>
+              <h4>Full Portfolio AI Analysis</h4>
+              <p>One click runs every holding through the AI debate engine and aggregates the results into a portfolio-level brief: concentration risk, correlated bets, and what to watch.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s-8-4.5-8-11.8A8 8 0 0 1 12 2a8 8 0 0 1 8 8.2c0 7.3-8 11.8-8 11.8Z"/><circle cx="12" cy="10" r="3"/></svg>
+              </div>
+              <h4>Trade Journal</h4>
+              <p>Log every entry, exit, thesis, and lesson learned. Your journal is searchable and stays scoped to your account.</p>
+            </article>
+
+            <article class="feat-card">
+              <div class="feat-card__icon feat-card__icon--purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+              </div>
+              <h4>Cloud Accounts</h4>
+              <p>Supabase-backed accounts work across devices. Optional self-hosted mode with flat-file storage for local-only setups.</p>
+            </article>
+
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         AI CHAT PREVIEW
+         ============================================================ -->
+    <section class="section section--alt" id="preview" aria-labelledby="aiPreviewTitle">
+      <div class="container">
+        <div class="split">
+          <div class="split__copy">
+            <div class="eyebrow"><span>AI research</span></div>
+            <h2 id="aiPreviewTitle" class="section__title section__title--md">An analyst that doesn't sleep — or pick sides</h2>
+            <p class="section__sub">Ask anything in plain English. The agent picks the right tools, runs them in parallel, and explains its reasoning. When you ask about a single ticker, it auto-routes to the Bull/Bear debate engine for a structured deep-dive.</p>
+
+            <ul class="check-list">
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> 14 tools wired up (fundamentals, peers, news, options, macro…)</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Cited numbers — bull / bear / key metrics / risks</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Sessions saved per-user, picks up where you left off</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Six skill cards: Fundamentals · Timing · Swing · Earnings · Compare · Macro</li>
+            </ul>
+
+            <a class="btn btn--primary" href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">
+              Try it on the dashboard
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+          </div>
+
+          <div class="split__media">
+            <div class="chat-mock" role="img" aria-label="Sample AI conversation about NVDA">
+              <div class="chat-mock__head">
+                <span class="ai-dot" aria-hidden="true"></span>
+                <span>Stockdash AI · /chat</span>
+              </div>
+
+              <div class="bubble bubble--user">
+                Run the debate on NVDA. Focus on the next two quarters.
+              </div>
+
+              <div class="bubble bubble--ai">
+                <div class="bubble__meta">
+                  <span class="bubble__tag">Bull / Bear Debate</span>
+                  <span class="bubble__time">2.4s · 3 tools</span>
+                </div>
+                <p><strong>Story.</strong> NVIDIA is selling shovels in a gold rush. Hyperscaler capex commitments to Blackwell ramp through Q2.</p>
+                <p><strong class="up">Bull.</strong> Data-center revenue +427% YoY. Networking + software attach approaching ~$30B run-rate. Sovereign AI orders adding TAM.</p>
+                <p><strong class="down">Bear.</strong> Concentration: top 4 customers ≈ 40% of revenue. Margins peak risk if Blackwell yields slip. China headwind unchanged.</p>
+                <p><strong>Key numbers.</strong> Fwd P/E 32 · PEG 0.9 · Op margin 65% · Cash $26B · R/R 1:2.1</p>
+              </div>
+
+              <div class="bubble bubble--user">
+                What's the cleanest hedge if I want to stay long?
+              </div>
+
+              <div class="bubble bubble--ai bubble--typing">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         CHARTING PREVIEW
+         ============================================================ -->
+    <section class="section" aria-labelledby="chartingTitle">
+      <div class="container">
+        <div class="split split--reverse">
+          <div class="split__copy">
+            <div class="eyebrow"><span>Charting</span></div>
+            <h2 id="chartingTitle" class="section__title section__title--md">A chart pro traders won't outgrow</h2>
+            <p class="section__sub">Built on TradingView Lightweight Charts with three synchronised panels — price, volume, and a configurable oscillator. Every indicator is server-computed on a longer lookback so the leftmost edge is already warmed up.</p>
+
+            <div class="badge-row">
+              <span class="badge">SMA</span>
+              <span class="badge">EMA</span>
+              <span class="badge">Bollinger</span>
+              <span class="badge">RSI</span>
+              <span class="badge">MACD</span>
+              <span class="badge">Stochastic</span>
+              <span class="badge">VWAP</span>
+              <span class="badge">ATR</span>
+              <span class="badge">OBV</span>
+              <span class="badge">Williams %R</span>
+              <span class="badge">CCI</span>
+            </div>
+
+            <ul class="check-list">
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Tweak indicator periods in-chart</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Canvas drawing tools — trendlines, levels, notes</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> News &amp; insider markers overlaid on price</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Auto-extends history as you scroll</li>
+            </ul>
+          </div>
+
+          <div class="split__media">
+            <div class="chart-mock" role="img" aria-label="Multi-panel chart preview for NVDA">
+              <div class="chart-mock__head">
+                <div class="chart-mock__sym">NVDA · 1D</div>
+                <div class="chart-mock__price">
+                  <span class="num">487.62</span>
+                  <span class="pct pct--up">+13.48 (+2.84%)</span>
+                </div>
+              </div>
+
+              <svg class="chart-mock__price-panel" viewBox="0 0 600 240" preserveAspectRatio="none" aria-hidden="true">
+                <defs>
+                  <linearGradient id="cmGreen" x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stop-color="#22C55E" stop-opacity="0.28"/>
+                    <stop offset="100%" stop-color="#22C55E" stop-opacity="0"/>
+                  </linearGradient>
+                </defs>
+                <g class="grid" stroke="#1F2A44">
+                  <line x1="0" x2="600" y1="60" y2="60"/>
+                  <line x1="0" x2="600" y1="120" y2="120"/>
+                  <line x1="0" x2="600" y1="180" y2="180"/>
+                </g>
+                <!-- Bollinger upper -->
+                <path d="M0,80 C 80,70 140,60 200,55 S 320,40 380,38 S 500,30 600,25" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="3 4"/>
+                <!-- Bollinger lower -->
+                <path d="M0,180 C 80,170 140,160 200,155 S 320,140 380,138 S 500,130 600,125" fill="none" stroke="#475569" stroke-width="1" stroke-dasharray="3 4"/>
+                <!-- SMA -->
+                <path d="M0,140 C 80,135 140,125 200,118 S 320,100 380,92 S 500,80 600,75" fill="none" stroke="#3B82F6" stroke-width="1.6"/>
+                <!-- Price + fill -->
+                <path d="M0,160 C 50,150 100,135 150,128 S 250,110 300,100 S 420,80 470,68 S 560,55 600,50 L 600,240 L 0,240 Z" fill="url(#cmGreen)"/>
+                <path d="M0,160 C 50,150 100,135 150,128 S 250,110 300,100 S 420,80 470,68 S 560,55 600,50" fill="none" stroke="#22C55E" stroke-width="2.2"/>
+                <!-- News markers -->
+                <g>
+                  <circle cx="220" cy="118" r="5" fill="#F59E0B"/><text x="230" y="112" fill="#F59E0B" font-size="10">N</text>
+                  <circle cx="460" cy="70" r="5" fill="#8B5CF6"/><text x="470" y="64" fill="#8B5CF6" font-size="10">I</text>
+                </g>
+              </svg>
+
+              <div class="chart-mock__volume" aria-hidden="true">
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+                <span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span>
+              </div>
+
+              <svg class="chart-mock__rsi" viewBox="0 0 600 80" preserveAspectRatio="none" aria-hidden="true">
+                <g stroke="#1F2A44">
+                  <line x1="0" x2="600" y1="20" y2="20" stroke-dasharray="3 4"/>
+                  <line x1="0" x2="600" y1="60" y2="60" stroke-dasharray="3 4"/>
+                </g>
+                <path d="M0,50 C 80,40 160,55 240,45 S 360,30 440,25 S 540,28 600,32" fill="none" stroke="#8B5CF6" stroke-width="2"/>
+                <text x="6" y="14" fill="#94A3B8" font-size="10">RSI 58.2</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         PORTFOLIO PREVIEW
+         ============================================================ -->
+    <section class="section section--alt" aria-labelledby="portfolioTitle">
+      <div class="container">
+        <div class="split">
+          <div class="split__copy">
+            <div class="eyebrow"><span>Portfolio analytics</span></div>
+            <h2 id="portfolioTitle" class="section__title section__title--md">Your book, with the math already done</h2>
+            <p class="section__sub">Add holdings once. Stockdash tracks live P&amp;L, concentration, sector weights, and correlated risk — then lets you run a full AI analysis with one click.</p>
+
+            <ul class="check-list">
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Live total value, day P&amp;L, all-time P&amp;L</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Per-position weight, cost, gain, and contribution</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> Sector and geo breakdowns</li>
+              <li><svg class="icon icon--green" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg> AI portfolio brief: risks, correlations, what to watch</li>
+            </ul>
+          </div>
+
+          <div class="split__media">
+            <div class="portfolio-mock" role="img" aria-label="Portfolio dashboard mockup">
+              <div class="portfolio-mock__kpis">
+                <div>
+                  <div class="kpi-label">Total value</div>
+                  <div class="kpi-value num">$128,492.18</div>
+                  <div class="pct pct--up">+ $2,841.22 today</div>
+                </div>
+                <div>
+                  <div class="kpi-label">All-time P&amp;L</div>
+                  <div class="kpi-value num">+ $34,210</div>
+                  <div class="pct pct--up">+ 26.6%</div>
+                </div>
+                <div>
+                  <div class="kpi-label">Win rate</div>
+                  <div class="kpi-value num">61.8%</div>
+                  <div class="muted">across 47 trades</div>
+                </div>
+              </div>
+
+              <table class="pmock-table">
+                <thead>
+                  <tr>
+                    <th>Symbol</th>
+                    <th>Weight</th>
+                    <th class="num-col">Value</th>
+                    <th class="num-col">Day</th>
+                    <th class="num-col">All-time</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><span class="t-sym">NVDA</span></td>
+                    <td><div class="bar"><span style="width:34%; background:#22C55E"></span></div> 34%</td>
+                    <td class="num-col num">$43,690</td>
+                    <td class="num-col pct pct--up">+2.84%</td>
+                    <td class="num-col pct pct--up">+118%</td>
+                  </tr>
+                  <tr>
+                    <td><span class="t-sym">AAPL</span></td>
+                    <td><div class="bar"><span style="width:22%; background:#3B82F6"></span></div> 22%</td>
+                    <td class="num-col num">$28,268</td>
+                    <td class="num-col pct pct--up">+0.74%</td>
+                    <td class="num-col pct pct--up">+34%</td>
+                  </tr>
+                  <tr>
+                    <td><span class="t-sym">MSFT</span></td>
+                    <td><div class="bar"><span style="width:18%; background:#3B82F6"></span></div> 18%</td>
+                    <td class="num-col num">$23,128</td>
+                    <td class="num-col pct pct--up">+1.12%</td>
+                    <td class="num-col pct pct--up">+22%</td>
+                  </tr>
+                  <tr>
+                    <td><span class="t-sym">2330.TW</span></td>
+                    <td><div class="bar"><span style="width:14%; background:#F59E0B"></span></div> 14%</td>
+                    <td class="num-col num">$17,989</td>
+                    <td class="num-col pct pct--up">+1.87%</td>
+                    <td class="num-col pct pct--up">+41%</td>
+                  </tr>
+                  <tr>
+                    <td><span class="t-sym">TSLA</span></td>
+                    <td><div class="bar"><span style="width:12%; background:#EF4444"></span></div> 12%</td>
+                    <td class="num-col num">$15,418</td>
+                    <td class="num-col pct pct--down">−1.04%</td>
+                    <td class="num-col pct pct--down">−8%</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         LIVE MARKET WIDGETS
+         ============================================================ -->
+    <section class="section" aria-labelledby="widgetsTitle">
+      <div class="container">
+        <div class="section__head section__head--center">
+          <div class="eyebrow eyebrow--center"><span>Live data</span></div>
+          <h2 id="widgetsTitle" class="section__title">Market widgets, always-on</h2>
+          <p class="section__sub">Every dashboard surface refreshes itself on a schedule tuned for the data — indices and movers every minute, watchlist every 30 seconds, swing setups every two minutes.</p>
+        </div>
+
+        <div class="widgets">
+          <article class="widget">
+            <div class="widget__head">
+              <h3>Fear &amp; Greed</h3>
+              <span class="widget__pill widget__pill--gold">Daily</span>
+            </div>
+            <div class="fg-gauge" aria-hidden="true">
+              <svg viewBox="0 0 180 110">
+                <path d="M10,100 A 80,80 0 0 1 170,100" fill="none" stroke="#1F2A44" stroke-width="12" stroke-linecap="round"/>
+                <path d="M10,100 A 80,80 0 0 1 134,38" fill="none" stroke="url(#fgGrad)" stroke-width="12" stroke-linecap="round"/>
+                <defs>
+                  <linearGradient id="fgGrad" x1="0" x2="1" y1="0" y2="0">
+                    <stop offset="0%" stop-color="#EF4444"/>
+                    <stop offset="50%" stop-color="#F59E0B"/>
+                    <stop offset="100%" stop-color="#22C55E"/>
+                  </linearGradient>
+                </defs>
+                <text x="90" y="86" text-anchor="middle" fill="#F8FAFC" font-size="28" font-weight="600">68</text>
+                <text x="90" y="104" text-anchor="middle" fill="#94A3B8" font-size="10">GREED</text>
+              </svg>
+            </div>
+            <p class="widget__note">VIX easing into earnings; rotation favouring quality tech. Add risk with discipline.</p>
+          </article>
+
+          <article class="widget">
+            <div class="widget__head">
+              <h3>Top movers</h3>
+              <span class="widget__pill">60s refresh</span>
+            </div>
+            <ul class="movers">
+              <li><span class="t-sym">NVDA</span><span class="num">487.62</span><span class="pct pct--up">+2.84%</span></li>
+              <li><span class="t-sym">AMD</span><span class="num">152.17</span><span class="pct pct--up">+1.94%</span></li>
+              <li><span class="t-sym">META</span><span class="num">498.30</span><span class="pct pct--up">+0.42%</span></li>
+              <li><span class="t-sym">TSLA</span><span class="num">248.91</span><span class="pct pct--down">−1.04%</span></li>
+              <li><span class="t-sym">GOOGL</span><span class="num">175.84</span><span class="pct pct--down">−0.28%</span></li>
+            </ul>
+          </article>
+
+          <article class="widget">
+            <div class="widget__head">
+              <h3>Sector heatmap</h3>
+              <span class="widget__pill">11 sectors</span>
+            </div>
+            <div class="heatmap" aria-hidden="true">
+              <span style="background:rgba(34,197,94,0.85)">Tech<br><b>+1.42%</b></span>
+              <span style="background:rgba(34,197,94,0.55)">Comm<br><b>+0.88%</b></span>
+              <span style="background:rgba(34,197,94,0.30)">Cons. Disc<br><b>+0.42%</b></span>
+              <span style="background:rgba(148,163,184,0.20)">Health<br><b>+0.04%</b></span>
+              <span style="background:rgba(239,68,68,0.30)">Util<br><b>−0.21%</b></span>
+              <span style="background:rgba(239,68,68,0.55)">Energy<br><b>−0.74%</b></span>
+              <span style="background:rgba(34,197,94,0.45)">Indus<br><b>+0.62%</b></span>
+              <span style="background:rgba(34,197,94,0.30)">Fin<br><b>+0.38%</b></span>
+              <span style="background:rgba(239,68,68,0.20)">Mat<br><b>−0.12%</b></span>
+              <span style="background:rgba(148,163,184,0.20)">Stap<br><b>+0.01%</b></span>
+              <span style="background:rgba(239,68,68,0.45)">REIT<br><b>−0.58%</b></span>
+              <span style="background:rgba(34,197,94,0.20)">TW<br><b>+0.72%</b></span>
+            </div>
+          </article>
+
+          <article class="widget">
+            <div class="widget__head">
+              <h3>Trending today</h3>
+              <span class="widget__pill widget__pill--blue">Velocity</span>
+            </div>
+            <ol class="trending">
+              <li><span class="rank">1</span><span class="t-sym">NVDA</span><span class="pct pct--up">+2.84%</span></li>
+              <li><span class="rank">2</span><span class="t-sym">AMD</span><span class="pct pct--up">+1.94%</span></li>
+              <li><span class="rank">3</span><span class="t-sym">TSLA</span><span class="pct pct--down">−1.04%</span></li>
+              <li><span class="rank">4</span><span class="t-sym">PLTR</span><span class="pct pct--up">+3.71%</span></li>
+              <li><span class="rank">5</span><span class="t-sym">COIN</span><span class="pct pct--up">+2.10%</span></li>
+              <li><span class="rank">6</span><span class="t-sym">SMCI</span><span class="pct pct--down">−4.20%</span></li>
+            </ol>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         HOW IT WORKS
+         ============================================================ -->
+    <section class="section section--alt" id="how-it-works" aria-labelledby="howTitle">
+      <div class="container">
+        <div class="section__head section__head--center">
+          <div class="eyebrow eyebrow--center"><span>How it works</span></div>
+          <h2 id="howTitle" class="section__title">From sign-up to first trade in four steps</h2>
+        </div>
+
+        <ol class="steps">
+          <li class="step">
+            <div class="step__num">01</div>
+            <h3>Create your account</h3>
+            <p>Sign up in 30 seconds. We support Supabase-backed cloud accounts (sync across devices) or local-only mode for total privacy.</p>
+          </li>
+          <li class="step">
+            <div class="step__num">02</div>
+            <h3>Build your universe</h3>
+            <p>Start from 193 pre-loaded tickers across US and Taiwan, or add your own. Watchlists and portfolios sync instantly.</p>
+          </li>
+          <li class="step">
+            <div class="step__num">03</div>
+            <h3>Research with AI</h3>
+            <p>Ask the agent anything. It picks the right tools, returns cited numbers, and runs full Bull/Bear debates on single tickers automatically.</p>
+          </li>
+          <li class="step">
+            <div class="step__num">04</div>
+            <h3>Trade &amp; track</h3>
+            <p>Log holdings, follow live P&amp;L, set up swing trade scans, and journal every position to build a real edge over time.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         EDUCATIONAL RESOURCES
+         ============================================================ -->
+    <section class="section" id="education" aria-labelledby="eduTitle">
+      <div class="container">
+        <div class="section__head">
+          <div class="eyebrow"><span>Learn</span></div>
+          <h2 id="eduTitle" class="section__title">Sharpen your edge while you trade</h2>
+          <p class="section__sub">Stockdash isn't just a terminal — it's a learning environment. Every indicator, score, and AI response is paired with a plain-English explainer.</p>
+        </div>
+
+        <div class="edu-grid">
+          <a class="edu-card" href="#">
+            <span class="edu-card__chip">Fundamentals</span>
+            <h3>Reading a 10-K like a pro</h3>
+            <p>The five sections that actually matter, and the four red flags most retail investors miss.</p>
+            <span class="edu-card__meta">12 min read · Beginner</span>
+          </a>
+          <a class="edu-card" href="#">
+            <span class="edu-card__chip edu-card__chip--blue">Technicals</span>
+            <h3>RSI, MACD, and the trap of lagging indicators</h3>
+            <p>When momentum indicators help — and when they're just confirming what the chart already screams.</p>
+            <span class="edu-card__meta">9 min read · Intermediate</span>
+          </a>
+          <a class="edu-card" href="#">
+            <span class="edu-card__chip edu-card__chip--gold">Strategy</span>
+            <h3>Position sizing without the math headache</h3>
+            <p>Three sizing models that beat "feeling lucky" — and which one our swing scanner uses by default.</p>
+            <span class="edu-card__meta">7 min read · All levels</span>
+          </a>
+          <a class="edu-card" href="#">
+            <span class="edu-card__chip edu-card__chip--purple">AI</span>
+            <h3>Prompting the Stockdash agent</h3>
+            <p>The 10 prompts that get the most out of the research agent — with copy-paste templates.</p>
+            <span class="edu-card__meta">5 min read · Beginner</span>
+          </a>
+          <a class="edu-card" href="#">
+            <span class="edu-card__chip edu-card__chip--green">Portfolio</span>
+            <h3>Building a 5-position core book</h3>
+            <p>A walkthrough of building a concentrated core portfolio using our Value, Growth, and Quality scores.</p>
+            <span class="edu-card__meta">15 min read · Intermediate</span>
+          </a>
+          <a class="edu-card" href="#">
+            <span class="edu-card__chip edu-card__chip--red">Risk</span>
+            <h3>When to trust the Fear &amp; Greed gauge</h3>
+            <p>Reading the F&amp;G score as a contrarian signal — and the three regimes where it's actively misleading.</p>
+            <span class="edu-card__meta">6 min read · All levels</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         TRUST STRIP
+         ============================================================ -->
+    <section class="trust-band" aria-label="Security and trust">
+      <div class="container">
+        <div class="trust">
+          <div class="trust__item">
+            <div class="trust__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <h4>Bank-grade auth</h4>
+              <p>Scrypt-hashed passwords, signed sessions, Supabase RLS-aware backend.</p>
+            </div>
+          </div>
+          <div class="trust__item">
+            <div class="trust__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <div>
+              <h4>Your data, your account</h4>
+              <p>Portfolio and watchlist are scoped per-user. Local-only mode keeps everything offline.</p>
+            </div>
+          </div>
+          <div class="trust__item">
+            <div class="trust__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12c0-5 4-9 9-9s9 4 9 9-4 9-9 9-9-4-9-9Z"/><path d="M9 12h6"/><path d="M12 9v6"/></svg>
+            </div>
+            <div>
+              <h4>Open data sources</h4>
+              <p>Yahoo Finance, Finnhub, and your own broker exports. No black-box price feeds.</p>
+            </div>
+          </div>
+          <div class="trust__item">
+            <div class="trust__icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            </div>
+            <div>
+              <h4>Disclosure-first</h4>
+              <p>Stockdash provides research tools, not personalised investment advice. Always do your own diligence.</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         SIGNUP CTA
+         ============================================================ -->
+    <section class="section cta-section" aria-labelledby="ctaTitle">
+      <div class="container">
+        <div class="cta-card">
+          <div class="cta-card__bg" aria-hidden="true">
+            <div class="cta-card__glow"></div>
+          </div>
+
+          <div class="cta-card__copy">
+            <h2 id="ctaTitle" class="cta-card__title">Stop tab-hopping. Start trading from one screen.</h2>
+            <p class="cta-card__sub">Free to start. No credit card. Cancel anytime — there's nothing to cancel.</p>
+
+            <form class="cta-form" id="signupForm" novalidate>
+              <div class="cta-form__row">
+                <label class="visually-hidden" for="signupEmail">Email address</label>
+                <input
+                  id="signupEmail"
+                  name="email"
+                  type="email"
+                  autocomplete="email"
+                  inputmode="email"
+                  placeholder="you@domain.com"
+                  required
+                  aria-describedby="signupHelp signupError"
+                />
+                <button class="btn btn--primary btn--lg" type="submit">
+                  Create free account
+                  <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+                </button>
+              </div>
+              <p id="signupHelp" class="cta-form__help">We'll redirect you to the dashboard sign-up form with this email pre-filled.</p>
+              <p id="signupError" class="cta-form__error" role="alert" hidden></p>
+            </form>
+
+            <div class="cta-card__alt">
+              <span>Or</span>
+              <a class="btn btn--ghost" href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">
+                Skip signup — open the dashboard
+                <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </a>
+            </div>
+          </div>
+
+          <div class="cta-card__mock" aria-hidden="true">
+            <div class="cta-mini">
+              <div class="cta-mini__row">
+                <span class="t-sym">SPX</span><span class="num">5,318.42</span><span class="pct pct--up">+0.62%</span>
+              </div>
+              <div class="cta-mini__row">
+                <span class="t-sym">NVDA</span><span class="num">487.62</span><span class="pct pct--up">+2.84%</span>
+              </div>
+              <div class="cta-mini__row">
+                <span class="t-sym">VIX</span><span class="num">13.24</span><span class="pct pct--down">−2.10%</span>
+              </div>
+              <div class="cta-mini__row">
+                <span class="t-sym">F&amp;G</span><span class="num">68</span><span class="pct pct--up">Greed</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FAQ
+         ============================================================ -->
+    <section class="section section--alt" id="faq" aria-labelledby="faqTitle">
+      <div class="container container--sm">
+        <div class="section__head section__head--center">
+          <div class="eyebrow eyebrow--center"><span>FAQ</span></div>
+          <h2 id="faqTitle" class="section__title">Questions, answered</h2>
+        </div>
+
+        <div class="faq">
+          <details class="faq__item">
+            <summary>Is Stockdash really free?</summary>
+            <p>Yes. The hosted version is free to use. You only need a Groq API key (also free from console.groq.com) if you're self-hosting. Premium AI features and higher rate limits will land in a paid tier later — your free account will keep working.</p>
+          </details>
+          <details class="faq__item">
+            <summary>Do I need to connect my brokerage?</summary>
+            <p>No. Stockdash never touches your broker. You enter holdings manually (CSV import is on the roadmap), and we compute analytics from live market data only. Your trades stay between you and your broker.</p>
+          </details>
+          <details class="faq__item">
+            <summary>Where does the market data come from?</summary>
+            <p>Yahoo Finance for fundamentals, history, and most quotes; Finnhub as a real-time backup for live quotes on the stock page. Both are publicly available data sources — no black-box feeds.</p>
+          </details>
+          <details class="faq__item">
+            <summary>Is the AI giving me investment advice?</summary>
+            <p>No. Stockdash AI is a research assistant — it summarises public data and structures pro/con theses. Nothing it outputs is personalised investment advice. Always do your own diligence.</p>
+          </details>
+          <details class="faq__item">
+            <summary>What if Supabase goes down?</summary>
+            <p>Your portfolio is stored in four redundant places (Supabase, server disk, signed cookie, localStorage). If one or two layers fail, you still see your data.</p>
+          </details>
+          <details class="faq__item">
+            <summary>Can I self-host?</summary>
+            <p>Absolutely. Stockdash is a Flask app — clone the repo, set your Groq API key, and <code>python app.py</code>. Deploy to Vercel, Fly, or anywhere Python runs.</p>
+          </details>
+          <details class="faq__item">
+            <summary>Does it work outside the US?</summary>
+            <p>Yes. We ship 43 Taiwan tickers out of the box with auto FX conversion to USD on the market map. Adding more markets is a config change.</p>
+          </details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================================
+         FOOTER
+         ============================================================ -->
+    <footer class="footer" role="contentinfo">
+      <div class="container">
+        <div class="footer__grid">
+          <div class="footer__brand">
+            <a class="nav__brand" href="#top" aria-label="Stockdash home">
+              <span class="nav__mark" aria-hidden="true">◈</span>
+              <span class="nav__wordmark">stockdash</span>
+            </a>
+            <p class="footer__tag">Professional-grade stock intelligence, in one dark workspace.</p>
+            <a class="btn btn--primary btn--sm" href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">
+              Launch dashboard
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+            </a>
+          </div>
+
+          <div class="footer__col">
+            <h4>Product</h4>
+            <a href="#features">Features</a>
+            <a href="#preview">Live preview</a>
+            <a href="#video">Product tour</a>
+            <a href="https://stockscreener-nine-zeta.vercel.app" rel="noopener">Dashboard</a>
+          </div>
+
+          <div class="footer__col">
+            <h4>Learn</h4>
+            <a href="#education">Learning center</a>
+            <a href="#how-it-works">How it works</a>
+            <a href="#faq">FAQ</a>
+          </div>
+
+          <div class="footer__col">
+            <h4>Account</h4>
+            <a href="https://stockscreener-nine-zeta.vercel.app/login" rel="noopener">Sign in</a>
+            <a href="https://stockscreener-nine-zeta.vercel.app/signup" rel="noopener">Create account</a>
+          </div>
+        </div>
+
+        <div class="footer__bottom">
+          <p class="footer__disclaimer">
+            Stockdash provides research tools and visualizations only. Nothing on this site is personalised investment advice, an offer to buy or sell securities, or a guarantee of future results. Always do your own diligence and consult a licensed advisor before investing.
+          </p>
+          <p class="footer__copy">© <span id="year">2026</span> Stockdash. All rights reserved.</p>
+        </div>
+      </div>
+    </footer>
+
+  </main>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
