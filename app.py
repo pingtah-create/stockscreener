@@ -918,6 +918,45 @@ def api_movers():
 _FX_CACHE: dict = {"TWDUSD": 0.031, "at": None}
 _fx_refreshing = False
 
+# ── Multi-currency FX rates (1-hour cache, background refresh) ────────────────
+# (sym, code, inverse): inverse=True means yfinance gives USD-per-currency,
+# so the USD→currency rate is 1/value.
+_FX_PAIRS = [
+    ("EURUSD=X", "EUR", True),
+    ("GBPUSD=X", "GBP", True),
+    ("USDJPY=X", "JPY", False),
+    ("USDTWD=X", "TWD", False),
+    ("USDCAD=X", "CAD", False),
+    ("AUDUSD=X", "AUD", True),
+    ("USDCHF=X", "CHF", False),
+    ("USDHKD=X", "HKD", False),
+    ("USDSGD=X", "SGD", False),
+    ("USDKRW=X", "KRW", False),
+]
+_FX_RATES_CACHE: dict = {"rates": {"USD": 1.0}, "at": None}
+_fx_rates_refreshing = False
+
+
+def _fetch_all_fx_rates():
+    global _fx_rates_refreshing
+    try:
+        rates: dict = {"USD": 1.0}
+        for sym, code, inverse in _FX_PAIRS:
+            try:
+                info = yf.Ticker(sym).fast_info
+                val = float(getattr(info, "last_price", None) or 0)
+                if val > 0:
+                    rates[code] = round((1.0 / val) if inverse else val, 6)
+            except Exception:
+                pass
+        if len(rates) > 1:
+            _FX_RATES_CACHE["rates"] = rates
+            _FX_RATES_CACHE["at"] = datetime.utcnow()
+    except Exception:
+        pass
+    finally:
+        _fx_rates_refreshing = False
+
 
 def _fetch_twd_rate():
     """Background fetch of TWD→USD rate. Never blocks a request."""
@@ -944,6 +983,21 @@ def _twd_to_usd_rate() -> float:
         _fx_refreshing = True
         threading.Thread(target=_fetch_twd_rate, daemon=True).start()
     return _FX_CACHE["TWDUSD"] or 0.031  # fallback ~32 TWD/USD
+
+
+@app.route("/api/fx-rates")
+@auth.require_login_api
+def api_fx_rates():
+    """Return USD→currency conversion rates. Serves instantly from cache;
+    refreshes in the background when stale (1-hour TTL)."""
+    global _fx_rates_refreshing
+    now = datetime.utcnow()
+    cached_at = _FX_RATES_CACHE["at"]
+    is_stale = not cached_at or (now - cached_at).total_seconds() >= 3600
+    if is_stale and not _fx_rates_refreshing:
+        _fx_rates_refreshing = True
+        threading.Thread(target=_fetch_all_fx_rates, daemon=True).start()
+    return jsonify({"rates": _FX_RATES_CACHE["rates"]})
 
 
 @app.route("/api/refresh-prices", methods=["POST", "GET"])

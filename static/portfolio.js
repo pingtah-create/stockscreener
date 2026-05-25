@@ -1,6 +1,11 @@
 // portfolio.js
 
 const STORAGE_KEY = `stockdash_portfolio_v1_${window.CURRENT_USER || 'default'}`;
+
+// Shared currency formatter — falls back to USD if Currency module not loaded
+const _fmtP = v => (v == null || isNaN(v)) ? '—'
+  : window.Currency ? window.Currency.formatPrice(+v)
+  : '$' + (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const COLORS = ['#4f8cff','#00bcd4','#ff9800','#f44336','#ab47bc','#26c6da',
                  '#ffd54f','#4db6ac','#ef5350','#42a5f5','#66bb6a','#ec407a'];
 
@@ -65,7 +70,7 @@ function renderHoldingsInstant(list) {
         <a class="port-row-ticker" href="/stock/${h.ticker}">${h.ticker}</a>
         <div class="port-row-meta">
           <span>${h.shares} sh</span>
-          ${h.buyin != null ? `<span class="port-row-dot">·</span><span>@ $${(+h.buyin).toFixed(2)}</span>` : ''}
+          ${h.buyin != null ? `<span class="port-row-dot">·</span><span>@ ${_fmtP(+h.buyin)}</span>` : ''}
         </div>
       </div>
       <div class="port-row-right">
@@ -102,12 +107,11 @@ async function fetchPerf(p) {
     if (!r.ok || data.error) { if (empty) empty.style.display = 'flex'; return; }
 
     // Header values
-    const fmv = v => '$' + (+v).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    document.getElementById('portTotalValue').textContent = fmv(data.total_value);
+    document.getElementById('portTotalValue').textContent = _fmtP(data.total_value);
     const pnl    = data.period_pnl;
     const pnlPct = data.period_pnl_pct;
     const chgEl  = document.getElementById('portPeriodChg');
-    chgEl.textContent  = `${pnl >= 0 ? '+' : ''}${fmv(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`;
+    chgEl.textContent  = `${pnl >= 0 ? '+' : ''}${_fmtP(pnl)} (${pnl >= 0 ? '+' : ''}${pnlPct.toFixed(2)}%)`;
     chgEl.className    = 'port-perf-chg ' + (pnl >= 0 ? 'pos' : 'neg');
 
     renderPerfChart(data.historical);
@@ -449,8 +453,7 @@ async function fetchSummary() {
 
     // Big hero value — set here too so it doesn't depend on the perf chart call
     if (metrics.total_value != null) {
-      document.getElementById('portTotalValue').textContent =
-        '$' + metrics.total_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      document.getElementById('portTotalValue').textContent = _fmtP(metrics.total_value);
     }
 
     renderStats(metrics);
@@ -474,7 +477,7 @@ setInterval(() => { if (holdings.length) fetchSummary(); }, 60000);
 
 function renderStats(m) {
   const fv  = v => v != null ? (v >= 0 ? '+' : '') + v.toFixed(1) + '%' : '—';
-  const fmv = v => v != null ? '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '—';
+  const fmv = v => _fmtP(v);
   const hasCost = m.total_cost != null;
   const best = m.best_performer, worst = m.worst_performer;
 
@@ -525,7 +528,7 @@ function renderStats(m) {
 // ── Holdings table (live) ─────────────────────────────────────────────────────
 
 function renderTable(allocation) {
-  const fmtV = v => '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtV = v => _fmtP(v);
   const tableEl = document.getElementById('holdingsTable');
 
   if (!allocation.length) {
@@ -544,7 +547,7 @@ function renderTable(allocation) {
           <a class="port-row-ticker" href="/stock/${a.ticker}">${a.ticker}</a>
           <div class="port-row-meta">
             <span>${a.shares} sh</span>
-            ${a.buyin != null ? `<span class="port-row-dot">·</span><span>@ $${a.buyin.toFixed(2)}</span>` : ''}
+            ${a.buyin != null ? `<span class="port-row-dot">·</span><span>@ ${_fmtP(a.buyin)}</span>` : ''}
             <span class="port-row-dot">·</span><span>${a.pct.toFixed(1)}%</span>
           </div>
         </div>
@@ -552,7 +555,7 @@ function renderTable(allocation) {
           <div class="port-row-value">${fmtV(a.value)}</div>
           <div class="port-row-chg ${pnlClass || dayClass}">
             ${a.unrealized_pnl != null
-              ? `${pnlSign}$${Math.abs(a.unrealized_pnl).toLocaleString('en-US',{maximumFractionDigits:0})} (${pnlSign}${a.unrealized_pnl_pct.toFixed(1)}%)`
+              ? `${pnlSign}${_fmtP(Math.abs(a.unrealized_pnl))} (${pnlSign}${a.unrealized_pnl_pct.toFixed(1)}%)`
               : `${daySign}${a.return_pct.toFixed(2)}% today`}
           </div>
         </div>
@@ -701,6 +704,11 @@ function renderMarkdown(s) {
 // Re-render the performance chart with new theme colors on dark/light toggle.
 window.addEventListener('themechange', () => {
   if (_lastPerfData) renderPerfChart(_lastPerfData);
+});
+
+// Re-fetch and re-render prices in the selected currency when changed.
+document.addEventListener('currencychange', () => {
+  if (holdings.length) fetchSummary();
 });
 
 // ── Start ─────────────────────────────────────────────────────────────────────
