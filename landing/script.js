@@ -47,16 +47,16 @@
      ---------------------------------------------------------- */
   if (!reduceMotion) {
     var tickers = {
-      'nvda-price': { value: 487.62, prefix: '$',    decimals: 2 },
-      'nvda-pct':   { value: 2.84,   prefix: '+',    decimals: 2, suffix: '%' },
-      'aapl-price': { value: 184.22, prefix: '$',    decimals: 2 },
-      'aapl-pct':   { value: 0.74,   prefix: '+',    decimals: 2, suffix: '%' },
-      'msft-price': { value: 412.05, prefix: '$',    decimals: 2 },
-      'msft-pct':   { value: 1.12,   prefix: '+',    decimals: 2, suffix: '%' },
-      'tsla-price': { value: 248.91, prefix: '$',    decimals: 2 },
-      'tsla-pct':   { value: -1.04,  prefix: '',     decimals: 2, suffix: '%' },
-      'tsm-price':  { value: 985,    prefix: 'NT$ ', decimals: 0 },
-      'tsm-pct':    { value: 1.87,   prefix: '+',    decimals: 2, suffix: '%' }
+      'nvda-price': { value: 487.62,    prefix: '$', decimals: 2 },
+      'nvda-pct':   { value: 2.84,      prefix: '+', decimals: 2, suffix: '%' },
+      'spx-price':  { value: 5318.42,   prefix: '',  decimals: 2 },
+      'spx-pct':    { value: 0.62,      prefix: '+', decimals: 2, suffix: '%' },
+      'ndx-price':  { value: 18712.83,  prefix: '',  decimals: 2 },
+      'ndx-pct':    { value: 0.91,      prefix: '+', decimals: 2, suffix: '%' },
+      'vix-price':  { value: 13.24,     prefix: '',  decimals: 2 },
+      'vix-pct':    { value: -2.10,     prefix: '',  decimals: 2, suffix: '%' },
+      't10-price':  { value: 4.21,      prefix: '',  decimals: 2, suffix: '%' },
+      't10-pct':    { value: -0.03,     prefix: '',  decimals: 2 }
     };
 
     function fmt(t, v) {
@@ -106,7 +106,7 @@
      4. Reveal-on-scroll
      ---------------------------------------------------------- */
   var revealTargets = document.querySelectorAll(
-    '.section__head, .pillar, .feat-card, .step, .edu-card, .widget, .trust__item, .chat-mock, .chart-mock, .portfolio-mock, .cta-card, .faq__item'
+    '.section__head, .pillar, .step, .chart-mock, .cta-card, .faq__item, .video-frame'
   );
   revealTargets.forEach(function (el) { el.classList.add('reveal'); });
 
