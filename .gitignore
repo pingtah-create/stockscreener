@@ -23,3 +23,11 @@ Thumbs.db
 
 .vercel
 test_server.log
+
+# Claude Code / skills artifacts — local dev only
+.agents/
+.claude/skills/
+skills-lock.json
+
+# Hyperframe video composition source — re-renderable, keep only the MP4
+landing/video/
