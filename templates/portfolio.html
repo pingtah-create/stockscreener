@@ -107,7 +107,8 @@
         </div>
         <div class="port-panel-hdr-btns">
           <button class="port-icon-btn" id="addToggleBtn" onclick="toggleAddForm()" title="Add holding">+</button>
-          <button class="port-icon-btn" onclick="document.getElementById('importFile').click()" title="Import CSV">↑</button>
+          <button class="port-icon-btn" onclick="document.getElementById('importFile').click()" title="Import CSV / JSON (replaces current holdings)">↑</button>
+          <button class="port-icon-btn" id="clearAllBtn" onclick="clearAllHoldings()" title="Clear all holdings">🗑</button>
           <input type="file" id="importFile" accept=".csv,.json" style="display:none" />
         </div>
       </div>
@@ -174,7 +175,7 @@
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="/static/portfolio.js?v=6"></script>
+<script src="/static/portfolio.js?v=7"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=4"></script>
 </body>

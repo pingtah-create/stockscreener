@@ -283,29 +283,54 @@ function handleImport(filename, text) {
   }
   if (!rows.length) { showImportMsg('No valid holdings found in file.', true); return; }
 
-  let added = 0, updated = 0, skipped = 0;
+  // Build the parsed holdings first so we can confirm-then-replace atomically.
+  const parsed = [];
+  let skipped = 0;
   for (const row of rows) {
     const ticker = (row.ticker || '').toUpperCase();
     if (!ticker) { skipped++; continue; }
     const shares = parseFloat(row.shares);
     if (!shares || shares <= 0) { skipped++; continue; }
     const buyin = row.buyin != null ? parseFloat(row.buyin) || null : null;
-    const existing = holdings.find(h => h.ticker === ticker);
-    if (existing) { existing.shares = shares; if (buyin) existing.buyin = buyin; updated++; }
-    else { holdings.push({ ticker, shares, buyin }); added++; }
+    parsed.push({ ticker, shares, buyin });
+  }
+  if (!parsed.length) { showImportMsg('No valid holdings found in file.', true); return; }
+
+  // Import REPLACES existing holdings. Confirm if there's anything to wipe.
+  if (holdings.length) {
+    const msg = `Import will replace your ${holdings.length} existing holding${holdings.length === 1 ? '' : 's'} with ${parsed.length} from the file. Continue?`;
+    if (!confirm(msg)) { showImportMsg('Import cancelled.', true); return; }
   }
 
+  holdings = parsed;
   saveHoldings();
-  if (holdings.length) {
-    renderTable([]);
-    fetchSummary();
-    fetchPerf(period);
-  }
-  const parts = [];
-  if (added)   parts.push(`${added} added`);
-  if (updated) parts.push(`${updated} updated`);
+  renderHoldingsInstant(holdings);
+  fetchSummary();
+  fetchPerf(period);
+
+  const parts = [`${parsed.length} imported`];
   if (skipped) parts.push(`${skipped} skipped`);
-  showImportMsg(`Imported: ${parts.join(', ')}.`);
+  showImportMsg(parts.join(', ') + '.');
+}
+
+function clearAllHoldings() {
+  if (!holdings.length) { showImportMsg('Portfolio is already empty.', true); return; }
+  if (!confirm(`Remove all ${holdings.length} holding${holdings.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+
+  holdings = [];
+  saveHoldings();
+  document.getElementById('holdingsTable').innerHTML =
+    '<div class="port-empty">No holdings yet — click + to add one</div>';
+  document.getElementById('portAiRow').style.display = 'none';
+  document.getElementById('portAnalysis').style.display = 'none';
+  document.getElementById('portTotalValue').textContent = '—';
+  document.getElementById('portPeriodChg').textContent = '';
+  document.querySelectorAll('#portStats .port-stat-tile-value').forEach(el => { el.textContent = '—'; el.className = 'port-stat-tile-value'; });
+  document.querySelectorAll('#portStats .port-stat-tile-sub').forEach(el => { el.textContent = ''; el.className = 'port-stat-tile-sub'; });
+  const empty = document.getElementById('portChartEmpty');
+  if (empty) empty.style.display = 'flex';
+  if (lineInst) { lineInst.destroy(); lineInst = null; }
+  showImportMsg('All holdings cleared.');
 }
 
 function showImportMsg(msg, isError = false) {
