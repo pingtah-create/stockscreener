@@ -23,3 +23,9 @@ Thumbs.db
 
 .vercel
 test_server.log
+
+# Claude Code skill artifacts (local tooling, not project source)
+.agents/
+.claude/skills/
+skills-lock.json
+landing/
