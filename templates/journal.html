@@ -83,10 +83,11 @@
     </div>
   </div>
 
+  <!-- Empty state sits outside jnlList so innerHTML replacement can't destroy it -->
+  <div class="jnl-empty" id="jnlEmpty">No entries yet — click + New Entry to log your first trade</div>
+
   <!-- Entries list -->
-  <div class="jnl-list" id="jnlList">
-    <div class="jnl-empty" id="jnlEmpty">No entries yet — click + New Entry to log your first trade</div>
-  </div>
+  <div class="jnl-list" id="jnlList"></div>
 
 </div>
 

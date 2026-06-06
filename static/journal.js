@@ -74,13 +74,12 @@ function render() {
   renderStats();
 
   if (!filtered.length) {
-    empty.style.display = '';
+    if (empty) empty.style.display = '';
     list.innerHTML = '';
-    list.appendChild(empty);
     return;
   }
 
-  empty.style.display = 'none';
+  if (empty) empty.style.display = 'none';
   list.innerHTML = filtered.map(e => entryCard(e)).join('');
   list.querySelectorAll('.jnl-card').forEach(card => {
     card.querySelector('.jnl-card-edit')?.addEventListener('click', ev => {
@@ -288,6 +287,12 @@ async function saveEntry() {
     const overlay = document.getElementById('jnlModalOverlay');
     if (overlay) overlay.style.display = 'none';
     editingId = null;
+    // Reset filter to 'all' so the newly saved entry is always visible regardless of
+    // which filter was active before opening the modal.
+    filterStatus = 'all';
+    document.querySelectorAll('.jnl-filter-btn').forEach(b => {
+      b.classList.toggle('active', b.dataset.status === 'all');
+    });
     render();
   } catch (e) {
     console.error('journal render after save failed:', e);

@@ -68,6 +68,9 @@ let _syncingRange = false;
 const PERIOD_ORDER = ['1d','5d','1mo','3mo','6mo','1y','2y','5y'];
 let currentPeriod = '3mo';
 let _autoLoading  = false;
+// Guard: don't auto-extend until 800ms after the most recent loadData completes,
+// preventing the initial chart render from immediately chaining all periods.
+let _autoExtendEnabledAt = 0;
 
 // ── News state ──────────────────────────────────────────────────────
 const newsData = {};      // date string → [{title, publisher, link, age_min}]
@@ -245,8 +248,9 @@ function initCharts() {
       markRender();
       hideTooltips();
 
-      // Auto-extend: if user scrolled past the left edge, load next longer period
-      if (!_autoLoading && range.from < 2) {
+      // Auto-extend: if user scrolled past the left edge, load next longer period.
+      // _autoExtendEnabledAt guards against the initial render firing this immediately.
+      if (!_autoLoading && range.from < 2 && Date.now() > _autoExtendEnabledAt) {
         const idx = PERIOD_ORDER.indexOf(currentPeriod);
         if (idx >= 0 && idx < PERIOD_ORDER.length - 1) {
           const nextPeriod = PERIOD_ORDER[idx + 1];
@@ -428,6 +432,8 @@ function hideChartOverlay() {
 
 async function loadData(period) {
   currentPeriod = period;
+  // Block auto-extend while this load + initial render settle
+  _autoExtendEnabledAt = Date.now() + 800;
   showChartLoading();
   try {
     const res = await fetch(`/api/chart/${TICKER}?period=${period}&${indCfgQuery()}`);
