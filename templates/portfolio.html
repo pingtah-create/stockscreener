@@ -7,7 +7,7 @@
   <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
   <script src="/static/theme.js?v=2"></script>
   <link rel="stylesheet" href="/static/style.css?v=5" />
-  <link rel="stylesheet" href="/static/portfolio.css?v=5" />
+  <link rel="stylesheet" href="/static/portfolio.css?v=8" />
   <link rel="stylesheet" href="/static/legal.css" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.css"/>
   <link rel="stylesheet" href="/static/onboarding.css?v=3" />
@@ -107,8 +107,8 @@
         </div>
         <div class="port-panel-hdr-btns">
           <button class="port-icon-btn" id="addToggleBtn" onclick="toggleAddForm()" title="Add holding">+</button>
-          <button class="port-icon-btn" onclick="document.getElementById('importFile').click()" title="Import CSV / JSON (replaces current holdings)">↑</button>
-          <button class="port-icon-btn" id="clearAllBtn" onclick="clearAllHoldings()" title="Clear all holdings">🗑</button>
+          <button class="port-icon-btn port-icon-btn-wide" onclick="document.getElementById('importFile').click()" title="Import CSV / JSON (replaces current holdings)">↑ Import</button>
+          <button class="port-icon-btn port-icon-btn-wide" id="clearAllBtn" onclick="clearAllHoldings()" title="Clear all holdings">🗑 Clear</button>
           <input type="file" id="importFile" accept=".csv,.json" style="display:none" />
         </div>
       </div>
@@ -165,7 +165,10 @@
 
 <div class="port-loading" id="portLoading" style="display:none">
   <div class="port-spinner"></div>
-  <span>Running AI analysis…</span>
+  <div class="port-loading-text">
+    <span>Running AI analysis…</span>
+    <span class="port-loading-hint">Safe to switch tabs — it'll be ready when you come back.</span>
+  </div>
 </div>
 
 <div class="disclaimer-badge">
@@ -175,7 +178,7 @@
 
 <script>window.CURRENT_USER = "{{ current_user or '' }}";</script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="/static/portfolio.js?v=7"></script>
+<script src="/static/portfolio.js?v=11"></script>
 <script src="https://cdn.jsdelivr.net/npm/driver.js@1.4.0/dist/driver.js.iife.js"></script>
 <script src="/static/onboarding.js?v=4"></script>
 </body>
