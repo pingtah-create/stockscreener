@@ -5,6 +5,10 @@
 let _smRows = [];
 let _smSectorFilter = "";
 
+// Tile typography scales with tile size (TradingView style), clamped to this range.
+const SM_FONT_MIN = 9;
+const SM_FONT_MAX = 30;
+
 async function loadStockMap() {
   const wrap = document.getElementById("stockMap");
   if (!wrap) return;
@@ -79,16 +83,21 @@ function renderStockMap() {
 
   const sectorRects = squarifiedTreemap(sectorNodes, { x: 0, y: 0, w: W, h: H });
 
+  const SECTOR_GAP = 1; // 1px inset per sector = 2px gap between adjacent sectors
+
   for (const sr of sectorRects) {
+    const bx = sr.x + SECTOR_GAP, by = sr.y + SECTOR_GAP;
+    const bw = sr.w - 2 * SECTOR_GAP, bh = sr.h - 2 * SECTOR_GAP;
+
     const block = document.createElement("div");
     block.className = "sm-sector";
-    block.style.left = sr.x + "px";
-    block.style.top = sr.y + "px";
-    block.style.width = sr.w + "px";
-    block.style.height = sr.h + "px";
+    block.style.left = bx + "px";
+    block.style.top = by + "px";
+    block.style.width = bw + "px";
+    block.style.height = bh + "px";
 
     // Sector label header (only if there's room)
-    const showLabel = sr.w > 60 && sr.h > 30;
+    const showLabel = bw > 60 && bh > 30;
     if (showLabel) {
       const label = document.createElement("div");
       label.className = "sm-sector-label";
@@ -102,8 +111,8 @@ function renderStockMap() {
     const headerH = showLabel ? 16 : 0;
     inner.style.left = "0";
     inner.style.top = headerH + "px";
-    inner.style.width = sr.w + "px";
-    inner.style.height = (sr.h - headerH) + "px";
+    inner.style.width = bw + "px";
+    inner.style.height = (bh - headerH) + "px";
     block.appendChild(inner);
 
     // Stocks within sector
@@ -112,7 +121,7 @@ function renderStockMap() {
       .sort((a, b) => b.value - a.value);
 
     const stockRects = squarifiedTreemap(stockNodes,
-      { x: 0, y: 0, w: sr.w, h: sr.h - headerH });
+      { x: 0, y: 0, w: bw, h: bh - headerH });
 
     for (const tr of stockRects) {
       const tile = document.createElement("a");
@@ -126,15 +135,28 @@ function renderStockMap() {
       tile.style.color = textForChange(tr.node.change_pct);
       tile.title = `${tr.node.symbol} — ${tr.node.name} · $${(tr.node.mcap/1e9).toFixed(1)}B · ${tr.node.change_pct >= 0 ? "+" : ""}${tr.node.change_pct}%`;
 
-      // Show ticker + change% if there's room
-      if (tr.w > 36 && tr.h > 22) {
+      // Industry standard (Finviz/TradingView): hide text on small tiles — color only.
+      // full = ticker + change%; medium = ticker only; below threshold = nothing.
+      const showFull = tr.w > 80 && tr.h > 48;
+      const showMedium = !showFull && tr.w > 44 && tr.h > 28;
+
+      if (showFull || showMedium) {
+        // Scale typography to tile size like TradingView — big caps (NVDA) get a
+        // large label, small tiles get a small one. Width-constrain so the ticker
+        // fits horizontally; height-constrain so a two-line tile doesn't overflow.
+        const symFont = Math.max(
+          SM_FONT_MIN,
+          Math.min(tr.w / (tr.node.symbol.length * 0.62), tr.h * 0.34, SM_FONT_MAX),
+        );
         const sym = document.createElement("div");
         sym.className = "sm-tile-sym";
         sym.textContent = tr.node.symbol;
+        sym.style.fontSize = symFont.toFixed(1) + "px";
         tile.appendChild(sym);
-        if (tr.h > 38) {
+        if (showFull) {
           const chg = document.createElement("div");
           chg.className = "sm-tile-chg";
+          chg.style.fontSize = Math.max(SM_FONT_MIN - 1, symFont * 0.62).toFixed(1) + "px";
           chg.textContent = (tr.node.change_pct >= 0 ? "+" : "") + tr.node.change_pct.toFixed(2) + "%";
           tile.appendChild(chg);
         }
@@ -145,26 +167,26 @@ function renderStockMap() {
   }
 }
 
-// ── Color: red (loss) → flat → green (gain) — TradingView heat ──────
+// ── 7-band stepped color scale matching TradingView's heatmap exactly ──────
+// Bands: ≤-4.5  -4.5→-2.5  -2.5→-0.5  flat  +0.5→+2.5  +2.5→+4.5  ≥+4.5
+const _COLOR_BANDS = [
+  { min: -Infinity, max: -4.5, bg: '#991f29', text: '#fff' },
+  { min: -4.5,      max: -2.5, bg: '#f23645', text: '#fff' },
+  { min: -2.5,      max: -0.5, bg: '#f77c80', text: '#fff' },
+  { min: -0.5,      max:  0.5, bg: '#c9c9c9', text: '#1a1a2e' },  // flat — visible light grey
+  { min:  0.5,      max:  2.5, bg: '#42bd7f', text: '#fff' },
+  { min:  2.5,      max:  4.5, bg: '#089950', text: '#fff' },
+  { min:  4.5,      max:  Infinity, bg: '#056636', text: '#fff' },
+];
+
 function colorForChange(p) {
-  if (p == null || isNaN(p)) return 'var(--bg4)';
-  // Cap at ±5% for color saturation.
-  const n = Math.max(-5, Math.min(5, p)) / 5;   // -1..1
-  if (n > 0) {
-    const a = 0.16 + Math.abs(n) * 0.75;
-    return `rgba(38,166,154,${a.toFixed(3)})`;   // TradingView green
-  }
-  if (n < 0) {
-    const a = 0.16 + Math.abs(n) * 0.75;
-    return `rgba(239,83,80,${a.toFixed(3)})`;    // TradingView red
-  }
-  return 'var(--bg4)';
+  if (p == null || isNaN(p)) return '#c9c9c9';
+  return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.bg ?? '#c9c9c9';
 }
 
-// Tile text: white when the heat is saturated, theme text otherwise.
 function textForChange(p) {
-  if (p == null || isNaN(p)) return 'var(--text2)';
-  return Math.abs(p) > 2 ? '#fff' : 'var(--text)';
+  if (p == null || isNaN(p)) return '#1a1a2e';
+  return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.text ?? '#fff';
 }
 
 // ── Squarified treemap (Bruls, Huijsen & van Wijk 2000) ─────
