@@ -15,9 +15,77 @@ function logoUrl(symbol) {
   return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`;
 }
 
+// ── Hover tooltip ───────────────────────────────────────────────────────────
+// One reusable element on <body> (so it isn't clipped by the map's overflow).
+// Delegated off #stockMap so it survives every re-render and covers all 628
+// tiles cheaply — including the small color-only ones with no ticker/% text.
+let _smTooltipEl = null;
+
+function _smTooltip() {
+  if (!_smTooltipEl) {
+    _smTooltipEl = document.createElement("div");
+    _smTooltipEl.className = "sm-tooltip";
+    _smTooltipEl.style.display = "none";
+    document.body.appendChild(_smTooltipEl);
+  }
+  return _smTooltipEl;
+}
+
+function _smShowTooltip(tile, x, y) {
+  const d = tile.dataset;
+  if (!d.sym) return;
+  const chg = d.chg === "" ? null : parseFloat(d.chg);
+  const mcap = parseFloat(d.mcap) || 0;
+  const chgStr = chg == null ? "—" : (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%";
+  const tip = _smTooltip();
+  tip.innerHTML =
+    `<div class="sm-tt-sym">${d.sym}</div>` +
+    `<div class="sm-tt-name">${d.name || ""}</div>` +
+    `<div class="sm-tt-row"><span>Mkt cap</span><b>$${(mcap / 1e9).toFixed(1)}B</b></div>` +
+    `<div class="sm-tt-row"><span>Change</span><b style="color:${textForChange(chg) === '#fff' ? (chg >= 0 ? '#4ade80' : '#f87171') : 'var(--text)'}">${chgStr}</b></div>`;
+  tip.style.display = "block";
+  _smMoveTooltip(x, y);
+}
+
+function _smMoveTooltip(x, y) {
+  const tip = _smTooltip();
+  const pad = 14;
+  const r = tip.getBoundingClientRect();
+  // Flip to the other side of the cursor near the right/bottom edges.
+  let left = x + pad;
+  let top  = y + pad;
+  if (left + r.width  > window.innerWidth  - 8) left = x - r.width  - pad;
+  if (top  + r.height > window.innerHeight - 8) top  = y - r.height - pad;
+  tip.style.left = Math.max(8, left) + "px";
+  tip.style.top  = Math.max(8, top)  + "px";
+}
+
+function _smHideTooltip() {
+  if (_smTooltipEl) _smTooltipEl.style.display = "none";
+}
+
+function _attachTooltipDelegation(wrap) {
+  if (wrap._smTipBound) return;
+  wrap._smTipBound = true;
+  wrap.addEventListener("mouseover", (e) => {
+    const tile = e.target.closest(".sm-tile");
+    if (tile) _smShowTooltip(tile, e.clientX, e.clientY);
+  });
+  wrap.addEventListener("mousemove", (e) => {
+    if (_smTooltipEl && _smTooltipEl.style.display !== "none") _smMoveTooltip(e.clientX, e.clientY);
+  });
+  wrap.addEventListener("mouseout", (e) => {
+    const to = e.relatedTarget;
+    if (!to || !to.closest || !to.closest(".sm-tile")) _smHideTooltip();
+  });
+  // Safety net: leaving the map area always hides it.
+  wrap.addEventListener("mouseleave", _smHideTooltip);
+}
+
 async function loadStockMap() {
   const wrap = document.getElementById("stockMap");
   if (!wrap) return;
+  _attachTooltipDelegation(wrap);
   try {
     const r = await fetch("/api/stockmap");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -139,7 +207,12 @@ function renderStockMap() {
       tile.style.height = tr.h + "px";
       tile.style.background = colorForChange(tr.node.change_pct);
       tile.style.color = textForChange(tr.node.change_pct);
-      tile.title = `${tr.node.symbol} — ${tr.node.name} · $${(tr.node.mcap/1e9).toFixed(1)}B · ${tr.node.change_pct >= 0 ? "+" : ""}${tr.node.change_pct}%`;
+      // Data for the custom hover tooltip (replaces the laggy native title — which
+      // also matters for small/color-only tiles that show no ticker or %).
+      tile.dataset.sym  = tr.node.symbol;
+      tile.dataset.name = tr.node.name || "";
+      tile.dataset.mcap = tr.node.mcap || 0;
+      tile.dataset.chg  = (tr.node.change_pct ?? "");
 
       // Industry standard (Finviz/TradingView): hide text on small tiles — color only.
       // full = ticker + change%; medium = ticker only; below threshold = nothing.
