@@ -9,6 +9,12 @@ let _smSectorFilter = "";
 const SM_FONT_MIN = 9;
 const SM_FONT_MAX = 30;
 
+// Company logo for a ticker. Free no-key image endpoint; Taiwan .TW and any
+// symbol without a logo just 404 and the <img> removes itself (see error handler).
+function logoUrl(symbol) {
+  return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`;
+}
+
 async function loadStockMap() {
   const wrap = document.getElementById("stockMap");
   if (!wrap) return;
@@ -141,6 +147,21 @@ function renderStockMap() {
       const showMedium = !showFull && tr.w > 44 && tr.h > 28;
 
       if (showFull || showMedium) {
+        // Logo on big tiles, TradingView-style: logo chip on top, then ticker, then %.
+        // Tickers without a logo (e.g. Taiwan .TW) silently drop the <img> on error,
+        // so the tile gracefully falls back to ticker + change% only.
+        if (showFull && tr.w >= 72 && tr.h >= 64) {
+          const logoSize = Math.max(18, Math.min(tr.w * 0.30, tr.h * 0.28, 52));
+          const logo = document.createElement("img");
+          logo.className = "sm-tile-logo";
+          logo.alt = "";
+          logo.loading = "lazy";
+          logo.src = logoUrl(tr.node.symbol);
+          logo.style.width = logo.style.height = Math.round(logoSize) + "px";
+          logo.addEventListener("error", () => logo.remove());
+          tile.appendChild(logo);
+        }
+
         // Scale typography to tile size like TradingView — big caps (NVDA) get a
         // large label, small tiles get a small one. Width-constrain so the ticker
         // fits horizontally; height-constrain so a two-line tile doesn't overflow.
@@ -167,25 +188,29 @@ function renderStockMap() {
   }
 }
 
-// ── 7-band stepped color scale matching TradingView's heatmap exactly ──────
+// ── 7-band stepped color scale matching TradingView's DARK-mode heatmap ──────
 // Bands: ≤-4.5  -4.5→-2.5  -2.5→-0.5  flat  +0.5→+2.5  +2.5→+4.5  ≥+4.5
+// Flat band is a muted dark slate (TV dark mode), not light grey, so it sits
+// naturally on the dark dashboard instead of glaring out.
+const _FLAT_BG = '#3a3e4a';
+const _FLAT_TEXT = '#c4c9d4';
 const _COLOR_BANDS = [
-  { min: -Infinity, max: -4.5, bg: '#991f29', text: '#fff' },
-  { min: -4.5,      max: -2.5, bg: '#f23645', text: '#fff' },
-  { min: -2.5,      max: -0.5, bg: '#f77c80', text: '#fff' },
-  { min: -0.5,      max:  0.5, bg: '#c9c9c9', text: '#1a1a2e' },  // flat — visible light grey
-  { min:  0.5,      max:  2.5, bg: '#42bd7f', text: '#fff' },
-  { min:  2.5,      max:  4.5, bg: '#089950', text: '#fff' },
-  { min:  4.5,      max:  Infinity, bg: '#056636', text: '#fff' },
+  { min: -Infinity, max: -4.5, bg: '#8b1a1f', text: '#fff' },
+  { min: -4.5,      max: -2.5, bg: '#c0252c', text: '#fff' },
+  { min: -2.5,      max: -0.5, bg: '#e15c5c', text: '#fff' },
+  { min: -0.5,      max:  0.5, bg: _FLAT_BG, text: _FLAT_TEXT },
+  { min:  0.5,      max:  2.5, bg: '#2eaa6a', text: '#fff' },
+  { min:  2.5,      max:  4.5, bg: '#0c8a48', text: '#fff' },
+  { min:  4.5,      max:  Infinity, bg: '#06602f', text: '#fff' },
 ];
 
 function colorForChange(p) {
-  if (p == null || isNaN(p)) return '#c9c9c9';
-  return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.bg ?? '#c9c9c9';
+  if (p == null || isNaN(p)) return _FLAT_BG;
+  return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.bg ?? _FLAT_BG;
 }
 
 function textForChange(p) {
-  if (p == null || isNaN(p)) return '#1a1a2e';
+  if (p == null || isNaN(p)) return _FLAT_TEXT;
   return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.text ?? '#fff';
 }
 
