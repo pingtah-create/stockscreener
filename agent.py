@@ -68,6 +68,61 @@ def _groq_stream(api_key: str, messages: list, *, temperature: float = 0.4,
             continue
 
 
+# ── LIVE PRICE OVERLAY ────────────────────────────────────────────────────────
+# The in-memory stock_cache passed into these tools is the dashboard's bulk
+# snapshot: prices are refreshed at most once every 5 min and only on certain
+# endpoints (never on /api/chat), and underneath it sits a 12h disk cache. That
+# is fine for a 193-tile heatmap, but for a single-stock question the user expects
+# a real-time quote. These helpers fetch a targeted live price for just the
+# ticker(s) being asked about. A 60s micro-cache dedupes the repeat lookups a
+# single deep-dive makes (fundamentals + technicals + consensus + swing all want
+# the same ticker) so we pay one network call, not four.
+import time as _time
+from concurrent.futures import ThreadPoolExecutor as _ThreadPool
+
+_LIVE_PRICE_TTL_SECONDS = 60
+_live_price_cache: dict = {}  # ticker -> (last_price, previous_close, fetched_at)
+_LIVE_PRICE_MAX_WORKERS = 8
+
+
+def _live_price(ticker: str) -> tuple:
+    """Fetch (last_price, previous_close) via yfinance fast_info, 60s micro-cached.
+    Returns (None, None) on any failure so callers fall back to cached values."""
+    ticker = ticker.upper().strip()
+    hit = _live_price_cache.get(ticker)
+    now = _time.time()
+    if hit and now - hit[2] < _LIVE_PRICE_TTL_SECONDS:
+        return hit[0], hit[1]
+    last = prev = None
+    try:
+        fi = yf.Ticker(ticker).fast_info
+        last = float(fi.last_price) if fi.last_price else None
+        prev = float(fi.previous_close) if fi.previous_close else None
+    except Exception:
+        last = prev = None
+    if last:
+        _live_price_cache[ticker] = (last, prev, now)
+    return last, prev
+
+
+def _live_prices_batch(tickers: list) -> dict:
+    """Parallel live prices for several tickers. Returns {ticker: (last, prev)}."""
+    uniq = list({t.upper().strip() for t in tickers if t})
+    if not uniq:
+        return {}
+    workers = min(_LIVE_PRICE_MAX_WORKERS, len(uniq))
+    with _ThreadPool(max_workers=workers) as ex:
+        results = list(ex.map(_live_price, uniq))
+    return dict(zip(uniq, results))
+
+
+def _pct_change(last, prev):
+    """Day change % from last price and previous close, or None."""
+    if last and prev and prev > 0:
+        return round((last - prev) / prev * 100, 4)
+    return None
+
+
 # ── TOOL IMPLEMENTATIONS ──────────────────────────────────────────────────────
 
 def tool_get_stock_fundamentals(ticker: str, stock_cache: list) -> dict:
@@ -79,6 +134,16 @@ def tool_get_stock_fundamentals(ticker: str, stock_cache: list) -> dict:
         except Exception:
             return {"error": f"No data found for {ticker}"}
     price = data.get("currentPrice") or data.get("previousClose")
+    change_pct = data.get("regularMarketChangePercent")
+
+    # Overlay a live quote — cached price/change can be hours (or 12h+) stale.
+    live, prev = _live_price(ticker)
+    if live:
+        price = live
+        live_chg = _pct_change(live, prev)
+        if live_chg is not None:
+            change_pct = live_chg
+
     mcap  = data.get("marketCap")
     return {
         "ticker": ticker,
@@ -86,7 +151,7 @@ def tool_get_stock_fundamentals(ticker: str, stock_cache: list) -> dict:
         "sector": data.get("sector"),
         "industry": data.get("industry"),
         "price": round(price, 2) if price else None,
-        "change_pct": round(data["regularMarketChangePercent"], 2) if data.get("regularMarketChangePercent") else None,
+        "change_pct": round(change_pct, 2) if change_pct else None,
         "market_cap_b": round(mcap / 1e9, 2) if mcap else None,
         "pe_trailing": data.get("trailingPE"),
         "pe_forward": data.get("forwardPE"),
@@ -123,6 +188,10 @@ def tool_get_technical_signals(ticker: str, stock_cache: list) -> dict:
     if not data:
         return {"error": f"No cached data for {ticker}"}
     price  = data.get("currentPrice") or data.get("previousClose")
+    # Overlay live price so above/below-MA signals reflect the current quote
+    live, _ = _live_price(ticker)
+    if live:
+        price = live
     sma50  = data.get("fiftyDayAverage")
     sma200 = data.get("twoHundredDayAverage")
     rsi    = data.get("rsi14")
@@ -273,16 +342,25 @@ def tool_screen_stocks(stock_cache: list, sector: str = None,
         results.sort(key=lambda s: s.get("scores", {}).get(key, 0), reverse=True)
     else:
         results.sort(key=lambda s: s.get("marketCap") or 0, reverse=True)
+    shown = results[:limit]
+    live  = _live_prices_batch([s.get("symbol") for s in shown])
     rows = []
-    for s in results[:limit]:
+    for s in shown:
         price = s.get("currentPrice") or s.get("previousClose")
+        change_pct = s.get("regularMarketChangePercent")
+        live_px, live_prev = live.get(s.get("symbol"), (None, None))
+        if live_px:
+            price = live_px
+            live_chg = _pct_change(live_px, live_prev)
+            if live_chg is not None:
+                change_pct = live_chg
         mcap  = s.get("marketCap")
         rows.append({
             "ticker":      s.get("symbol"),
             "name":        (s.get("shortName") or "")[:22],
             "sector":      s.get("sector"),
             "price":       round(price, 2) if price else None,
-            "change_pct":  s.get("regularMarketChangePercent"),
+            "change_pct":  change_pct,
             "market_cap_b": round(mcap / 1e9, 1) if mcap else None,
             "pe":          s.get("trailingPE"),
             "scores":      s.get("scores", {}),
@@ -309,20 +387,28 @@ def tool_get_market_overview(indices_cache: dict, stock_cache: list) -> dict:
 
 
 def tool_compare_stocks(tickers: list, stock_cache: list) -> dict:
+    picks = [t.upper().strip() for t in tickers[:6]]
+    live  = _live_prices_batch(picks)
     rows = []
-    for t in tickers[:6]:
-        t = t.upper().strip()
+    for t in picks:
         s = next((x for x in stock_cache if x.get("symbol") == t), None)
         if not s:
             continue
         price = s.get("currentPrice") or s.get("previousClose")
+        change_pct = s.get("regularMarketChangePercent")
+        live_px, live_prev = live.get(t, (None, None))
+        if live_px:
+            price = live_px
+            live_chg = _pct_change(live_px, live_prev)
+            if live_chg is not None:
+                change_pct = live_chg
         mcap  = s.get("marketCap")
         rows.append({
             "ticker":        t,
             "name":          (s.get("shortName") or "")[:22],
             "sector":        s.get("sector"),
             "price":         round(price, 2) if price else None,
-            "change_pct":    s.get("regularMarketChangePercent"),
+            "change_pct":    change_pct,
             "market_cap_b":  round(mcap / 1e9, 1) if mcap else None,
             "pe":            s.get("trailingPE"),
             "fwd_pe":        s.get("forwardPE"),
@@ -343,6 +429,10 @@ def tool_get_analyst_consensus(ticker: str, stock_cache: list) -> dict:
     base   = {}
     if data:
         price  = data.get("currentPrice") or data.get("previousClose")
+        # Live price so upside % vs target is honest, not computed off a stale quote
+        live, _ = _live_price(ticker)
+        if live:
+            price = live
         target = data.get("targetMeanPrice")
         base   = {
             "current_price":  round(price, 2) if price else None,
@@ -393,13 +483,21 @@ def tool_get_analyst_consensus(ticker: str, stock_cache: list) -> dict:
 
 
 def tool_get_watchlist_analysis(tickers: list, stock_cache: list) -> dict:
+    picks = [t.upper().strip() for t in tickers]
+    live  = _live_prices_batch(picks)
     rows = []
-    for t in tickers:
-        t = t.upper().strip()
+    for t in picks:
         s = next((x for x in stock_cache if x.get("symbol") == t), None)
         if not s:
             continue
         price = s.get("currentPrice") or s.get("previousClose")
+        change_pct = s.get("regularMarketChangePercent")
+        live_px, live_prev = live.get(t, (None, None))
+        if live_px:
+            price = live_px
+            live_chg = _pct_change(live_px, live_prev)
+            if live_chg is not None:
+                change_pct = live_chg
         mcap  = s.get("marketCap")
         scores = s.get("scores") or {}
         best_strategy = max(scores, key=scores.get) if scores else None
@@ -407,7 +505,7 @@ def tool_get_watchlist_analysis(tickers: list, stock_cache: list) -> dict:
             "ticker":         t,
             "name":           (s.get("shortName") or "")[:22],
             "price":          round(price, 2) if price else None,
-            "change_pct":     s.get("regularMarketChangePercent"),
+            "change_pct":     change_pct,
             "sector":         s.get("sector"),
             "pe":             s.get("trailingPE"),
             "analyst_rating": s.get("recommendationKey"),
@@ -1032,11 +1130,18 @@ def run_debate_analysis(ticker: str, stock_cache: list, indices_cache: dict, api
     from concurrent.futures import ThreadPoolExecutor
     raw_stock = next((s for s in stock_cache if s.get("symbol") == ticker), None)
 
-    # In-memory lookups are instant; network calls (news, consensus, earnings) run in parallel
+    # In-memory lookups are instant; network calls (news, consensus, earnings) run in parallel.
+    # fundamentals/technicals/consensus each overlay a live quote (60s micro-cached, so
+    # this whole deep-dive pays one fast_info call for the ticker, not several).
     f  = tool_get_stock_fundamentals(ticker, stock_cache)
     t  = tool_get_technical_signals(ticker, stock_cache)
     pe = tool_get_peer_comparison(ticker, stock_cache)
-    sw = _swing(raw_stock) if raw_stock else None
+    # Swing entry/stop/target key off price — feed it the live quote, not the stale cache
+    sw = None
+    if raw_stock:
+        live_px, _ = _live_price(ticker)
+        swing_input = {**raw_stock, "currentPrice": live_px} if live_px else raw_stock
+        sw = _swing(swing_input)
 
     with ThreadPoolExecutor(max_workers=3) as ex:
         fn = ex.submit(tool_get_recent_news, ticker, 5)

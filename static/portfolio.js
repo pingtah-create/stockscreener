@@ -50,6 +50,9 @@ async function init() {
       }
     }
   } catch { /* offline / cold start — keep the local render */ }
+
+  // Pick up any analysis that's still running (or finished while we were away).
+  if (holdings.length) resumeAnalysisJob();
 }
 
 // Lightweight instant render from cached holdings (no live prices yet).
@@ -82,7 +85,8 @@ function toggleAddForm() {
   const btn  = document.getElementById('addToggleBtn');
   const open = form.style.display === 'none' || form.style.display === '';
   form.style.display = open ? 'block' : 'none';
-  btn.textContent    = open ? '− Close' : '+ Add';
+  btn.textContent    = open ? '−' : '+';
+  btn.title          = open ? 'Close add form' : 'Add holding';
   if (open) document.getElementById('tickerInput').focus();
 }
 
@@ -283,29 +287,54 @@ function handleImport(filename, text) {
   }
   if (!rows.length) { showImportMsg('No valid holdings found in file.', true); return; }
 
-  let added = 0, updated = 0, skipped = 0;
+  // Build the parsed holdings first so we can confirm-then-replace atomically.
+  const parsed = [];
+  let skipped = 0;
   for (const row of rows) {
     const ticker = (row.ticker || '').toUpperCase();
     if (!ticker) { skipped++; continue; }
     const shares = parseFloat(row.shares);
     if (!shares || shares <= 0) { skipped++; continue; }
     const buyin = row.buyin != null ? parseFloat(row.buyin) || null : null;
-    const existing = holdings.find(h => h.ticker === ticker);
-    if (existing) { existing.shares = shares; if (buyin) existing.buyin = buyin; updated++; }
-    else { holdings.push({ ticker, shares, buyin }); added++; }
+    parsed.push({ ticker, shares, buyin });
+  }
+  if (!parsed.length) { showImportMsg('No valid holdings found in file.', true); return; }
+
+  // Import REPLACES existing holdings. Confirm if there's anything to wipe.
+  if (holdings.length) {
+    const msg = `Import will replace your ${holdings.length} existing holding${holdings.length === 1 ? '' : 's'} with ${parsed.length} from the file. Continue?`;
+    if (!confirm(msg)) { showImportMsg('Import cancelled.', true); return; }
   }
 
+  holdings = parsed;
   saveHoldings();
-  if (holdings.length) {
-    renderTable([]);
-    fetchSummary();
-    fetchPerf(period);
-  }
-  const parts = [];
-  if (added)   parts.push(`${added} added`);
-  if (updated) parts.push(`${updated} updated`);
+  renderHoldingsInstant(holdings);
+  fetchSummary();
+  fetchPerf(period);
+
+  const parts = [`${parsed.length} imported`];
   if (skipped) parts.push(`${skipped} skipped`);
-  showImportMsg(`Imported: ${parts.join(', ')}.`);
+  showImportMsg(parts.join(', ') + '.');
+}
+
+function clearAllHoldings() {
+  if (!holdings.length) { showImportMsg('Portfolio is already empty.', true); return; }
+  if (!confirm(`Remove all ${holdings.length} holding${holdings.length === 1 ? '' : 's'}? This cannot be undone.`)) return;
+
+  holdings = [];
+  saveHoldings();
+  document.getElementById('holdingsTable').innerHTML =
+    '<div class="port-empty">No holdings yet — click + to add one</div>';
+  document.getElementById('portAiRow').style.display = 'none';
+  document.getElementById('portAnalysis').style.display = 'none';
+  document.getElementById('portTotalValue').textContent = '—';
+  document.getElementById('portPeriodChg').textContent = '';
+  document.querySelectorAll('#portStats .port-stat-tile-value').forEach(el => { el.textContent = '—'; el.className = 'port-stat-tile-value'; });
+  document.querySelectorAll('#portStats .port-stat-tile-sub').forEach(el => { el.textContent = ''; el.className = 'port-stat-tile-sub'; });
+  const empty = document.getElementById('portChartEmpty');
+  if (empty) empty.style.display = 'flex';
+  if (lineInst) { lineInst.destroy(); lineInst = null; }
+  showImportMsg('All holdings cleared.');
 }
 
 function showImportMsg(msg, isError = false) {
@@ -386,7 +415,13 @@ function addHolding() {
   const ticker   = tickerEl.value.trim().toUpperCase();
   const shares   = parseFloat(sharesEl.value);
   const buyin    = parseFloat(buyinEl.value) || null;
-  if (!ticker || !shares || shares <= 0) return;
+  const TICKER_RE = /^[A-Z0-9]{1,5}(\.[A-Z]{1,2})?$/;
+  if (!ticker || !shares || shares <= 0 || !TICKER_RE.test(ticker)) {
+    if (ticker && !TICKER_RE.test(ticker)) tickerEl.setCustomValidity('Invalid ticker format');
+    tickerEl.reportValidity();
+    tickerEl.setCustomValidity('');
+    return;
+  }
 
   const existing = holdings.find(h => h.ticker === ticker);
   if (existing) { existing.shares = shares; existing.buyin = buyin; }
@@ -566,15 +601,41 @@ function renderTable(allocation) {
 }
 
 // ── Full analysis ─────────────────────────────────────────────────────────────
+//
+// The server runs analysis in a background thread keyed by username. We POST
+// to kick it off (or to retrieve a fresh cached result), then poll
+// /api/portfolio-analysis/status until the job finishes. Polling is also
+// resumed on every page load via resumeAnalysisJob() in init() — so leaving
+// the Portfolio tab mid-analysis no longer loses the result.
+
+const ANALYSIS_POLL_MS = 3000;
+let _analysisPollTimer = null;
+
+function _setAnalyzeButtonsDisabled(disabled) {
+  const btn     = document.getElementById('analyzeBtn');
+  const deepBtn = document.getElementById('analyzeDeepBtn');
+  if (btn)     btn.disabled     = disabled;
+  if (deepBtn) deepBtn.disabled = disabled;
+}
+
+function _showRunningIndicator(show) {
+  const loading = document.getElementById('portLoading');
+  if (!loading) return;
+  loading.style.display = show ? 'flex' : 'none';
+}
+
+function _stopAnalysisPoll() {
+  if (_analysisPollTimer) {
+    clearTimeout(_analysisPollTimer);
+    _analysisPollTimer = null;
+  }
+}
 
 async function analyzePortfolio(deep = false) {
   if (!holdings.length) return;
-  const btn      = document.getElementById('analyzeBtn');
-  const deepBtn  = document.getElementById('analyzeDeepBtn');
-  const loading  = document.getElementById('portLoading');
-  btn.disabled      = true;
-  if (deepBtn) deepBtn.disabled = true;
-  loading.style.display = 'flex';
+  _stopAnalysisPoll();
+  _setAnalyzeButtonsDisabled(true);
+  _showRunningIndicator(true);
   document.getElementById('portAnalysis').style.display = 'none';
   try {
     const r    = await fetch('/api/portfolio-analysis', {
@@ -583,32 +644,98 @@ async function analyzePortfolio(deep = false) {
       body: JSON.stringify({ holdings, deep }),
     });
     const data = await r.json();
-    if (r.status === 429) {
-      document.getElementById('portAnalysis').style.display = 'block';
-      document.getElementById('analysisBody').innerHTML =
-        `<p style="color:var(--yellow,#ffd54f);font-size:13px">⏳ ${data.message || 'AI rate limit reached — wait a minute and try again.'}</p>`;
-      return;
-    }
     if (!r.ok) throw new Error(data.error || `HTTP ${r.status}`);
-    renderAnalysis(data);
+    _handleAnalysisPayload(data, { fromUserClick: true });
   } catch (err) {
-    document.getElementById('portAnalysis').style.display = 'block';
-    document.getElementById('analysisBody').innerHTML =
-      `<p style="color:var(--red);font-size:13px">Analysis failed: ${err.message}. Check your holdings and try again.</p>`;
-  } finally {
-    btn.disabled = false;
-    if (deepBtn) deepBtn.disabled = false;
-    loading.style.display = 'none';
+    _renderAnalysisError(`Analysis failed: ${err.message}. Check your holdings and try again.`);
+    _setAnalyzeButtonsDisabled(false);
+    _showRunningIndicator(false);
   }
 }
 
-function renderAnalysis(data) {
-  const { allocation, analysis, stock_analyses } = data;
+// Called by init() on every page load. Picks up a job that's still running
+// in a server thread, or a fresh cached result from earlier.
+async function resumeAnalysisJob() {
+  try {
+    const r = await fetch('/api/portfolio-analysis/status');
+    if (!r.ok) return;
+    const data = await r.json();
+    if (data.status === 'none') return;
+    _handleAnalysisPayload(data, { fromUserClick: false });
+  } catch { /* offline / cold start — nothing to resume */ }
+}
+
+function _handleAnalysisPayload(data, { fromUserClick }) {
+  if (data.status === 'ready') {
+    _stopAnalysisPoll();
+    _setAnalyzeButtonsDisabled(false);
+    _showRunningIndicator(false);
+    renderAnalysis(data, { scroll: fromUserClick });
+    return;
+  }
+  if (data.status === 'running') {
+    _setAnalyzeButtonsDisabled(true);
+    _showRunningIndicator(true);
+    _stopAnalysisPoll();
+    _analysisPollTimer = setTimeout(_pollAnalysisOnce, ANALYSIS_POLL_MS);
+    return;
+  }
+  if (data.status === 'rate_limited') {
+    _setAnalyzeButtonsDisabled(false);
+    _showRunningIndicator(false);
+    _renderAnalysisError(
+      `⏳ ${data.message || 'AI rate limit reached — wait a minute and try again.'}`,
+      'var(--yellow, #ffd54f)',
+    );
+    return;
+  }
+  if (data.status === 'error') {
+    _setAnalyzeButtonsDisabled(false);
+    _showRunningIndicator(false);
+    _renderAnalysisError(`Analysis failed: ${data.error || 'unknown error'}.`);
+    return;
+  }
+}
+
+async function _pollAnalysisOnce() {
+  _analysisPollTimer = null;
+  try {
+    const r = await fetch('/api/portfolio-analysis/status');
+    if (!r.ok) {
+      // Schedule one retry on transient failure; if it keeps failing the user can re-click.
+      _analysisPollTimer = setTimeout(_pollAnalysisOnce, ANALYSIS_POLL_MS * 2);
+      return;
+    }
+    const data = await r.json();
+    _handleAnalysisPayload(data, { fromUserClick: false });
+  } catch {
+    _analysisPollTimer = setTimeout(_pollAnalysisOnce, ANALYSIS_POLL_MS * 2);
+  }
+}
+
+function _renderAnalysisError(html, color = 'var(--red)') {
   document.getElementById('portAnalysis').style.display = 'block';
-  renderAllocTable(allocation);
-  renderAIText(analysis);
+  document.getElementById('analysisBody').innerHTML =
+    `<p style="color:${color};font-size:13px">${html}</p>`;
+}
+
+function renderAnalysis(data, { scroll = true } = {}) {
+  const { allocation, analysis, stock_analyses, key_missing } = data;
+  document.getElementById('portAnalysis').style.display = 'block';
+  renderAllocTable(allocation || []);
+  if (key_missing) {
+    _renderAnalysisError(
+      '⚠ AI verdict unavailable — <code>GROQ_API_KEY</code> isn\'t configured on the server. ' +
+      'Add it to <code>.env</code> (local) or to the Vercel project env (deployed) and try again.',
+      'var(--yellow, #ffd54f)',
+    );
+  } else {
+    renderAIText(analysis);
+  }
   renderStockAnalyses(stock_analyses || {});
-  document.getElementById('portAnalysis').scrollIntoView({ behavior: 'smooth' });
+  if (scroll) {
+    document.getElementById('portAnalysis').scrollIntoView({ behavior: 'smooth' });
+  }
 }
 
 function renderAllocTable(allocation) {

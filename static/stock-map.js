@@ -5,9 +5,87 @@
 let _smRows = [];
 let _smSectorFilter = "";
 
+// Tile typography scales with tile size (TradingView style), clamped to this range.
+const SM_FONT_MIN = 9;
+const SM_FONT_MAX = 30;
+
+// Company logo for a ticker. Free no-key image endpoint; Taiwan .TW and any
+// symbol without a logo just 404 and the <img> removes itself (see error handler).
+function logoUrl(symbol) {
+  return `https://financialmodelingprep.com/image-stock/${encodeURIComponent(symbol)}.png`;
+}
+
+// ── Hover tooltip ───────────────────────────────────────────────────────────
+// One reusable element on <body> (so it isn't clipped by the map's overflow).
+// Delegated off #stockMap so it survives every re-render and covers all 628
+// tiles cheaply — including the small color-only ones with no ticker/% text.
+let _smTooltipEl = null;
+
+function _smTooltip() {
+  if (!_smTooltipEl) {
+    _smTooltipEl = document.createElement("div");
+    _smTooltipEl.className = "sm-tooltip";
+    _smTooltipEl.style.display = "none";
+    document.body.appendChild(_smTooltipEl);
+  }
+  return _smTooltipEl;
+}
+
+function _smShowTooltip(tile, x, y) {
+  const d = tile.dataset;
+  if (!d.sym) return;
+  const chg = d.chg === "" ? null : parseFloat(d.chg);
+  const mcap = parseFloat(d.mcap) || 0;
+  const chgStr = chg == null ? "—" : (chg >= 0 ? "+" : "") + chg.toFixed(2) + "%";
+  const tip = _smTooltip();
+  tip.innerHTML =
+    `<div class="sm-tt-sym">${d.sym}</div>` +
+    `<div class="sm-tt-name">${d.name || ""}</div>` +
+    `<div class="sm-tt-row"><span>Mkt cap</span><b>$${(mcap / 1e9).toFixed(1)}B</b></div>` +
+    `<div class="sm-tt-row"><span>Change</span><b style="color:${textForChange(chg) === '#fff' ? (chg >= 0 ? '#4ade80' : '#f87171') : 'var(--text)'}">${chgStr}</b></div>`;
+  tip.style.display = "block";
+  _smMoveTooltip(x, y);
+}
+
+function _smMoveTooltip(x, y) {
+  const tip = _smTooltip();
+  const pad = 14;
+  const r = tip.getBoundingClientRect();
+  // Flip to the other side of the cursor near the right/bottom edges.
+  let left = x + pad;
+  let top  = y + pad;
+  if (left + r.width  > window.innerWidth  - 8) left = x - r.width  - pad;
+  if (top  + r.height > window.innerHeight - 8) top  = y - r.height - pad;
+  tip.style.left = Math.max(8, left) + "px";
+  tip.style.top  = Math.max(8, top)  + "px";
+}
+
+function _smHideTooltip() {
+  if (_smTooltipEl) _smTooltipEl.style.display = "none";
+}
+
+function _attachTooltipDelegation(wrap) {
+  if (wrap._smTipBound) return;
+  wrap._smTipBound = true;
+  wrap.addEventListener("mouseover", (e) => {
+    const tile = e.target.closest(".sm-tile");
+    if (tile) _smShowTooltip(tile, e.clientX, e.clientY);
+  });
+  wrap.addEventListener("mousemove", (e) => {
+    if (_smTooltipEl && _smTooltipEl.style.display !== "none") _smMoveTooltip(e.clientX, e.clientY);
+  });
+  wrap.addEventListener("mouseout", (e) => {
+    const to = e.relatedTarget;
+    if (!to || !to.closest || !to.closest(".sm-tile")) _smHideTooltip();
+  });
+  // Safety net: leaving the map area always hides it.
+  wrap.addEventListener("mouseleave", _smHideTooltip);
+}
+
 async function loadStockMap() {
   const wrap = document.getElementById("stockMap");
   if (!wrap) return;
+  _attachTooltipDelegation(wrap);
   try {
     const r = await fetch("/api/stockmap");
     if (!r.ok) throw new Error(`HTTP ${r.status}`);
@@ -79,16 +157,21 @@ function renderStockMap() {
 
   const sectorRects = squarifiedTreemap(sectorNodes, { x: 0, y: 0, w: W, h: H });
 
+  const SECTOR_GAP = 1; // 1px inset per sector = 2px gap between adjacent sectors
+
   for (const sr of sectorRects) {
+    const bx = sr.x + SECTOR_GAP, by = sr.y + SECTOR_GAP;
+    const bw = sr.w - 2 * SECTOR_GAP, bh = sr.h - 2 * SECTOR_GAP;
+
     const block = document.createElement("div");
     block.className = "sm-sector";
-    block.style.left = sr.x + "px";
-    block.style.top = sr.y + "px";
-    block.style.width = sr.w + "px";
-    block.style.height = sr.h + "px";
+    block.style.left = bx + "px";
+    block.style.top = by + "px";
+    block.style.width = bw + "px";
+    block.style.height = bh + "px";
 
     // Sector label header (only if there's room)
-    const showLabel = sr.w > 60 && sr.h > 30;
+    const showLabel = bw > 60 && bh > 30;
     if (showLabel) {
       const label = document.createElement("div");
       label.className = "sm-sector-label";
@@ -102,8 +185,8 @@ function renderStockMap() {
     const headerH = showLabel ? 16 : 0;
     inner.style.left = "0";
     inner.style.top = headerH + "px";
-    inner.style.width = sr.w + "px";
-    inner.style.height = (sr.h - headerH) + "px";
+    inner.style.width = bw + "px";
+    inner.style.height = (bh - headerH) + "px";
     block.appendChild(inner);
 
     // Stocks within sector
@@ -112,7 +195,7 @@ function renderStockMap() {
       .sort((a, b) => b.value - a.value);
 
     const stockRects = squarifiedTreemap(stockNodes,
-      { x: 0, y: 0, w: sr.w, h: sr.h - headerH });
+      { x: 0, y: 0, w: bw, h: bh - headerH });
 
     for (const tr of stockRects) {
       const tile = document.createElement("a");
@@ -124,17 +207,50 @@ function renderStockMap() {
       tile.style.height = tr.h + "px";
       tile.style.background = colorForChange(tr.node.change_pct);
       tile.style.color = textForChange(tr.node.change_pct);
-      tile.title = `${tr.node.symbol} — ${tr.node.name} · $${(tr.node.mcap/1e9).toFixed(1)}B · ${tr.node.change_pct >= 0 ? "+" : ""}${tr.node.change_pct}%`;
+      // Data for the custom hover tooltip (replaces the laggy native title — which
+      // also matters for small/color-only tiles that show no ticker or %).
+      tile.dataset.sym  = tr.node.symbol;
+      tile.dataset.name = tr.node.name || "";
+      tile.dataset.mcap = tr.node.mcap || 0;
+      tile.dataset.chg  = (tr.node.change_pct ?? "");
 
-      // Show ticker + change% if there's room
-      if (tr.w > 36 && tr.h > 22) {
+      // Industry standard (Finviz/TradingView): hide text on small tiles — color only.
+      // full = ticker + change%; medium = ticker only; below threshold = nothing.
+      const showFull = tr.w > 80 && tr.h > 48;
+      const showMedium = !showFull && tr.w > 44 && tr.h > 28;
+
+      if (showFull || showMedium) {
+        // Logo on big tiles, TradingView-style: logo chip on top, then ticker, then %.
+        // Tickers without a logo (e.g. Taiwan .TW) silently drop the <img> on error,
+        // so the tile gracefully falls back to ticker + change% only.
+        if (showFull && tr.w >= 72 && tr.h >= 64) {
+          const logoSize = Math.max(18, Math.min(tr.w * 0.30, tr.h * 0.28, 52));
+          const logo = document.createElement("img");
+          logo.className = "sm-tile-logo";
+          logo.alt = "";
+          logo.loading = "lazy";
+          logo.src = logoUrl(tr.node.symbol);
+          logo.style.width = logo.style.height = Math.round(logoSize) + "px";
+          logo.addEventListener("error", () => logo.remove());
+          tile.appendChild(logo);
+        }
+
+        // Scale typography to tile size like TradingView — big caps (NVDA) get a
+        // large label, small tiles get a small one. Width-constrain so the ticker
+        // fits horizontally; height-constrain so a two-line tile doesn't overflow.
+        const symFont = Math.max(
+          SM_FONT_MIN,
+          Math.min(tr.w / (tr.node.symbol.length * 0.62), tr.h * 0.34, SM_FONT_MAX),
+        );
         const sym = document.createElement("div");
         sym.className = "sm-tile-sym";
         sym.textContent = tr.node.symbol;
+        sym.style.fontSize = symFont.toFixed(1) + "px";
         tile.appendChild(sym);
-        if (tr.h > 38) {
+        if (showFull) {
           const chg = document.createElement("div");
           chg.className = "sm-tile-chg";
+          chg.style.fontSize = Math.max(SM_FONT_MIN - 1, symFont * 0.62).toFixed(1) + "px";
           chg.textContent = (tr.node.change_pct >= 0 ? "+" : "") + tr.node.change_pct.toFixed(2) + "%";
           tile.appendChild(chg);
         }
@@ -145,26 +261,30 @@ function renderStockMap() {
   }
 }
 
-// ── Color: red (loss) → flat → green (gain) — TradingView heat ──────
+// ── 7-band stepped color scale matching TradingView's DARK-mode heatmap ──────
+// Bands: ≤-4.5  -4.5→-2.5  -2.5→-0.5  flat  +0.5→+2.5  +2.5→+4.5  ≥+4.5
+// Flat band is a muted dark slate (TV dark mode), not light grey, so it sits
+// naturally on the dark dashboard instead of glaring out.
+const _FLAT_BG = '#3a3e4a';
+const _FLAT_TEXT = '#c4c9d4';
+const _COLOR_BANDS = [
+  { min: -Infinity, max: -4.5, bg: '#8b1a1f', text: '#fff' },
+  { min: -4.5,      max: -2.5, bg: '#c0252c', text: '#fff' },
+  { min: -2.5,      max: -0.5, bg: '#e15c5c', text: '#fff' },
+  { min: -0.5,      max:  0.5, bg: _FLAT_BG, text: _FLAT_TEXT },
+  { min:  0.5,      max:  2.5, bg: '#2eaa6a', text: '#fff' },
+  { min:  2.5,      max:  4.5, bg: '#0c8a48', text: '#fff' },
+  { min:  4.5,      max:  Infinity, bg: '#06602f', text: '#fff' },
+];
+
 function colorForChange(p) {
-  if (p == null || isNaN(p)) return 'var(--bg4)';
-  // Cap at ±5% for color saturation.
-  const n = Math.max(-5, Math.min(5, p)) / 5;   // -1..1
-  if (n > 0) {
-    const a = 0.16 + Math.abs(n) * 0.75;
-    return `rgba(38,166,154,${a.toFixed(3)})`;   // TradingView green
-  }
-  if (n < 0) {
-    const a = 0.16 + Math.abs(n) * 0.75;
-    return `rgba(239,83,80,${a.toFixed(3)})`;    // TradingView red
-  }
-  return 'var(--bg4)';
+  if (p == null || isNaN(p)) return _FLAT_BG;
+  return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.bg ?? _FLAT_BG;
 }
 
-// Tile text: white when the heat is saturated, theme text otherwise.
 function textForChange(p) {
-  if (p == null || isNaN(p)) return 'var(--text2)';
-  return Math.abs(p) > 2 ? '#fff' : 'var(--text)';
+  if (p == null || isNaN(p)) return _FLAT_TEXT;
+  return _COLOR_BANDS.find(b => p >= b.min && p < b.max)?.text ?? '#fff';
 }
 
 // ── Squarified treemap (Bruls, Huijsen & van Wijk 2000) ─────

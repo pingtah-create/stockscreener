@@ -17,7 +17,12 @@
       "Bash(cmd /c \"for /f \\\\\"tokens=5\\\\\" %a in \\('netstat -aon ^| findstr :5000'\\) do taskkill /F /PID %a\")",
       "Bash(findstr /I \"success\\\\|error\\\\|killed\")",
       "Bash(python -c ' *)",
-      "Bash(cmd /c \"netstat -aon | findstr :5000\")"
+      "Bash(cmd /c \"netstat -aon | findstr :5000\")",
+      "Bash(lsof -ti:5000)",
+      "Bash(xargs kill -9)",
+      "Bash(/opt/homebrew/bin/python3 app.py)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(/opt/homebrew/bin/python3 *)"
     ]
   }
 }

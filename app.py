@@ -37,6 +37,15 @@ _stock_cache_lock = threading.Lock()
 _swingscan_cache: dict = {"results": None, "at": None}
 _SWINGSCAN_TTL = 120
 
+# Background portfolio analysis jobs.
+# Keyed by username so a single user can have one in-flight job at a time.
+# Results stay cached for _PORTFOLIO_TTL so a page reload (or even switching
+# back from another tab) can pick them up without re-running the AI.
+_portfolio_jobs_lock = threading.Lock()
+_portfolio_jobs: dict = {}
+_PORTFOLIO_TTL         = 60 * 60   # cached "ready" results valid for 1 hour
+_PORTFOLIO_RUN_TIMEOUT = 5 * 60    # "running" jobs older than this are abandoned
+
 INDICES = {
     "S&P 500": "^GSPC",
     "NASDAQ":  "^IXIC",
@@ -1108,6 +1117,13 @@ def api_swing(ticker: str):
         return jsonify({"error": "GROQ_API_KEY not set"}), 503
 
     data   = next((s for s in _stock_cache if s.get("symbol") == ticker), None) or _load_cache(ticker) or {}
+    # Overlay a live quote on a COPY — never mutate the shared _stock_cache entry.
+    # Entry/stop/target and the above/below-MA call all key off price, so a stale
+    # quote here gets baked into a setup that's then cached on disk for 24h.
+    from agent import _live_price
+    live_px, _ = _live_price(ticker)
+    if live_px:
+        data = {**data, "currentPrice": live_px}
     name   = data.get("shortName") or ticker
     price  = data.get("currentPrice") or data.get("previousClose")
     sma50  = data.get("fiftyDayAverage")
@@ -1773,27 +1789,26 @@ def api_portfolio_summary():
     # Resolve a quick {ticker -> stock_cache dict} lookup
     cache_by_sym = {s.get("symbol"): s for s in _stock_cache if s.get("symbol")}
 
-    # Any holding NOT in the stock cache (e.g. ETFs like SPY/IBIT/GLD) needs a
-    # live price. Batch-fetch ALL of them in ONE yf.download() call instead of
-    # N serial yf.Ticker().fast_info calls — the latter made this endpoint slow
-    # and prone to Vercel timeouts when the portfolio had many off-universe tickers.
-    extra_prices: dict = {}
-    missing = [
-        h.get("ticker", "").upper() for h in holdings
-        if h.get("ticker", "").upper() and h.get("ticker", "").upper() not in cache_by_sym
-    ]
-    missing = list({t for t in missing if t})
-    if missing:
+    # This is the user's money — EVERY holding must reflect a live quote, not the
+    # dashboard's bulk snapshot (refreshed at most once per 5 min, and never by
+    # this endpoint). Batch-fetch all holdings in ONE yf.download() call regardless
+    # of whether they're in the universe; the in-memory cache is only a fallback
+    # for price (when the live fetch misses) and for sector classification.
+    live_prices: dict = {}
+    all_tickers = list({
+        h.get("ticker", "").upper() for h in holdings if h.get("ticker", "").upper()
+    })
+    if all_tickers:
         try:
             import pandas as pd
-            df = yf.download(missing, period="2d", interval="1d",
+            df = yf.download(all_tickers, period="2d", interval="1d",
                              progress=False, auto_adjust=True, threads=True)
             if not df.empty:
                 close = df["Close"] if "Close" in df else df.get("Adj Close")
                 if close is not None and not close.empty:
-                    for t in missing:
+                    for t in all_tickers:
                         col = t if (hasattr(close, "columns") and t in close.columns) else None
-                        if col is None and len(missing) == 1:
+                        if col is None and len(all_tickers) == 1:
                             series = close.dropna() if hasattr(close, "dropna") else None
                         else:
                             series = close[col].dropna() if col is not None else None
@@ -1801,7 +1816,7 @@ def api_portfolio_summary():
                             last = float(series.iloc[-1])
                             prev = float(series.iloc[-2]) if len(series) >= 2 else None
                             chg  = round((last - prev) / prev * 100, 2) if prev and prev > 0 else 0
-                            extra_prices[t] = (last, chg)
+                            live_prices[t] = (last, chg)
         except Exception:
             pass
 
@@ -1812,16 +1827,17 @@ def api_portfolio_summary():
         if not ticker or shares <= 0:
             continue
 
-        data  = cache_by_sym.get(ticker)
-        if data:
+        data = cache_by_sym.get(ticker)
+        lp   = live_prices.get(ticker)
+        if lp:
+            price, chg = lp
+        elif data:
+            # Live fetch missed — fall back to the (possibly stale) cached quote
             price = data.get("currentPrice") or data.get("previousClose")
             chg   = data.get("regularMarketChangePercent") or 0
-            sector = data.get("sector") or "Unknown"
         else:
-            ep = extra_prices.get(ticker)
-            price = ep[0] if ep else None
-            chg   = ep[1] if ep else 0
-            sector = "ETF / Other"
+            price, chg = None, 0
+        sector = (data.get("sector") or "Unknown") if data else "ETF / Other"
         if not price:
             continue
 
@@ -1944,15 +1960,28 @@ def api_portfolio_perf():
         return jsonify({"error": str(e)}), 500
 
 
-@app.route("/api/portfolio-analysis", methods=["POST"])
-@auth.require_login_api
-def api_portfolio_analysis():
-    _ensure_stocks_loaded()
-    body        = request.json or {}
-    holdings_in = body.get("holdings") or []
+def _hash_portfolio_holdings(holdings_in: list, deep: bool) -> str:
+    """Stable hash of the holdings + deep flag — used to key cached jobs."""
+    import hashlib
+    norm = sorted(
+        (str(h.get("ticker", "")).upper(),
+         float(h.get("shares") or 0),
+         float(h.get("buyin") or 0))
+        for h in holdings_in
+    )
+    payload = repr(norm) + f"|deep={1 if deep else 0}"
+    return hashlib.sha1(payload.encode()).hexdigest()[:16]
 
-    if not holdings_in:
-        return jsonify({"error": "No holdings provided"}), 400
+
+def _compute_portfolio_analysis(holdings_in: list, deep: bool) -> dict:
+    """Synchronous heavy work for the portfolio analysis endpoint.
+
+    Returns a dict shaped as one of:
+        {"kind": "ready",        "result": {...response payload...}}
+        {"kind": "rate_limited", "message": str}
+        {"kind": "error",        "error":   str}
+    """
+    _ensure_stocks_loaded()
 
     tickers    = [h["ticker"].upper() for h in holdings_in]
     shares_map = {h["ticker"].upper(): float(h.get("shares", 1)) for h in holdings_in}
@@ -2026,10 +2055,11 @@ def api_portfolio_analysis():
         analysis       = ""
         stock_analyses = {}
         api_key = _os.environ.get("GROQ_API_KEY") or _os.environ.get("GEMINI_API_KEY", "")
+        key_missing = not api_key
         if api_key and allocation:
             try:
                 from portfolio_agent import analyze_portfolio
-                skip_deep    = not body.get("deep", False)
+                skip_deep    = not deep
                 agent_result = analyze_portfolio(
                     holdings_in, allocation, metrics,
                     _stock_cache, _indices_cache, api_key,
@@ -2040,20 +2070,148 @@ def api_portfolio_analysis():
             except Exception as ex:
                 msg = str(ex)
                 if "429" in msg:
-                    return jsonify({"error": "rate_limited",
-                                    "message": "Groq rate limit hit — wait a minute and try again."}), 429
+                    return {"kind": "rate_limited",
+                            "message": "Groq rate limit hit — wait a minute and try again."}
                 analysis = f"*Analysis unavailable: {ex}*"
 
-        return jsonify({
+        return {"kind": "ready", "result": {
             "allocation":     allocation,
             "metrics":        metrics,
             "ticker_returns": ticker_returns,
             "analysis":       analysis,
             "stock_analyses": stock_analyses,
-        })
+            "key_missing":    key_missing,
+        }}
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        return {"kind": "error", "error": str(e)}
+
+
+def _portfolio_job_worker(username: str, job_hash: str,
+                          holdings_in: list, deep: bool) -> None:
+    """Background thread body — runs the analysis and writes the result back
+    into _portfolio_jobs[username] *only if* the user hasn't started a different
+    job in the meantime."""
+    import time as _t
+    try:
+        outcome = _compute_portfolio_analysis(holdings_in, deep)
+    except Exception as ex:
+        outcome = {"kind": "error", "error": str(ex)}
+
+    finished = _t.time()
+    with _portfolio_jobs_lock:
+        job = _portfolio_jobs.get(username)
+        if not job or job.get("hash") != job_hash:
+            # User triggered a newer job — discard this stale result.
+            return
+        job["finished_at"] = finished
+        kind = outcome.get("kind")
+        if kind == "ready":
+            job["status"] = "ready"
+            job["result"] = outcome["result"]
+        elif kind == "rate_limited":
+            job["status"]        = "rate_limited"
+            job["error_message"] = outcome.get("message")
+        else:
+            job["status"] = "error"
+            job["error"]  = outcome.get("error") or "unknown error"
+
+
+@app.route("/api/portfolio-analysis", methods=["POST"])
+@auth.require_login_api
+def api_portfolio_analysis():
+    """Dispatch (or return cached) AI portfolio analysis.
+
+    The heavy work runs in a daemon thread keyed by username. The POST returns
+    immediately with one of:
+        {"status": "ready",        ...result fields...}  — fresh cached result
+        {"status": "running",      "hash": ..., "started_at": ...}
+        {"status": "rate_limited", "message": ...}
+        {"status": "error",        "error": ...}
+
+    The client polls /api/portfolio-analysis/status until status != 'running'.
+    """
+    body        = request.json or {}
+    holdings_in = body.get("holdings") or []
+    if not holdings_in:
+        return jsonify({"error": "No holdings provided"}), 400
+    deep = bool(body.get("deep"))
+    force = bool(body.get("force"))
+    user = auth.current_user() or "default"
+    job_hash = _hash_portfolio_holdings(holdings_in, deep)
+
+    import time as _t
+    now = _t.time()
+
+    with _portfolio_jobs_lock:
+        job = _portfolio_jobs.get(user)
+        # Same job already finished recently? Return cached result.
+        if (not force and job
+                and job.get("hash") == job_hash
+                and job.get("status") == "ready"
+                and job.get("finished_at")
+                and now - job["finished_at"] < _PORTFOLIO_TTL):
+            return jsonify({"status": "ready", "hash": job_hash, "deep": deep,
+                            "cached": True, **job["result"]})
+        # Same job still running? Return its in-flight state.
+        if (job
+                and job.get("hash") == job_hash
+                and job.get("status") == "running"
+                and now - job.get("started_at", 0) < _PORTFOLIO_RUN_TIMEOUT):
+            return jsonify({"status": "running", "hash": job_hash, "deep": deep,
+                            "started_at": job["started_at"]})
+        # Otherwise: register a fresh job and spawn the worker.
+        _portfolio_jobs[user] = {
+            "hash":        job_hash,
+            "deep":        deep,
+            "status":      "running",
+            "started_at":  now,
+            "finished_at": None,
+            "result":      None,
+            "error":       None,
+        }
+
+    threading.Thread(
+        target=_portfolio_job_worker,
+        args=(user, job_hash, holdings_in, deep),
+        daemon=True,
+    ).start()
+    return jsonify({"status": "running", "hash": job_hash, "deep": deep,
+                    "started_at": now})
+
+
+@app.route("/api/portfolio-analysis/status", methods=["GET"])
+@auth.require_login_api
+def api_portfolio_analysis_status():
+    """Poll the current analysis job for this user.
+
+    Optional ?hash=<h> narrows the response: if the server's job hash doesn't
+    match, status comes back as 'none' (so a stale poll doesn't render results
+    from a different holdings set).
+    """
+    user = auth.current_user() or "default"
+    want_hash = (request.args.get("hash") or "").strip()
+    with _portfolio_jobs_lock:
+        job = _portfolio_jobs.get(user)
+        if not job:
+            return jsonify({"status": "none"})
+        if want_hash and job.get("hash") != want_hash:
+            return jsonify({"status": "none",
+                            "current_hash": job.get("hash")})
+        payload = {
+            "status":      job["status"],
+            "hash":        job.get("hash"),
+            "deep":        job.get("deep"),
+            "started_at":  job.get("started_at"),
+            "finished_at": job.get("finished_at"),
+        }
+        if job["status"] == "ready" and job.get("result"):
+            payload.update(job["result"])
+        elif job["status"] == "error":
+            payload["error"] = job.get("error")
+        elif job["status"] == "rate_limited":
+            payload["message"] = job.get("error_message")
+        return jsonify(payload)
 
 
 @app.route("/api/quote/<ticker>")
